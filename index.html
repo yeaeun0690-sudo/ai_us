@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 마음 탐사대</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky:#7b6ef2;
+    --indigo:#8b5cf6;
+    --deep:#3f2e8f;
+    --ink:#241d3d;
+    --ink-2:#514a6b;
+    --muted:#7c749a;
+    --line:#e7e2f3;
+    --soft:#f3f0fb;
+    --grad:linear-gradient(135deg,#7b6ef2,#8b5cf6);
+    --font-display:"Jua",sans-serif;
+    --font-body:"Gowun Dodum",-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--font-body);
+    color:var(--ink);
+    line-height:1.6;
+    background:#ffffff;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* ---------- Nav ---------- */
+  nav{display:flex;align-items:center;justify-content:space-between;padding:20px 0;gap:16px}
+  .brand{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+  .brand .mark{width:38px;height:38px;border-radius:11px;background:var(--grad);
+    display:grid;place-items:center;box-shadow:0 4px 14px rgba(71,85,105,.28)}
+  .brand b{font-family:var(--font-display);font-size:1.6rem;color:var(--sky);font-weight:400;line-height:1.12}
+  .brand .lab{width:100%;font-family:var(--font-body);font-weight:400;font-size:.74rem;
+    color:#000;line-height:1.2;text-align:justify;text-align-last:justify}
+
+  /* right-side login toggle only */
+  .toggle{display:inline-flex;gap:5px;background:#edeef1;border:1px solid #e3e5ea;
+    border-radius:12px;padding:4px}
+  .toggle button{border:none;cursor:pointer;font-family:var(--font-body);font-weight:700;
+    font-size:.9rem;padding:9px 14px;border-radius:9px;background:transparent;color:var(--muted);
+    transition:background .2s,color .2s,box-shadow .2s}
+  .toggle button.on{background:var(--sky);color:#fff;box-shadow:0 3px 10px rgba(71,85,105,.28)}
+
+  /* ---------- Hero (centered) ---------- */
+  .hero{text-align:center;padding:48px 0 40px}
+  .hero h1{font-family:var(--font-display);font-weight:400;color:var(--sky);
+    font-size:clamp(2.4rem,6vw,4rem);line-height:1.16;letter-spacing:-.5px}
+  .hero .sub{margin:20px auto 6px;font-size:clamp(1.05rem,2.2vw,1.3rem);color:var(--ink-2);
+    max-width:32ch}
+  .hero .cap{font-size:.9rem;color:var(--muted)}
+
+  /* 중고등학생 모드: 파란색/블랙 계열 */
+  body.aud-teen{
+    --sky:#2563eb;
+    --indigo:#1e3a8a;
+    --deep:#0f172a;
+    --grad:linear-gradient(135deg,#2563eb,#1e3a8a);
+    --ink:#0f172a;
+    --ink-2:#334155;
+    --muted:#64748b;
+    --line:#e2e8f0;
+    --soft:#eef2fb;
+  }
+  body.aud-teen .hero h1{color:#111}
+  body.aud-teen .hero .sub{color:#111}
+  body.aud-teen .m-badge{background:#e6effe}
+  body.aud-teen .m-slot{background:#eef4fd}
+  body.aud-teen .m-slot .ph{border-color:#c7d6ee}
+  body.aud-teen .m-card:hover{border-color:#c3d6f5}
+  body.aud-teen .field input:focus{border-color:var(--sky);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  body.aud-teen .start{background:linear-gradient(135deg,#3f8bf5,#2f7cf0);color:#fff;border:none}
+  body.aud-teen .btn-primary{background:linear-gradient(135deg,#3f8bf5,#2f7cf0)}
+  body.aud-teen .start:hover{color:#fff}
+
+  /* image stage — scroll "stand up" reveal */
+  .stage{margin:clamp(40px,10vh,110px) auto 0;max-width:940px;perspective:1300px}
+  .art{position:relative;width:100%;aspect-ratio:870/565;border-radius:22px;overflow:hidden;
+    transform-origin:center bottom;will-change:transform,opacity;
+    box-shadow:0 30px 60px rgba(71,85,105,.16)}
+  .art img{display:block;width:100%;height:100%;object-fit:cover}
+
+  .start{display:inline-block;margin-top:34px;border:none;cursor:pointer;
+    font-family:var(--font-display);font-weight:400;font-size:1.15rem;color:#fff;
+    background:var(--grad);padding:14px 34px;border-radius:14px;text-decoration:none;
+    box-shadow:0 10px 24px rgba(71,85,105,.22);transition:transform .18s,box-shadow .18s}
+  .start:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(71,85,105,.3);color:#fff}
+
+  /* ---------- Research section ---------- */
+  .research{padding:90px 0 120px;text-align:center}
+  .research h2{font-family:var(--font-display);font-weight:400;color:var(--deep);
+    font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.3}
+  .hook{max-width:42ch;margin:16px auto 0;color:var(--ink-2);
+    font-size:clamp(1rem,2vw,1.12rem);line-height:1.7}
+  .hook em{font-style:normal;color:var(--sky);font-weight:700}
+
+  .missions{margin-top:48px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;
+    text-align:center}
+  .m-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;
+    box-shadow:0 6px 22px rgba(71,85,105,.08);text-align:center;
+    transition:transform .22s,box-shadow .22s,border-color .22s}
+  .m-card:hover{transform:translateY(-5px);box-shadow:0 14px 30px rgba(71,85,105,.15);
+    border-color:#ddd2f7}
+  .m-slot{position:relative;aspect-ratio:4/3;border-radius:12px;overflow:hidden;
+    background:#f7f4fd;margin-bottom:16px}
+  .m-slot .ph{position:absolute;inset:0;display:grid;place-items:center;color:#a79fc4;
+    font-size:.82rem;text-align:center;border:1.5px dashed #d2c9ec;border-radius:12px}
+  .m-slot .ico{font-size:1.5rem;display:block;margin-bottom:4px;opacity:.55}
+  .m-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .m-head{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:10px}
+  .m-badge{display:inline-block;padding:4px 11px;border-radius:20px;background:#efeafd;
+    color:var(--indigo);font-size:.72rem;font-weight:700;letter-spacing:1px}
+  .m-card h3{font-family:var(--font-display);font-weight:400;color:var(--deep);
+    font-size:1.18rem;line-height:1.35}
+  .m-card p{font-size:.92rem;color:var(--ink-2);line-height:1.65;
+    text-align:justify;text-align-last:center;word-break:keep-all}
+
+  /* ---------- Footer: privacy policy toggle ---------- */
+  .site-foot{border-top:1px solid var(--line);padding:26px 0 40px;text-align:center}
+  .policy{max-width:760px;margin:0 auto}
+  .policy__toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    background:none;border:none;cursor:pointer;padding:12px 8px;
+    font-family:var(--font-body);font-weight:400;font-size:1.12rem;color:#000}
+  .policy__toggle:hover{color:#000}
+  .policy__toggle .chev{transition:transform .28s ease;color:#000;font-size:.95rem}
+  .policy.open .policy__toggle .chev{transform:rotate(180deg)}
+  .policy__body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s ease}
+  .policy.open .policy__body{grid-template-rows:1fr}
+  .policy__body > div{overflow:hidden}
+  .policy__inner{padding:6px 4px 14px;font-size:.88rem;color:var(--muted);line-height:1.75}
+
+  /* ---------- Login modal ---------- */
+  .backdrop{position:fixed;inset:0;background:rgba(36,29,61,.45);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .backdrop.open{display:flex;animation:bd .2s ease}
+  @keyframes bd{from{opacity:0}to{opacity:1}}
+  .modal{position:relative;width:100%;max-width:400px;background:#fff;border-radius:20px;
+    padding:30px 26px;box-shadow:0 30px 70px rgba(36,29,61,.3);animation:pop .25s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  .modal .x{position:absolute;top:12px;right:14px;background:none;border:none;cursor:pointer;
+    font-size:1.5rem;color:var(--muted);line-height:1}
+  .modal h2{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1.5rem;
+    text-align:center;margin-bottom:4px}
+  .modal .desc{text-align:center;color:var(--ink-2);font-size:.9rem;margin-bottom:20px}
+  .field{margin-bottom:12px;text-align:left}
+  .field label{display:block;font-size:.8rem;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+  .field input{width:100%;padding:13px 15px;font-family:var(--font-body);font-size:.95rem;
+    background:#fff;border:1px solid var(--line);border-radius:12px;color:var(--ink);outline:none}
+  .field input:focus{border-color:var(--sky);box-shadow:0 0 0 3px rgba(123,110,242,.16)}
+  .btn-primary{width:100%;margin-top:8px;padding:14px;font-family:var(--font-display);font-weight:400;
+    font-size:1.05rem;color:#fff;background:var(--grad);border:none;border-radius:12px;cursor:pointer;
+    box-shadow:0 8px 20px rgba(71,85,105,.22);transition:transform .18s,box-shadow .18s}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(71,85,105,.28)}
+  .modal .hint{text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px}
+  .modal .err{color:#e2586a;font-size:.82rem;text-align:center;margin-top:12px;display:none}
+  .modal .err.show{display:block}
+  .field input.invalid{border-color:#e2586a;box-shadow:0 0 0 3px rgba(226,88,106,.14)}
+
+  /* ---------- Surveys view ---------- */
+  .surveys{position:fixed;inset:0;background:#fff;z-index:90;overflow-y:auto;display:none}
+  .surveys.open{display:block}
+  .sv-top{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    max-width:820px;margin:0 auto;padding:20px 24px;border-bottom:1px solid var(--line)}
+  .sv-top .who{color:var(--ink-2);font-size:.95rem}
+  .sv-top .who b{font-family:var(--font-display);font-weight:400;color:var(--sky);font-size:1.15rem}
+  .sv-logout{background:none;border:1px solid var(--line);border-radius:10px;padding:8px 14px;
+    cursor:pointer;font-family:var(--font-body);color:var(--ink-2);font-size:.85rem}
+  .sv-logout:hover{border-color:var(--sky);color:var(--sky)}
+  .sv-body{max-width:820px;margin:0 auto;padding:34px 24px 80px}
+  .sv-body h2{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1.9rem;
+    text-align:center}
+  .sv-body .lead{text-align:center;color:var(--ink-2);margin:10px auto 0;max-width:42ch}
+  .sv-prog{max-width:360px;margin:24px auto 34px}
+  .sv-prog .bar{height:10px;border-radius:99px;background:#eee9fb;overflow:hidden;margin-bottom:8px}
+  .sv-prog .bar span{display:block;height:100%;width:0%;background:var(--grad);border-radius:99px}
+  .sv-prog .lbl{font-size:.82rem;color:var(--muted);text-align:center}
+  .sv-list{display:grid;gap:14px}
+  .sv-card{display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:16px;
+    padding:18px 20px;background:#fff;transition:border-color .2s,box-shadow .2s}
+  .sv-card.available{border-color:#d7ccf8;box-shadow:0 8px 22px rgba(71,85,105,.08)}
+  .sv-card.locked{opacity:.6}
+  .sv-num{width:52px;height:52px;flex:none;border-radius:14px;display:grid;place-items:center;
+    font-family:var(--font-display);font-size:1.3rem;color:#fff;background:var(--grad)}
+  .sv-card.locked .sv-num{background:#c9c2de}
+  .sv-info{flex:1;text-align:left;min-width:0}
+  .sv-info h3{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1.15rem}
+  .sv-info p{font-size:.85rem;color:var(--muted);margin-top:2px}
+  .sv-action{flex:none}
+  .sv-action .go{background:var(--grad);color:#fff;border:none;border-radius:10px;padding:11px 18px;
+    font-family:var(--font-body);font-weight:700;font-size:.9rem;cursor:pointer;
+    box-shadow:0 6px 16px rgba(71,85,105,.2);transition:transform .18s}
+  .sv-action .go:hover{transform:translateY(-1px)}
+  .sv-action .lock{color:var(--muted);font-size:.85rem;white-space:nowrap}
+  @media(max-width:520px){
+    .sv-card{flex-wrap:wrap}
+    .sv-action{width:100%}
+    .sv-action .go{width:100%}
+  }
+
+  @media(max-width:820px){.missions{grid-template-columns:1fr;max-width:440px;margin-left:auto;margin-right:auto}}
+  @media(max-width:640px){
+    .wrap{padding:0 18px}
+    nav{flex-wrap:wrap}
+    .stage{margin-top:56px}
+  }
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto}}
+  /* ---------- Surveys: 설문/대화문 tabs ---------- */
+  .sv-tabs{display:inline-flex;gap:5px;background:var(--soft);border:1px solid var(--line);
+    border-radius:12px;padding:5px;margin-bottom:26px}
+  .sv-tab{border:none;background:transparent;cursor:pointer;font-family:var(--font-body);font-weight:700;
+    font-size:.95rem;padding:10px 20px;border-radius:9px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;
+    transition:background .2s,color .2s}
+  .sv-tab.on{background:var(--grad);color:#fff}
+  .sv-tabpanel{display:none}
+  .sv-tabpanel.on{display:block;animation:fade .25s ease}
+  .chat-locked{border:1px solid var(--line);border-radius:16px;padding:44px 24px;text-align:center;background:#faf9fe}
+  .chat-locked .ic{font-size:2.6rem;opacity:.6}
+  .chat-locked h3{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1.2rem;margin:12px 0 6px}
+  .chat-locked p{color:var(--muted);font-size:.92rem;max-width:34ch;margin:0 auto;line-height:1.7}
+
+  /* ---------- Signup (application) flow ---------- */
+  .signup-cta{text-align:center;font-size:.82rem;color:var(--muted);margin-top:14px}
+  .forgot{text-align:center;margin-top:10px}
+  .linkbtn{background:none;border:none;color:var(--sky);font-family:var(--font-body);font-weight:700;
+    font-size:.82rem;cursor:pointer;text-decoration:underline;padding:0}
+  .signup{position:fixed;inset:0;background:#fff;z-index:95;overflow-y:auto;display:none}
+  .signup.open{display:block}
+  .su-top{max-width:720px;margin:0 auto;padding:20px 24px;display:flex;align-items:center;
+    justify-content:space-between;border-bottom:1px solid var(--line)}
+  .su-top h2{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1.25rem}
+  .su-close{background:none;border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer;
+    color:var(--ink-2);font-size:.85rem;font-family:var(--font-body)}
+  .su-close:hover{border-color:var(--sky);color:var(--sky)}
+  .su-wrap{max-width:720px;margin:0 auto;padding:26px 24px 90px}
+  .su-steps{display:flex;gap:8px;margin-bottom:26px}
+  .su-steps .st{flex:1;height:6px;border-radius:99px;background:var(--soft)}
+  .su-steps .st.on{background:var(--grad)}
+  .su-panel{display:none}
+  .su-panel.on{display:block;animation:fade .25s ease}
+  .su-panel h3{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1.3rem;margin-bottom:6px}
+  .su-panel .p-desc{color:var(--ink-2);font-size:.92rem;margin-bottom:18px;line-height:1.6}
+  .doc{border:1px solid var(--line);border-radius:14px;padding:18px;background:#fbfaff;margin-bottom:16px}
+  .doc .lead{color:var(--ink);font-size:.95rem;line-height:1.8}
+  .doc-toggle{margin-top:14px;background:none;border:1px solid var(--line);border-radius:999px;padding:9px 18px;
+    cursor:pointer;font-family:var(--font-body);font-weight:700;font-size:.88rem;color:var(--sky);
+    display:inline-flex;align-items:center;gap:6px}
+  .doc-toggle .chev{transition:transform .28s}
+  .doc.open .doc-toggle .chev{transform:rotate(180deg)}
+  .doc-full{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s ease}
+  .doc.open .doc-full{grid-template-rows:1fr}
+  .doc-full > div{overflow:hidden}
+  .doc-full .inner{padding-top:6px;color:var(--ink-2);font-size:.9rem;line-height:1.85}
+  .doc-full h4{font-family:var(--font-display);font-weight:400;color:var(--deep);font-size:1rem;margin:16px 0 4px}
+  .chk{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--line);
+    border-radius:12px;margin-bottom:10px;cursor:pointer;background:#fff}
+  .chk input{margin-top:2px;width:18px;height:18px;accent-color:var(--sky);flex:none;cursor:pointer}
+  .chk .t{font-size:.92rem;color:var(--ink)}
+  .chk .t small{display:block;color:var(--muted);font-size:.8rem;margin-top:2px}
+  .chk .t b{color:var(--sky)}
+  .group-label{font-size:.85rem;font-weight:700;color:var(--ink-2);margin:18px 0 8px}
+  .radio-row{display:flex;gap:10px}
+  .radio-row label{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);
+    border-radius:12px;padding:12px;cursor:pointer;font-size:.95rem;color:var(--ink)}
+  .radio-row input{accent-color:var(--sky)}
+  .field select{width:100%;padding:13px 15px;font-family:var(--font-body);font-size:.95rem;background:#fff;
+    border:1px solid var(--line);border-radius:12px;color:var(--ink);outline:none;cursor:pointer}
+  .field select:focus{border-color:var(--sky);box-shadow:0 0 0 3px rgba(123,110,242,.16)}
+  .su-actions{display:flex;gap:10px;margin-top:22px}
+  .su-actions .btn-ghost{flex:0 0 auto;background:#fff;border:1px solid var(--line);color:var(--ink-2);
+    border-radius:12px;padding:14px 20px;font-family:var(--font-body);font-weight:700;cursor:pointer}
+  .su-actions .btn-ghost:hover{border-color:var(--sky);color:var(--sky)}
+  .su-actions .btn-primary{flex:1;margin-top:0}
+  .su-err{color:#e2586a;font-size:.85rem;margin-top:12px;display:none}
+  .su-err.show{display:block}
+  .su-done{text-align:center;padding:24px 10px}
+  .su-done .ico{font-size:3rem}
+  .su-done h3{font-size:1.5rem;margin:12px 0 8px}
+  .su-done p{color:var(--ink-2);line-height:1.8;max-width:36ch;margin:0 auto}
+  .su-done .box{background:var(--soft);border-radius:14px;padding:16px 18px;margin:18px auto 0;max-width:340px;
+    text-align:left;font-size:.92rem;color:var(--ink);line-height:1.9}
+  .su-done .box b{color:var(--sky)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">
+      <b>AI 마음 탐사대</b>
+      <span class="lab">계명대학교 디지털상담 연구실</span>
+    </div>
+
+    <div class="toggle" id="toggle" role="tablist" aria-label="대상 선택">
+      <button class="on" data-role="participant" data-aud="kid" role="tab" aria-selected="true">초등학생</button>
+      <button data-role="participant" data-aud="teen" role="tab" aria-selected="false">중고등학생</button>
+      <button data-role="researcher" role="tab" aria-selected="false">연구자</button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <h1>AI와 함께하는<br>우리의 일상탐사</h1>
+    <p class="sub" id="heroSub">AI와 함께하는 우리의 일상,<br>여러분의 이야기를 들려주세요.</p>
+
+    <div class="stage">
+      <div class="art" id="art">
+        <img id="heroImg" src="univers.png" alt="AI 행성을 가리키는 학생과 친근한 AI 로봇, 주위에 이야기하기·공부하기·만들기·마음 나누기·즐기기 아이콘이 떠 있는 일러스트">
+      </div>
+    </div>
+
+    <button class="start" id="startBtn" type="button">탐사 시작하기</button>
+  </header>
+
+  <!-- RESEARCH (heading only) -->
+  <section class="research" id="research">
+    <h2>이 탐사는 무엇을 알아보나요?</h2>
+    <p class="hook" id="hookText">여러분이 AI를 어떻게 쓰고 어떻게 느끼는지,<br>그 <em>이야기</em>가 이 탐사의 지도가 돼요.</p>
+
+    <div class="missions">
+      <div class="m-card">
+        <div class="m-slot">
+          <span class="ph"><span class="ico">🖼️</span>그림 자리</span>
+          <img id="m1img" src="think.PNG" alt="AI와 나의 생각하는 힘">
+        </div>
+        <div class="m-head"><span class="m-badge" id="m1badge">미션 1</span><h3 id="m1title">AI와 나의 생각하는 힘</h3></div>
+        <p id="m1desc">나는 AI를 어떻게 사용하고 있고, 나의 생각하는 힘에 어떤 영향을 줄까요?</p>
+      </div>
+
+      <div class="m-card">
+        <div class="m-slot">
+          <span class="ph"><span class="ico">🖼️</span>그림 자리</span>
+          <img id="m2img" src="mind.PNG" alt="AI와 나의 마음">
+        </div>
+        <div class="m-head"><span class="m-badge" id="m2badge">미션 2</span><h3 id="m2title">AI와 나의 마음</h3></div>
+        <p id="m2desc">나는 AI와 어떤 대화를 하고 있고, 나의 마음에 어떤 영향을 줄까요?</p>
+      </div>
+
+      <div class="m-card">
+        <div class="m-slot">
+          <span class="ph"><span class="ico">🖼️</span>그림 자리</span>
+          <img id="m3img" src="life.PNG" alt="AI와 나의 일상">
+        </div>
+        <div class="m-head"><span class="m-badge" id="m3badge">미션 3</span><h3 id="m3title">AI와 나의 일상</h3></div>
+        <p id="m3desc">나는 AI와 함께 어떻게 사용하고 있고, 친구·가족·일상생활에 어떤 영향을 줄까요?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER: privacy policy toggle -->
+  <footer class="site-foot">
+    <div class="policy" id="policy">
+      <button class="policy__toggle" id="policyToggle" aria-expanded="false" aria-controls="policyBody">
+        <span>개인정보처리방침</span>
+        <span class="chev" aria-hidden="true">▾</span>
+      </button>
+      <div class="policy__body" id="policyBody" role="region" aria-labelledby="policyToggle">
+        <div>
+          <div class="policy__inner">
+            여기에 개인정보 수집·이용 목적, 수집 항목, 보유 및 이용 기간, 동의 및 철회 방법 등 개인정보처리방침 내용이 들어갈 예정이에요. (내용 준비되면 채워 넣기)
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="backdrop" id="loginBackdrop" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal">
+    <button class="x" id="loginClose" aria-label="닫기">×</button>
+    <h2 id="loginTitle">탐사 시작</h2>
+    <p class="desc" id="loginDesc">휴대폰 번호와 비밀번호를 입력해 주세요.</p>
+
+    <div id="pPanel">
+      <div class="field">
+        <label for="lid">휴대폰 번호</label>
+        <input id="lid" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="tel">
+      </div>
+      <div class="field">
+        <label for="lpw">비밀번호</label>
+        <input id="lpw" type="password" placeholder="비밀번호" autocomplete="off">
+      </div>
+      <p class="forgot"><button type="button" id="toReset" class="linkbtn">비밀번호를 잊으셨나요?</button></p>
+      <p class="signup-cta">아직 신청 전이신가요? <button type="button" id="toSignup" class="linkbtn">탐사 신청하기</button></p>
+    </div>
+
+    <div id="rPanel" style="display:none">
+      <div class="field">
+        <label for="rid">아이디</label>
+        <input id="rid" type="text" placeholder="연구자 아이디" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="rpw">비밀번호</label>
+        <input id="rpw" type="password" placeholder="비밀번호" autocomplete="off">
+      </div>
+    </div>
+
+    <button class="btn-primary" id="loginSubmit" type="button">로그인</button>
+    <p class="err" id="loginErr" role="alert"></p>
+    <p class="hint" id="loginHint">로그인 정보는 디지털상담 연구실 연구원에게 받아요.</p>
+  </div>
+</div>
+
+<!-- PASSWORD RESET MODAL -->
+<div class="backdrop" id="resetBackdrop" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+  <div class="modal">
+    <button class="x" id="resetClose" aria-label="닫기">×</button>
+    <div id="resetForm">
+      <h2 id="resetTitle">비밀번호 재설정</h2>
+      <p class="desc">가입할 때 등록한 이메일로 재설정 링크를 보내드려요.</p>
+      <div class="field">
+        <label for="resetPhone">휴대폰 번호 (아이디)</label>
+        <input id="resetPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="tel">
+      </div>
+      <button class="btn-primary" id="resetSubmit" type="button">재설정 링크 보내기</button>
+      <p class="err" id="resetErr" role="alert"></p>
+      <p class="hint">이메일이 기억나지 않으면 디지털상담 연구실 연구원에게 문의하세요.</p>
+    </div>
+    <div id="resetDone" style="display:none;text-align:center">
+      <div style="font-size:2.6rem">📧</div>
+      <h2 style="margin-top:8px">링크를 보냈어요!</h2>
+      <p class="desc">등록하신 이메일로 <b>비밀번호 재설정 링크</b>를 보냈어요.<br>메일의 링크에서 새 비밀번호를 설정해 주세요.</p>
+      <button class="btn-primary" id="resetDoneBtn" type="button">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- SURVEYS VIEW (after login) -->
+<div class="surveys" id="surveys" role="region" aria-label="설문 탐사 목록">
+  <div class="sv-top">
+    <span class="who"><b>탐사대원</b>님, 환영해요!</span>
+    <button class="sv-logout" id="svLogout">로그아웃</button>
+  </div>
+  <div class="sv-body">
+    <h2>나의 설문 탐사</h2>
+    <div class="sv-tabs" id="svTabs">
+      <button class="sv-tab on" data-tab="survey" type="button">설문 참여하기</button>
+      <button class="sv-tab" data-tab="chat" type="button">대화문 제출하기</button>
+    </div>
+
+    <div class="sv-tabpanel on" id="tab-survey">
+      <p class="lead">한 달에 한 번, 총 <b>4회</b>의 탐사를 완료해요.<br>지금은 1회차부터 시작할 수 있어요.</p>
+
+      <div class="sv-prog">
+        <div class="bar"><span style="width:0%"></span></div>
+        <div class="lbl">0 / 4회 완료</div>
+      </div>
+
+      <div class="sv-list">
+        <div class="sv-card available">
+          <div class="sv-num">1</div>
+          <div class="sv-info">
+            <h3>1회차 탐사</h3>
+            <p>지금 참여할 수 있어요 · 약 40분</p>
+          </div>
+          <div class="sv-action"><button class="go" type="button">설문 시작하기</button></div>
+        </div>
+
+        <div class="sv-card locked">
+          <div class="sv-num">2</div>
+          <div class="sv-info">
+            <h3>2회차 탐사</h3>
+            <p>다음 달에 열려요</p>
+          </div>
+          <div class="sv-action"><span class="lock">🔒 잠김</span></div>
+        </div>
+
+        <div class="sv-card locked">
+          <div class="sv-num">3</div>
+          <div class="sv-info">
+            <h3>3회차 탐사</h3>
+            <p>2개월 뒤에 열려요</p>
+          </div>
+          <div class="sv-action"><span class="lock">🔒 잠김</span></div>
+        </div>
+
+        <div class="sv-card locked">
+          <div class="sv-num">4</div>
+          <div class="sv-info">
+            <h3>4회차 탐사</h3>
+            <p>3개월 뒤에 열려요</p>
+          </div>
+          <div class="sv-action"><span class="lock">🔒 잠김</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sv-tabpanel" id="tab-chat">
+      <div id="chatOpen">
+        <p class="lead">AI 대화문은 총 <b>2회</b> 제출할 수 있어요.<br>1차 설문 후와 4차 설문 후에 제출해요.</p>
+        <div class="sv-list" style="margin-top:26px">
+          <div class="sv-card available">
+            <div class="sv-num">1</div>
+            <div class="sv-info">
+              <h3>대화문 제출 1</h3>
+              <p>1차 설문 후 제출 · 10,000원 상당</p>
+            </div>
+            <div class="sv-action"><button class="go chat-go" type="button">대화문 제출하기</button></div>
+          </div>
+          <div class="sv-card locked">
+            <div class="sv-num">2</div>
+            <div class="sv-info">
+              <h3>대화문 제출 2</h3>
+              <p>4차 설문 후에 열려요</p>
+            </div>
+            <div class="sv-action"><span class="lock">🔒 잠김</span></div>
+          </div>
+        </div>
+      </div>
+      <div id="chatLocked" class="chat-locked" style="display:none">
+        <div class="ic">🔒</div>
+        <h3>대화문 제출은 잠겨 있어요</h3>
+        <p>대화문 제출은 신청할 때 <b>대화문 제출에 동의한 참여자</b>만 이용할 수 있어요.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SIGNUP (application) FLOW -->
+<div class="signup" id="signup" role="region" aria-label="탐사 신청">
+  <div class="su-top">
+    <h2>탐사 신청하기</h2>
+    <button class="su-close" id="suClose" type="button">닫기</button>
+  </div>
+  <div class="su-wrap">
+    <div class="su-steps" id="suSteps">
+      <span class="st on"></span><span class="st"></span><span class="st"></span>
+    </div>
+
+    <!-- STEP 1: 설명문 -->
+    <div class="su-panel on" data-step="0">
+      <h3>연구 설명문</h3>
+      <p class="p-desc">아래 내용을 읽고, 모두 확인했는지 체크해 주세요.</p>
+      <div class="doc" id="doc">
+        <div class="lead">본 연구는 청소년(초4~고3)이 생성형 AI(ChatGPT, Gemini 등)를 어떻게 사용하는지, 그 사용이 정서·대인관계·일상생활에 어떤 영향을 주는지 알아보는 연구입니다. 한 달에 한 번, 약 4개월간 <b>총 4회</b> 온라인 설문에 참여하며, 원하는 경우 <b>AI 대화문</b>도 제출할 수 있어요.</div>
+        <button class="doc-toggle" id="docToggle" type="button">전체 보기 <span class="chev">▾</span></button>
+        <div class="doc-full" id="docFull"><div><div class="inner">
+          <h4>연구과제명</h4>
+          청소년 AI 이용 특성 기반 대응 방안 수립: 종단적 변화 탐색 및 대화문 분석
+          <h4>연구 안내</h4>
+          본 연구는 청소년이 생성형 AI를 어떻게 사용하고 있는지 알아보기 위한 연구입니다. 생성형 AI는 ChatGPT, Gemini, Copilot, Perplexity AI, Google NotebookLM, Zeta 등과 같이 질문에 답하거나, 글을 써주거나, 대화를 나눌 수 있는 인공지능 서비스입니다. 본 연구는 청소년들의 생성형 AI 사용 특성과 이러한 사용이 정서, 대인관계, 일상생활에 미치는 영향 등을 알아보기 위한 것입니다. 귀하는 본 연구의 참여 여부를 결정하기 전에 설명서와 동의서를 신중히 읽어보셔야 합니다. 이 연구가 왜 수행되며, 무엇을 수행하는지에 대해 귀하가 이해하는 것이 중요합니다. 이 연구는 자발적으로 참여 의사를 밝히신 분에 한하여 수행됩니다. 다음 내용을 신중히 읽어보신 후 아래 2가지 경우 중 한 가지 참여 의사를 밝혀 주시기 바랍니다. 연구대상자인 청소년 본인과 법적 보호자가 모두 동의한 경우에만 참여할 수 있습니다.<br><br>
+          문의사항이 있다면 담당 연구원(조예은, 010-9386-08**/ai.mental.health26@gmail.com)에게 연락을 주시면 자세하게 설명해 줄 것입니다. 귀하의 서명은 귀하가 본 연구에 대해 그리고 위험성에 대해 설명을 들었음을 의미하며, 이 설명문을 읽고 ‘동의’에 표시하는 것은 귀하와 법적 보호자가 본 연구 참가에 동의한다는 것을 의미합니다.
+          <h4>1. 연구의 배경과 목적</h4>
+          최근 ChatGPT(챗지피티), Wrtn(뤼튼), Gemini(제미나이), Perplexity AI(퍼플렉시티 AI), Google NotebookLM(구글 노트북엘엠), Zeta(제타), Character.AI와 같은 생성형 AI와 AI 챗봇의 사용이 늘어남에 따라 청소년들도 생성형 AI를 통해 정보를 찾고, 학습이나 과제 수행을 하고, 또한 대화상대처럼 고민을 털어놓으며 도움을 받고 있습니다. 하지만 AI를 너무 자주 사용하거나, 의지하는 경우에 발생하는 다양한 문제에 대한 우려도 있습니다.<br><br>
+          따라서 본 연구는 초등학교 4학년부터 고등학교 3학년에 재학 중이거나 그에 해당하는 나이의 청소년을 대상으로, 생성형 AI 사용 경험과 이러한 사용이 정서, 대인관계, 학교 및 일상생활에 미치는 영향을 살펴보고자 합니다.<br><br>
+          이 연구를 통해 생성형 AI 사용의 현실을 이해하고, 청소년이 AI를 더 건강하고 안전하게 사용할 수 있는 교육, 심리적 개입, 정책 개발에 반영하는 자료를 얻고자 합니다.
+          <h4>2. 연구 참여 대상</h4>
+          ○ 현재 국내 초등학교 4학년부터 고등학교 3학년에 재학 중이거나, 그 학년에 해당하는 나이의 청소년(단, 조기 입학, 조기 진급, 유예 등 해당 학년의 일반적인 나이에 속하지 않는 경우에는 참여가 어려울 수 있습니다)<br><br>
+          ○ ChatGPT(챗지피티), Wrtn(뤼튼), Gemini(제미나이), Copilot(코파일럿), Perplexity AI(퍼플렉시티 AI), Google NotebookLM(구글 노트북엘엠), Zeta(제타) 등 생성형 AI 또는 AI 챗봇을 사용해 본 경험이 있는 청소년
+          <h4>3. 연구 참여 절차 및 방법</h4>
+          연구에 참여하기를 희망하는 청소년은 먼저 연구 설명문과 동의서를 읽고, 연구 참여에 동의할지 결정하게 됩니다. 청소년 본인이 먼저 연구 설명문을 확인하고 참여에 동의한 경우, 법적 보호자도 같은 연구 설명문을 확인한 뒤 동의 여부를 표시합니다. 청소년 본인과 법적 보호자가 모두 동의한 경우에만 연구 참여가 가능합니다.<br><br>
+          본 연구는 크게 온라인 설문조사와 생성형 AI 대화문 제출로 이루어져 있습니다. 온라인 설문조사는 연구에 참여하는 모든 청소년이 참여하는 절차이며, 생성형 AI 대화문 제출은 설문조사 참여자 중 별도로 동의한 청소년만 선택적으로 참여하는 절차입니다. 따라서 AI 대화문 제출에 동의하지 않더라도 설문조사 참여에는 불이익이 없습니다.<br><br>
+          설문은 1차, 2차, 3차, 4차 순서로 진행됩니다. 2차 설문은 1차 설문을 완료한 참여자, 3차 설문은 2차 설문을 완료한 참여자, 4차 설문은 3차 설문을 완료한 참여자를 대상으로 진행됩니다. 따라서 특정 회차의 설문 참여를 완료하지 않거나 중단한 경우에는 다음 설문 참여가 어려울 수 있습니다.<br><br>
+          AI 대화문 자료 제출은 설문조사 참여자 중 추가 참여를 희망하는 경우에만 선택적으로 이루어집니다. 대화문 제출을 희망하는 청소년은 1차 설문 후와 4차 설문 후, 총 2회 제출할 수 있습니다. 두 번 모두 제출하지 않아도 되며, 1차 설문 후 또는 4차 설문 후 중 한 번만 제출하는 것도 가능합니다. 대화문 자료를 제출하지 않거나 한 번만 제출하더라도 설문조사 참여에서 제외되지는 않습니다.
+          <h4>4. 연구 참여 기간</h4>
+          연구 참여는 약 4개월 동안, 한 달에 한 번씩 총 4회 진행되는 온라인 설문조사와 희망 시 선택 참여 가능한 생성형 AI 대화문 제출로 이루어집니다.
+          <h4>5. 부작용 또는 위험 요소</h4>
+          본 연구 참여에 있어서 신체적인 부작용이나 큰 위험요소는 없습니다. 다만 이 연구는 생성형 AI 사용 경험, 주변 사람들과의 관계, 학교생활, 외로움이나 정서적 어려움 등에 대해 답변하는 설문 문항을 포함하고 있습니다. 따라서 참여하는 과정에서 자신의 경험이나 감정을 떠올리며 일시적인 불편감을 경험할 수 있습니다. 이러한 불편감은 일상생활에서 경험하는 스트레스를 넘지 않을 것으로 생각되며, 연구 참여 후 사라질 가능성이 높습니다. 그러나 연구 참여 도중 불편감을 느껴 연구 참여를 멈추고 싶다면 언제든지 중단할 수 있으며 이에 따른 불이익은 없습니다.<br><br>
+          또한 연구 참여로 인한 불편감이 지속되는 경우 책임 연구원의 오픈 카카오톡 ID 혹은 이메일로 연락해 주시면 적절한 도움을 안내해 드릴 것입니다. 필요한 경우 전문 상담기관(Wee 센터, 청소년상담복지센터, 청소년전화 1388)과의 연결에 도움을 드릴 수 있습니다.<br><br>
+          생성형 AI 대화문 자료에서 자해, 자살, 학교폭력, 아동폭력 등 참여자 또는 다른 사람의 안전과 관련된 위험이 확인되거나, 법적으로 신고가 필요한 내용이 확인되는 경우에는 연구대상자의 안전을 위해 법적 보호자에게 알리고 필요한 후속 조치를 안내할 수 있습니다. 이 경우 내용의 정도와 상황에 따라 학교의 위기관리위원회, 상담교사 또는 Wee 클래스, 청소년상담복지센터, 정신건강복지센터, 청소년전화 1388 등 적절한 도움 기관과 연결될 수 있도록 안내합니다.<br><br>
+          마지막으로 여러분의 설문 응답과 제출한 대화문 자료는 누가 응답하였는지 알 수 없도록 처리되며, 연구 참여 여부나 응답 내용으로 인해 개인적·학업적 손해가 발생하지 않습니다.
+          <h4>6. 연구 참여에 따른 혜택</h4>
+          본 연구 참여로 직접적으로 얻는 치료적 또는 교육적 이익은 없습니다. 다만 연구에 참여하면서 자신의 생성형 AI 사용 경험과 생활, 감정, 친구·가족·선생님과의 관계, 학교생활 등을 돌아보는 기회를 가질 수 있습니다. 앞으로 청소년들이 생성형 AI를 더 건강하고 안전하게 사용할 수 있도록 돕는 교육, 상담, 보호자 지도, 학교 현장을 위한 중요한 자료로 사용될 것입니다.
+          <h4>7. 연구 참여에 따른 보상 또는 비용</h4>
+          설문조사에 참여하신 경우, 각 회차별 설문 참여 완료에 대한 감사의 의미로 7,000원 상당의 모바일 편의점 상품권이 제공됩니다. 설문조사는 총 4회 진행되며, 4회 설문에 모두 참여할 경우 총 28,000원 상당의 모바일 편의점 상품권을 받으실 수 있습니다. 모바일 편의점 상품권은 각 회차 설문 참여 완료 후 1주일 뒤 연구 참여 시 제공해주신 연락처로 발송됩니다.<br><br>
+          단, 다음의 경우는 성실하지 않은 응답으로 판단될 수 있으며 해당 회차의 참여사례비 지급은 이루어지지 않습니다.<br>
+          ① 응답이 지나치게 규칙적인 경우(예: 1, 2, 3의 응답을 계속 반복하는 경우)<br>
+          ② 특정 숫자만 반복해서 선택하는 경우(예: 모든 문항을 ‘1’로만 응답하는 경우)<br>
+          ③ 응답하지 않은 문항이 30% 이상인 경우<br><br>
+          또한 생성형 AI 대화문 제출에 별도로 동의하고 대화문 자료를 제출하신 경우, 각 대화문 제출 회차별로 10,000원 상당의 모바일 편의점 상품권이 제공됩니다. 대화문 제출은 1차 설문 후와 4차 설문 후 총 2회 가능하며, 두 번 모두 제출할 경우 총 20,000원 상당의 모바일 편의점 상품권을 받으실 수 있습니다. 모바일 편의점 상품권은 각 대화문 제출 완료 후 1주일 뒤 연구 참여 시 제공해주신 연락처로 발송됩니다.<br><br>
+          단, 다음과 같은 경우에는 대화문 제출 보상이 지급되지 않을 수 있습니다.<br>
+          ① 실제 생성형 AI와의 대화문이 아닌 내용을 제출한 경우<br>
+          ② 2주 미만 사용한 AI 대화문을 제출한 경우, 또는 제출한 대화문이 10개 미만인 경우(개수는 AI와의 채팅창 개수를 기준으로 합니다)<br>
+          ③ 대화문 내용의 30% 이상을 확인할 수 없도록 가린 경우<br>
+          ④ 1차와 2차에 동일한 대화문을 제출한 경우(이 경우 대화문 제출 사례비는 1회 지급)<br>
+          ⑤ 본인 또는 보호자의 동의 없이 자료를 제출한 경우<br>
+          ⑥ 타인의 대화문을 본인의 자료처럼 제출한 경우<br><br>
+          대화문 제출은 선택 참여이므로, 대화문을 제출하지 않더라도 설문조사 참여에는 불이익이 없습니다.
+          <h4>8. 개인정보와 비밀 보장</h4>
+          (개인식별정보, 고유식별정보, 민감정보 수집 여부 및 수집하게 되는 개인정보의 목록 나열 그리고 이에 관한 사항)<br><br>
+          본 연구에서 수집하는 설문 응답 내용과 생성형 AI 대화문 자료는 참여자를 나타내는 특별한 번호로만 구분됩니다. 연구 참여자의 이름은 수집하지 않으며, 연구자료에는 이름 대신 연구 참여 번호가 사용됩니다.<br><br>
+          본 연구에서 수집하는 개인정보는 성별, 나이, 학년, 연구 참여자와 연락처, 법적 보호자 연락처, e-mail 혹은 sns 연락처 입니다. 연구 참여자의 연락처와 e-mail 혹은 sns 연락처는 연구 절차 안내와 모바일 상품권 발송을 위한 목적으로만 사용되며, 다른 연구자료와 분리하여 보관됩니다. 법적 보호자의 연락처는 연구 참여 과정에서 청소년의 안전과 권익을 보호하기 위해 수집합니다. 예를 들어 연구 도중 심리적 불편감이나 예상치 못한 상황이 발생할 경우, 보호자에게 연락하여 적절한 도움을 받을 수 있도록 하기 위한 목적입니다.<br><br>
+          설문 응답자료에는 연구 목적을 위해서만 사용되며, 연구 결과가 학술지나 학회 등에서 발표될 때에도 누가 어떤 응답을 하였는지 알 수 없도록 통계자료로만 제시됩니다. 생성형 AI 대화문 제출에 별도로 동의한 경우, 제출하는 대화문에는 참여자가 생성형 AI 또는 AI 챗봇과 나눈 실제 대화 내용이 포함될 수 있습니다. 참여자는 대화문을 제출하기 전에 자신이나 다른 사람을 알아볼 수 있는 이름, 이메일, 전화번호, 주소 등의 개인정보를 삭제한 뒤 제출해야 합니다. 제출된 대화문에서 추가적인 개인정보 또는 재식별 가능 정보가 확인될 경우, 연구자는 해당 정보를 삭제하거나 알아볼 수 없도록 한 후 연구자료로 사용합니다.<br><br>
+          수집한 개인정보와 연구자료는 연구진만 접근할 수 있도록 암호가 설정된 연구 전용 저장 장치에 보관합니다. 연구 참여자의 연락처와 e-mail 주소는 4회차 보상 지급이 끝난 뒤 즉시 삭제됩니다. 4회차 전에 연구 참여를 중단한 경우에는 연구 참여자의 연락처와 e-mail 주소를 확인한 즉시 삭제합니다. 법적 보호자의 연락처는 연구 참여 청소년의 안전을 위해 연구 기간 동안만 보관하며, 자료 수집이 안전하게 마무리된 후 즉시 삭제합니다. 개인정보 중 성별, 학년은 참여자 특성 분석을 위해 사용됩니다.<br><br>
+          그러나 만일 법이 요구한다면 귀하의 개인정보는 제공될 수도 있습니다. 또한 모니터 요원, 점검 요원, 계명대학교 생명윤리위원회는 연구대상자의 비밀보장을 침해하지 않고 관련 규정이 정하는 범위 안에서 본 연구의 실시 절차와 자료의 신뢰성을 확인하기 위해 연구 관련 자료를 직접 열람하거나 제출을 요청할 수 있습니다. 귀하가 본 동의서에 서명하는 것은 이러한 사항에 대하여 사전에 알고 있었으며 이를 허용한다는 의사로 간주될 것입니다.<br><br>
+          연구 종료 후 연구 관련 자료, 즉 기관위원회 심의결과, 서면동의서, 개인정보 수집·이용 및 제공 현황, 연구종료보고서, 연구결과보고서 등은 「생명윤리 및 안전에 관한 법률 시행규칙」 제15조에 따라 연구 종료 후 3년간 보관됩니다. 보관 기간이 끝나면 파일 영구삭제 등 복구할 수 없는 방법으로 삭제됩니다.
+          <h4>9. 동의의 철회에 관한 사항(자발적 연구 참여와 중지)</h4>
+          본 연구는 완전히 스스로 참여하고 싶은 마음에 바탕하며, 연구에 참여할지 선택은 여러분의 자유로운 선택에 달려 있습니다. 연구에 참여하지 않더라도 학교생활, 성적, 선생님과의 관계, 기관 이용 등에 어떠한 불이익도 없습니다. 연구에 참여한 이후라도 언제든지 도중에 그만둘 수 있습니다.<br><br>
+          연구 참여 중, 생성형 AI 사용 경험에 대해 답변하면서 불편하거나 예민한 마음이 생길 수 있습니다. 또한 생성형 AI 대화문 제출에 동의한 경우, 이전에 AI와 나눈 대화문을 다시 확인하는 과정에서 개인적인 고민이나 감정이 떠올라 불편감을 느낄 수도 있습니다. 이러한 경우 연구에 참여하지 않거나, 참여 도중 언제든지 그만둘 수 있으며, 그만두는 것으로 인해 어떠한 불이익도 발생하지 않습니다. 연구 참여를 중단한 경우, 완료하지 않은 자료는 연구에 사용하지 않으며 연구자가 확인한 즉시 삭제합니다. 다만 특정 회차까지 설문을 완료한 뒤 이후 회차에 더 이상 참여하지 않는 경우, 이미 완료한 이전 회차의 설문자료는 연구 참여자가 자료 사용 취소를 표현하지 않으시면 연구자료로 사용할 수 있습니다. 연구 참여자가 자료 사용을 취소하길 원하시는 경우, 해당 자료를 삭제합니다. 연구 참여를 그만둔 후에도 심리적 불편감이 지속된다면, 알려드린 연구진의 연락처로 연락해 주시면 도움을 안내받을 수 있습니다.
+          <h4>10. 연구문의</h4>
+          본 연구에 대해 질문이 있거나 연구 중간에 문제가 생길 시 다음의 연구 담당자에게 언제든지 연락하십시오.<br>
+          이름: 조예은 연구원 · 오픈 카카오톡 접속 링크: (안내 예정)<br>
+          전자우편: ai.mental.health26@gmail.com<br><br>
+          만일 어느 때라도 연구대상자로서 귀하의 권리에 대한 질문이 있다면 다음의 계명대학교 생명윤리위원회에 연락하십시오.<br>
+          계명대학교 생명윤리위원회 · 전화번호: 053-580-6299 · 전자우편: kmirb@kmu.ac.kr
+        
+        </div></div></div>
+      </div>
+      <label class="chk req">
+        <input type="checkbox" id="readAll">
+        <span class="t"><b>위 설명문 내용을 모두 확인했습니다.</b><small>확인해야 다음으로 진행할 수 있어요.</small></span>
+      </label>
+      <p class="su-err" id="err0">설명문을 확인했는지 체크해 주세요.</p>
+      <div class="su-actions">
+        <button class="btn-primary" type="button" data-next="1">다음</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: 참여 형태 + 동의 -->
+    <div class="su-panel" data-step="1">
+      <h3>참여 형태 및 동의</h3>
+      <p class="p-desc">참여 형태를 고르고, 동의 항목에 체크해 주세요.</p>
+      <div class="group-label">참여 형태</div>
+      <label class="chk"><input type="checkbox" id="joinSurvey" checked disabled><span class="t"><b>설문조사 참여</b> (필수)<small>총 4회 참여 가능 · 회차마다 7,000원 상당 모바일 상품권 (4회 모두 완료 시 28,000원)</small></span></label>
+      <label class="chk"><input type="checkbox" id="joinChat"><span class="t">AI 대화문 제출 (선택)<small>원하는 경우에만 제출 · 총 2회(1차 후·4차 후) · 회차마다 10,000원 상당 모바일 상품권</small></span></label>
+      <div class="group-label">동의</div>
+      <label class="chk req"><input type="checkbox" id="agreeSelf"><span class="t"><b>본인(청소년) 동의</b><small>연구 참여에 동의합니다.</small></span></label>
+      <label class="chk req"><input type="checkbox" id="agreeGuardian"><span class="t"><b>법적 보호자 동의</b><small>보호자가 연구 참여에 동의합니다.</small></span></label>
+      <p class="su-err" id="err1">필수 동의 항목에 모두 동의하지 않는 경우, 연구에 참여하실 수 없습니다.</p>
+      <div class="su-actions">
+        <button class="btn-ghost" type="button" data-prev="0">이전</button>
+        <button class="btn-primary" type="button" data-next="2">다음</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: 신청서 -->
+    <div class="su-panel" data-step="2">
+      <h3>신청 정보 입력</h3>
+      <p class="p-desc">연락처는 아이디 생성·보상·안전 목적으로만 쓰이며, 설문 응답과 분리되어 관리돼요.</p>
+      <div class="group-label">성별</div>
+      <div class="radio-row">
+        <label><input type="radio" name="gender" value="남"><span>남</span></label>
+        <label><input type="radio" name="gender" value="여"><span>여</span></label>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label for="grade">학교급 · 학년</label>
+        <select id="grade">
+          <option value="">선택하세요</option>
+          <option>초등학교 4학년</option>
+          <option>초등학교 5학년</option>
+          <option>초등학교 6학년</option>
+          <option>중학교 1학년</option>
+          <option>중학교 2학년</option>
+          <option>중학교 3학년</option>
+          <option>고등학교 1학년</option>
+          <option>고등학교 2학년</option>
+          <option>고등학교 3학년</option>
+        </select>
+      </div>
+      <div class="field"><label for="suPhone">본인 휴대폰 번호 (로그인 아이디로 사용)</label><input id="suPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="off"></div>
+      <div class="field"><label for="guPhone">법적 보호자 휴대폰 번호</label><input id="guPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="off"></div>
+      <div class="field"><label for="suEmail">이메일 (비밀번호 찾기용)</label><input id="suEmail" type="email" placeholder="example@email.com" autocomplete="off"></div>
+      <p class="su-err" id="err2"></p>
+      <div class="su-actions">
+        <button class="btn-ghost" type="button" data-prev="1">이전</button>
+        <button class="btn-primary" id="suSubmit" type="button">신청 완료</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: 완료 -->
+    <div class="su-panel" data-step="3">
+      <div class="su-done">
+        <div class="ico">🚀</div>
+        <h3>신청이 접수되었어요!</h3>
+        <p>연구자 승인 후 로그인할 수 있어요. 승인되면 아래 정보로 접속하세요.</p>
+        <div class="box">
+          · 아이디: <b>본인 휴대폰 번호</b><br>
+          · 초기 비밀번호: <b>1234</b><br>
+          · 첫 로그인 후 비밀번호를 바꿔 주세요.
+        </div>
+        <div class="su-actions" style="justify-content:center;margin-top:24px">
+          <button class="btn-primary" id="suDone" type="button" style="flex:0 0 auto;padding:14px 40px">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // audience toggle (초등 / 중고등 / 연구자): swaps hero + mission images & copy
+  (function(){
+    var t=document.getElementById('toggle');
+    if(!t) return;
+    var btns=t.querySelectorAll('button');
+
+    var CONTENT={
+      kid:{
+        sub:'AI와 함께하는 우리의 일상,<br>여러분의 이야기를 들려주세요.',
+        hook:'여러분이 AI를 어떻게 쓰고 어떻게 느끼는지,<br>그 <em>이야기</em>가 이 탐사의 지도가 돼요.',
+        hero:'univers.png',
+        m:[
+          {badge:'미션 1',title:'AI와 나의 생각하는 힘',img:'think.PNG',desc:'나는 AI를 어떻게 사용하고 있고, 나의 생각하는 힘에 어떤 영향을 줄까요?'},
+          {badge:'미션 2',title:'AI와 나의 마음',img:'mind.PNG',desc:'나는 AI와 어떤 대화를 하고 있고, 나의 마음에 어떤 영향을 줄까요?'},
+          {badge:'미션 3',title:'AI와 나의 일상',img:'life.PNG',desc:'나는 AI와 함께 어떻게 사용하고 있고, 친구·가족·일상생활에 어떤 영향을 줄까요?'}
+        ]
+      },
+      teen:{
+        sub:'AI와 함께하는 일상,<br>여러분의 경험을 들려주세요.',
+        hook:'여러분이 AI를 어떻게 쓰고 어떻게 느끼는지,<br>그 <em>경험</em>이 이 연구의 바탕이 됩니다.',
+        hero:'univers_teen.png',
+        m:[
+          {badge:'경험 1',title:'AI와 생각하는 힘',img:'think_teen.png',desc:'AI 사용 방식이 나의 인지에 어떤 영향을 주는지 살펴봅니다.'},
+          {badge:'경험 2',title:'AI와 마음',img:'mind_teen.png',desc:'AI와의 상호작용이 나의 정서에 어떤 영향을 주는지 살펴봅니다.'},
+          {badge:'경험 3',title:'AI와 일상',img:'life_teen.png',desc:'AI 사용이 친구·가족 관계와 일상생활에 어떤 영향을 주는지 살펴봅니다.'}
+        ]
+      }
+    };
+    // if a *_teen image is missing, fall back to the matching kid image
+    var FALLBACK={'univers_teen.png':'univers.png','think_teen.png':'think.PNG','mind_teen.png':'mind.PNG','life_teen.png':'life.PNG'};
+
+    function setImg(el,src){
+      if(!el) return;
+      el.style.display='';
+      el.onerror=function(){
+        var fb=FALLBACK[src];
+        if(fb){ el.onerror=function(){el.onerror=null;el.style.display='none';}; el.src=fb; }
+        else { el.onerror=null; el.style.display='none'; }
+      };
+      el.src=src;
+    }
+    function byId(id){return document.getElementById(id);}
+    function applyAudience(aud){
+      var c=CONTENT[aud]; if(!c) return;
+      document.body.classList.toggle('aud-teen',aud==='teen');
+      if(byId('heroSub')) byId('heroSub').innerHTML=c.sub;
+      if(byId('hookText')) byId('hookText').innerHTML=c.hook;
+      setImg(byId('heroImg'),c.hero);
+      for(var i=0;i<3;i++){
+        if(byId('m'+(i+1)+'badge')) byId('m'+(i+1)+'badge').textContent=c.m[i].badge;
+        if(byId('m'+(i+1)+'title')) byId('m'+(i+1)+'title').textContent=c.m[i].title;
+        setImg(byId('m'+(i+1)+'img'),c.m[i].img);
+        if(byId('m'+(i+1)+'desc')) byId('m'+(i+1)+'desc').textContent=c.m[i].desc;
+      }
+    }
+
+    btns.forEach(function(b){
+      b.addEventListener('click',function(){
+        btns.forEach(function(x){x.classList.remove('on');x.setAttribute('aria-selected','false');});
+        b.classList.add('on');b.setAttribute('aria-selected','true');
+        if(b.dataset.aud) applyAudience(b.dataset.aud);
+      });
+    });
+  })();
+
+  // scroll "stand up" reveal for the image
+  (function(){
+    var art=document.getElementById('art');
+    if(!art) return;
+    var reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(reduce){art.style.transform='none';art.style.opacity=1;return;}
+    var ticking=false;
+    function update(){
+      var r=art.getBoundingClientRect();
+      var vh=window.innerHeight||document.documentElement.clientHeight;
+      var start=vh*0.95, end=vh*0.40;
+      var p=(start-r.top)/(start-end);
+      p=Math.max(0,Math.min(1,p));
+      var rot=(1-p)*54;       // lying down (54deg) -> standing (0deg)
+      var ty=(1-p)*55;
+      var sc=0.93+p*0.07;
+      art.style.transform='translateY('+ty.toFixed(1)+'px) rotateX('+rot.toFixed(1)+'deg) scale('+sc.toFixed(3)+')';
+      art.style.opacity=(0.25+p*0.75).toFixed(3);
+      ticking=false;
+    }
+    function onScroll(){ if(!ticking){ticking=true;requestAnimationFrame(update);} }
+    window.addEventListener('scroll',onScroll,{passive:true});
+    window.addEventListener('resize',onScroll,{passive:true});
+    update();
+  })();
+  // privacy policy accordion
+  (function(){
+    var box=document.getElementById('policy');
+    var btn=document.getElementById('policyToggle');
+    if(!box||!btn) return;
+    btn.addEventListener('click',function(){
+      var open=box.classList.toggle('open');
+      btn.setAttribute('aria-expanded',open?'true':'false');
+    });
+  })();
+
+  // login modal -> participant surveys OR researcher console
+  (function(){
+    var startBtn=document.getElementById('startBtn');
+    var bd=document.getElementById('loginBackdrop');
+    var closeBtn=document.getElementById('loginClose');
+    var submit=document.getElementById('loginSubmit');
+    var surveys=document.getElementById('surveys');
+    var logout=document.getElementById('svLogout');
+    var titleEl=document.getElementById('loginTitle');
+    var descEl=document.getElementById('loginDesc');
+    var hintEl=document.getElementById('loginHint');
+    var pPanel=document.getElementById('pPanel');
+    var rPanel=document.getElementById('rPanel');
+    var errEl=document.getElementById('loginErr');
+    var toggle=document.getElementById('toggle');
+    var role='participant';
+
+    function getRole(){
+      var on=toggle&&toggle.querySelector('button.on');
+      return (on&&on.dataset.role)?on.dataset.role:'participant';
+    }
+    function showErr(m){ if(errEl){errEl.textContent=m;errEl.classList.add('show');} }
+    function clearErr(){ if(errEl){errEl.textContent='';errEl.classList.remove('show');} }
+    function clearInvalid(){ ['lid','lpw','rid','rpw'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.remove('invalid');}); }
+    function applyMode(){
+      if(role==='researcher'){
+        titleEl.textContent='연구자 로그인';
+        descEl.textContent='아이디와 비밀번호를 입력해 주세요.';
+        hintEl.textContent='연구자 계정이 없다면 연구책임자에게 문의하세요.';
+        pPanel.style.display='none'; rPanel.style.display='block';
+      }else{
+        titleEl.textContent='탐사 시작';
+        descEl.textContent='휴대폰 번호와 비밀번호를 입력해 주세요.';
+        hintEl.textContent='로그인 정보는 디지털상담 연구실 연구원에게 받아요.';
+        pPanel.style.display='block'; rPanel.style.display='none';
+      }
+    }
+    function openLogin(){
+      if(!bd) return;
+      role=getRole();
+      applyMode(); clearErr(); clearInvalid();
+      bd.classList.add('open');
+      var first=document.getElementById(role==='researcher'?'rid':'lid');
+      if(first) setTimeout(function(){first.focus();},60);
+    }
+    function closeLogin(){ if(bd) bd.classList.remove('open'); }
+    function openSurveys(){ if(surveys){surveys.classList.add('open');document.body.style.overflow='hidden';} }
+    function closeSurveys(){ if(surveys){surveys.classList.remove('open');document.body.style.overflow='';} }
+
+    if(startBtn) startBtn.addEventListener('click',openLogin);
+    if(closeBtn) closeBtn.addEventListener('click',closeLogin);
+    if(bd) bd.addEventListener('click',function(e){ if(e.target===bd) closeLogin(); });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeLogin(); });
+
+    if(submit) submit.addEventListener('click',function(){
+      if(role==='researcher'){
+        var rid=document.getElementById('rid'), rpw=document.getElementById('rpw');
+        var id=((rid&&rid.value)||'').trim(), rp=((rpw&&rpw.value)||'').trim();
+        if(!id){ showErr('아이디를 입력해 주세요.'); if(rid){rid.classList.add('invalid');rid.focus();} return; }
+        if(!rp){ showErr('비밀번호를 입력해 주세요.'); if(rpw){rpw.classList.add('invalid');rpw.focus();} return; }
+        clearErr(); window.location.href='researcher.html';
+        return;
+      }
+      var lid=document.getElementById('lid'), lpw=document.getElementById('lpw');
+      var digits=((lid&&lid.value)||'').replace(/\D/g,'');
+      var pw=((lpw&&lpw.value)||'').trim();
+      if(digits.length!==11 || digits.slice(0,2)!=='01'){
+        showErr('휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');
+        if(lid){lid.classList.add('invalid');lid.focus();} return;
+      }
+      if(!pw){ showErr('비밀번호를 입력해 주세요.'); if(lpw){lpw.classList.add('invalid');lpw.focus();} return; }
+      clearErr(); closeLogin(); openSurveys();
+    });
+
+    if(logout) logout.addEventListener('click',closeSurveys);
+
+    var phone=document.getElementById('lid');
+    if(phone) phone.addEventListener('input',function(){
+      clearErr(); phone.classList.remove('invalid');
+      var v=phone.value.replace(/\D/g,'').slice(0,11);
+      if(v.length<4) phone.value=v;
+      else if(v.length<8) phone.value=v.slice(0,3)+'-'+v.slice(3);
+      else phone.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    });
+    ['lpw','rid','rpw'].forEach(function(id){var el=document.getElementById(id);
+      if(el)el.addEventListener('input',function(){clearErr();el.classList.remove('invalid');});});
+
+    document.querySelectorAll('#tab-survey .sv-card.available .go').forEach(function(b){
+      b.addEventListener('click',function(){ alert('설문 문항 화면은 다음 단계에서 만들 거예요!'); });
+    });
+  })();
+  // ===== SIGNUP (application) flow =====
+  (function(){
+    var signup=document.getElementById('signup');
+    var bd=document.getElementById('loginBackdrop');
+    if(!signup) return;
+    var panels=signup.querySelectorAll('.su-panel');
+    var stepsEl=document.getElementById('suSteps').querySelectorAll('.st');
+    var cur=0;
+
+    // --- backend hook (DEMO). TODO: replace body with Firebase/Supabase call ---
+    var AppStore={
+      submitApplication:function(data){
+        window.__applications=window.__applications||[];
+        window.__applications.push(Object.assign({submittedAt:new Date().toISOString(),status:'pending'},data));
+        return Promise.resolve({ok:true});
+      }
+    };
+
+    function digits(v){return (v||'').replace(/\D/g,'');}
+    function show(i){
+      cur=i;
+      panels.forEach(function(p){p.classList.toggle('on',+p.dataset.step===i);});
+      stepsEl.forEach(function(s,idx){s.classList.toggle('on',idx<=Math.min(i,2));});
+      signup.scrollTop=0;
+    }
+    function showErr(id,msg){var e=document.getElementById(id);if(e){if(msg)e.textContent=msg;e.classList.add('show');}}
+    function clrErr(id){var e=document.getElementById(id);if(e)e.classList.remove('show');}
+    function resetForm(){
+      ['readAll','joinChat','agreeSelf','agreeGuardian'].forEach(function(id){var e=document.getElementById(id);if(e)e.checked=false;});
+      ['suPhone','guPhone','suEmail'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+      var g=document.getElementById('grade');if(g)g.value='';
+      signup.querySelectorAll('input[name="gender"]').forEach(function(r){r.checked=false;});
+      signup.querySelectorAll('.su-err').forEach(function(e){e.classList.remove('show');});
+      var doc=document.getElementById('doc');if(doc)doc.classList.remove('open');
+    }
+    function openSignup(){resetForm();signup.classList.add('open');document.body.style.overflow='hidden';show(0);}
+    function closeSignup(){signup.classList.remove('open');document.body.style.overflow='';}
+
+    // 설명문 전체보기 토글
+    var docToggle=document.getElementById('docToggle');
+    if(docToggle)docToggle.addEventListener('click',function(){document.getElementById('doc').classList.toggle('open');});
+
+    // 휴대폰 자동 하이픈
+    ['suPhone','guPhone'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el)el.addEventListener('input',function(){
+        clrErr('err2');
+        var v=digits(el.value).slice(0,11);
+        if(v.length<4)el.value=v; else if(v.length<8)el.value=v.slice(0,3)+'-'+v.slice(3);
+        else el.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+      });
+    });
+
+    // 다음 / 이전
+    signup.querySelectorAll('[data-next]').forEach(function(b){
+      b.addEventListener('click',function(){
+        if(cur===0){ if(!document.getElementById('readAll').checked){showErr('err0');return;} clrErr('err0'); }
+        if(cur===1){
+          if(!document.getElementById('agreeSelf').checked||!document.getElementById('agreeGuardian').checked){showErr('err1');return;}
+          clrErr('err1');
+        }
+        show(+b.dataset.next);
+      });
+    });
+    signup.querySelectorAll('[data-prev]').forEach(function(b){
+      b.addEventListener('click',function(){show(+b.dataset.prev);});
+    });
+
+    // 제출
+    var submit=document.getElementById('suSubmit');
+    if(submit)submit.addEventListener('click',function(){
+      var gEl=signup.querySelector('input[name="gender"]:checked');
+      var gender=gEl?gEl.value:'';
+      var grade=document.getElementById('grade').value;
+      var phone=digits(document.getElementById('suPhone').value);
+      var gphone=digits(document.getElementById('guPhone').value);
+      var email=document.getElementById('suEmail').value.trim();
+      if(!gender){showErr('err2','성별을 선택해 주세요.');return;}
+      if(!grade){showErr('err2','학교급·학년을 선택해 주세요.');return;}
+      if(phone.length!==11||phone.slice(0,2)!=='01'){showErr('err2','본인 휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');return;}
+      if(gphone.length!==11||gphone.slice(0,2)!=='01'){showErr('err2','보호자 휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');return;}
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showErr('err2','이메일을 정확히 입력해 주세요.');return;}
+      clrErr('err2');
+      var data={gender:gender,grade:grade,phone:phone,guardianPhone:gphone,email:email,
+        joinSurvey:true,joinChat:document.getElementById('joinChat').checked};
+      submit.disabled=true;
+      AppStore.submitApplication(data).then(function(){submit.disabled=false;show(3);})
+        .catch(function(){submit.disabled=false;showErr('err2','신청 처리 중 문제가 발생했어요. 다시 시도해 주세요.');});
+    });
+
+    // 진입/종료
+    var toSignup=document.getElementById('toSignup');
+    if(toSignup)toSignup.addEventListener('click',function(){if(bd)bd.classList.remove('open');openSignup();});
+    var suClose=document.getElementById('suClose');if(suClose)suClose.addEventListener('click',closeSignup);
+    var suDone=document.getElementById('suDone');if(suDone)suDone.addEventListener('click',closeSignup);
+  })();
+  // ===== 설문/대화문 탭 + 대화문 제출 동의 잠금 =====
+  (function(){
+    var tabs=document.getElementById('svTabs');
+    if(!tabs) return;
+
+    // TODO(backend): 로그인한 참여자의 '대화문 제출 동의' 여부로 교체.
+    // 동의했으면 true(대화문 탭 열림), 동의 안 했으면 false(잠김).
+    var CHAT_CONSENT=true;
+
+    var chatOpen=document.getElementById('chatOpen');
+    var chatLocked=document.getElementById('chatLocked');
+    var panels={survey:document.getElementById('tab-survey'),chat:document.getElementById('tab-chat')};
+    var chatTabBtn=tabs.querySelector('[data-tab="chat"]');
+
+    // 잠금 상태 반영
+    if(chatOpen&&chatLocked){
+      chatOpen.style.display=CHAT_CONSENT?'':'none';
+      chatLocked.style.display=CHAT_CONSENT?'none':'';
+    }
+    if(!CHAT_CONSENT&&chatTabBtn&&chatTabBtn.querySelector('.lk')===null){
+      var lk=document.createElement('span'); lk.className='lk'; lk.textContent='🔒'; chatTabBtn.appendChild(lk);
+    }
+
+    tabs.querySelectorAll('.sv-tab').forEach(function(b){
+      b.addEventListener('click',function(){
+        tabs.querySelectorAll('.sv-tab').forEach(function(x){x.classList.remove('on');});
+        b.classList.add('on');
+        Object.keys(panels).forEach(function(k){panels[k].classList.toggle('on',k===b.dataset.tab);});
+      });
+    });
+
+    document.querySelectorAll('#tab-chat .sv-card.available .chat-go').forEach(function(b){
+      b.addEventListener('click',function(){ alert('대화문 제출 화면은 다음 단계에서 만들 거예요!'); });
+    });
+  })();
+  // ===== 비밀번호 재설정 (이메일 링크 방식) =====
+  (function(){
+    var loginBd=document.getElementById('loginBackdrop');
+    var bd=document.getElementById('resetBackdrop');
+    if(!bd) return;
+    var toReset=document.getElementById('toReset');
+    var formEl=document.getElementById('resetForm'), doneEl=document.getElementById('resetDone');
+    var phone=document.getElementById('resetPhone'), err=document.getElementById('resetErr');
+
+    // --- backend hook (DEMO). TODO: Firebase/Supabase 비밀번호 재설정 이메일 발송 ---
+    var PasswordReset={ sendResetLink:function(phoneDigits){ return Promise.resolve({ok:true}); } };
+
+    function digits(v){return (v||'').replace(/\D/g,'');}
+    function showErr(m){err.textContent=m;err.classList.add('show');}
+    function clrErr(){err.classList.remove('show');}
+    function openReset(){ formEl.style.display=''; doneEl.style.display='none'; phone.value=''; phone.classList.remove('invalid'); clrErr(); bd.classList.add('open'); setTimeout(function(){phone.focus();},60); }
+    function closeReset(){ bd.classList.remove('open'); }
+
+    if(toReset) toReset.addEventListener('click',function(){ if(loginBd) loginBd.classList.remove('open'); openReset(); });
+    document.getElementById('resetClose').addEventListener('click',closeReset);
+    document.getElementById('resetDoneBtn').addEventListener('click',closeReset);
+    bd.addEventListener('click',function(e){ if(e.target===bd) closeReset(); });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && bd.classList.contains('open')) closeReset(); });
+
+    phone.addEventListener('input',function(){
+      clrErr(); phone.classList.remove('invalid');
+      var v=digits(phone.value).slice(0,11);
+      if(v.length<4) phone.value=v; else if(v.length<8) phone.value=v.slice(0,3)+'-'+v.slice(3);
+      else phone.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    });
+
+    document.getElementById('resetSubmit').addEventListener('click',function(){
+      var d=digits(phone.value);
+      if(d.length!==11||d.slice(0,2)!=='01'){ showErr('휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)'); phone.classList.add('invalid'); phone.focus(); return; }
+      clrErr();
+      var btn=this; btn.disabled=true;
+      PasswordReset.sendResetLink(d).then(function(){ btn.disabled=false; formEl.style.display='none'; doneEl.style.display=''; })
+        .catch(function(){ btn.disabled=false; showErr('요청 처리 중 문제가 발생했어요. 다시 시도해 주세요.'); });
+    });
+  })();
+</script>
+</body>
+</html>

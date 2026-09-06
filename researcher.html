@@ -165,7 +165,7 @@
     </div>
     <div class="user">
       <span><b>홍길동</b> 연구원님</span>
-      <button class="logout" type="button" onclick="window.location.href='index.html'">로그아웃</button>
+      <button class="logout" id="researcherLogout" type="button">로그아웃</button>
     </div>
   </div>
 </div>
@@ -416,6 +416,12 @@
       });
     });
   }
+
+  document.getElementById('researcherLogout').addEventListener('click',function(){
+    sessionStorage.removeItem('ai_us_access_token');
+    sessionStorage.removeItem('ai_us_role');
+    window.location.href='index.html';
+  });
 
   // ---- top tabs ----
   (function(){

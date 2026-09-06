@@ -785,6 +785,22 @@
     });
   })();
 
+  var AI_US_API_BASE='https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app';
+  function aiUsRequest(path,options){
+    options=options||{};
+    options.headers=options.headers||{};
+    if(options.body && !(options.body instanceof FormData)){
+      options.headers['Content-Type']='application/json';
+      options.body=JSON.stringify(options.body);
+    }
+    return fetch(AI_US_API_BASE+path,options).then(function(response){
+      return response.json().catch(function(){return {};}).then(function(data){
+        if(!response.ok){throw new Error(data.detail||'요청 처리 중 문제가 발생했어요.');}
+        return data;
+      });
+    });
+  }
+
   // login modal -> participant surveys OR researcher console
   (function(){
     var startBtn=document.getElementById('startBtn');
@@ -845,7 +861,14 @@
         var id=((rid&&rid.value)||'').trim(), rp=((rpw&&rpw.value)||'').trim();
         if(!id){ showErr('아이디를 입력해 주세요.'); if(rid){rid.classList.add('invalid');rid.focus();} return; }
         if(!rp){ showErr('비밀번호를 입력해 주세요.'); if(rpw){rpw.classList.add('invalid');rpw.focus();} return; }
-        clearErr(); window.location.href='researcher.html';
+        submit.disabled=true;
+        aiUsRequest('/api/v1/auth/researcher/login',{method:'POST',body:{username:id,password:rp}})
+          .then(function(data){
+            sessionStorage.setItem('ai_us_access_token',data.accessToken);
+            sessionStorage.setItem('ai_us_role',data.role);
+            window.location.href='researcher.html';
+          })
+          .catch(function(error){submit.disabled=false;showErr(error.message);});
         return;
       }
       var lid=document.getElementById('lid'), lpw=document.getElementById('lpw');
@@ -856,7 +879,16 @@
         if(lid){lid.classList.add('invalid');lid.focus();} return;
       }
       if(!pw){ showErr('비밀번호를 입력해 주세요.'); if(lpw){lpw.classList.add('invalid');lpw.focus();} return; }
-      clearErr(); closeLogin(); openSurveys();
+      submit.disabled=true;
+      aiUsRequest('/api/v1/auth/participant/login',{method:'POST',body:{phone:digits,password:pw}})
+        .then(function(data){
+          submit.disabled=false;
+          sessionStorage.setItem('ai_us_access_token',data.accessToken);
+          sessionStorage.setItem('ai_us_role',data.role);
+          if(data.needsPasswordChange){showErr('처음 로그인한 뒤에는 비밀번호 변경이 필요합니다. 변경 화면은 준비 중입니다.');return;}
+          closeLogin(); openSurveys();
+        })
+        .catch(function(error){submit.disabled=false;showErr(error.message);});
     });
 
     if(logout) logout.addEventListener('click',closeSurveys);
@@ -885,12 +917,9 @@
     var stepsEl=document.getElementById('suSteps').querySelectorAll('.st');
     var cur=0;
 
-    // --- backend hook (DEMO). TODO: replace body with Firebase/Supabase call ---
     var AppStore={
       submitApplication:function(data){
-        window.__applications=window.__applications||[];
-        window.__applications.push(Object.assign({submittedAt:new Date().toISOString(),status:'pending'},data));
-        return Promise.resolve({ok:true});
+        return aiUsRequest('/api/v1/applications',{method:'POST',body:data});
       }
     };
 
@@ -960,7 +989,9 @@
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showErr('err2','이메일을 정확히 입력해 주세요.');return;}
       clrErr('err2');
       var data={gender:gender,grade:grade,phone:phone,guardianPhone:gphone,email:email,
-        joinSurvey:true,joinChat:document.getElementById('joinChat').checked};
+        consents:{documentRead:document.getElementById('readAll').checked,survey:true,
+          chat:document.getElementById('joinChat').checked,participant:document.getElementById('agreeSelf').checked,
+          guardian:document.getElementById('agreeGuardian').checked}};
       submit.disabled=true;
       AppStore.submitApplication(data).then(function(){submit.disabled=false;show(3);})
         .catch(function(){submit.disabled=false;showErr('err2','신청 처리 중 문제가 발생했어요. 다시 시도해 주세요.');});

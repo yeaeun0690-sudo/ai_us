@@ -658,7 +658,7 @@
       downloadBlob(csv,'회원신청_목록.csv','text/csv;charset=utf-8;');
     });
 
-    if(!AI_US_ACCESS_TOKEN){window.location.href='index.html';return;}
+    if(!AI_US_ACCESS_TOKEN||!['admin','researcher'].includes(sessionStorage.getItem('ai_us_role'))){window.location.href='index.html';return;}
     loadApplications();
   })();
 </script>

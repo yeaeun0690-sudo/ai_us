@@ -404,10 +404,14 @@
     options=options||{};
     options.headers=options.headers||{};
     if(AI_US_ACCESS_TOKEN) options.headers.Authorization='Bearer '+AI_US_ACCESS_TOKEN;
+    if(options.body && !(options.body instanceof FormData)){
+      options.headers['Content-Type']='application/json';
+      options.body=JSON.stringify(options.body);
+    }
     return fetch(AI_US_API_BASE+path,options).then(function(response){
       if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';}
       return response.json().catch(function(){return {};}).then(function(data){
-        if(!response.ok){throw new Error(data.detail||'요청 처리 중 문제가 발생했어요.');}
+        if(!response.ok){throw new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));}
         return data;
       });
     });

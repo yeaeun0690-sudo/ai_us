@@ -930,7 +930,11 @@
         .catch(function(error){submit.disabled=false;showErr(error.message);});
     });
 
-    if(logout) logout.addEventListener('click',closeSurveys);
+    if(logout) logout.addEventListener('click',function(){
+      sessionStorage.removeItem('ai_us_access_token');
+      sessionStorage.removeItem('ai_us_role');
+      closeSurveys();
+    });
 
     if(firstPasswordSubmit) firstPasswordSubmit.addEventListener('click',function(){
       var current=firstPasswordCurrent.value;

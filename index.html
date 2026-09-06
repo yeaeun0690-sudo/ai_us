@@ -852,7 +852,7 @@
     }
     function getAudience(){
       var on=toggle&&toggle.querySelector('button.on');
-      return (on&&on.dataset.aud)?on.dataset.aud:'kid';
+      return on&&on.dataset.aud==='teen'?'secondary':'elementary';
     }
     function showErr(m){ if(errEl){errEl.textContent=m;errEl.classList.add('show');} }
     function clearErr(){ if(errEl){errEl.textContent='';errEl.classList.remove('show');} }

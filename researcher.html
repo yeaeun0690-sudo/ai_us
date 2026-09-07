@@ -124,9 +124,10 @@
   .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
   .fgroup{display:flex;flex-direction:column;gap:6px}
   .fgroup label{font-size:.78rem;font-weight:700;color:var(--ink-2)}
-  .fgroup select{padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
-    font-family:var(--fb);font-size:.9rem;color:var(--ink);cursor:pointer;min-width:130px}
-  .fgroup select:focus{outline:none;border-color:var(--violet)}
+  .fgroup select,.fgroup input{padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
+    font-family:var(--fb);font-size:.9rem;color:var(--ink);min-width:130px}
+  .fgroup select{cursor:pointer}
+  .fgroup select:focus,.fgroup input:focus{outline:none;border-color:var(--violet)}
 
   /* signup management */
   .apfilter{display:flex;gap:8px;margin:18px 0 16px;flex-wrap:wrap}

@@ -357,8 +357,8 @@
 
             <div class="tbl-wrap" style="margin-top:14px">
               <table>
-                <thead><tr><th>참여자 ID</th><th>회차</th><th>설문 버전</th><th>제출일</th></tr></thead>
-                <tbody id="surveyPreviewBody"><tr><td colspan="4">회차와 설문 버전을 선택하면 최근 응답을 확인할 수 있어요.</td></tr></tbody>
+                <thead><tr><th>아이디(휴대폰)</th><th>학교급</th><th>학년</th><th>회차</th><th>설문 버전</th><th>제출일</th></tr></thead>
+                <tbody id="surveyPreviewBody"><tr><td colspan="6">회차와 설문 버전을 선택하면 최근 응답을 확인할 수 있어요.</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -532,11 +532,12 @@
     var version=document.getElementById('fVersion'), previewBody=document.getElementById('surveyPreviewBody');
     function loadPreview(){
       var match=round.value.match(/\d+/), selectedVersion=version.value.trim();
-      if(!match||!selectedVersion){previewBody.innerHTML='<tr><td colspan="4">회차와 설문 버전을 선택해 주세요.</td></tr>';return;}
-      aiUsRequest('/api/v1/researcher/survey-response-previews?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)).then(function(records){
-        if(!records.length){previewBody.innerHTML='<tr><td colspan="4">해당 조건의 설문 응답이 없습니다.</td></tr>';return;}
-        previewBody.innerHTML=records.map(function(record){return '<tr><td>'+esc(record.participantId)+'</td><td>'+esc(record.surveyRound)+'회차</td><td>'+esc(record.surveyVersion)+'</td><td>'+esc((record.submittedAt||'').slice(0,10))+'</td></tr>';}).join('');
-      }).catch(function(error){previewBody.innerHTML='<tr><td colspan="4">'+esc(error.message)+'</td></tr>';});
+      if(!match||!selectedVersion){previewBody.innerHTML='<tr><td colspan="6">회차와 설문 버전을 선택해 주세요.</td></tr>';return;}
+      var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
+      aiUsRequest('/api/v1/researcher/survey-response-previews?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter).then(function(records){
+        if(!records.length){previewBody.innerHTML='<tr><td colspan="6">해당 조건의 설문 응답이 없습니다.</td></tr>';return;}
+        previewBody.innerHTML=records.map(function(record){return '<tr><td>'+esc(record.phone)+'</td><td>'+esc(record.schoolLevel||'-')+'</td><td>'+esc(record.grade||'-')+'</td><td>'+esc(record.surveyRound)+'회차</td><td>'+esc(record.surveyVersion)+'</td><td>'+esc((record.submittedAt||'').slice(0,10))+'</td></tr>';}).join('');
+      }).catch(function(error){previewBody.innerHTML='<tr><td colspan="6">'+esc(error.message)+'</td></tr>';});
     }
     function upd(){summary.textContent=(round.value==='전체'?'전체 회차':round.value)+' · '+(grade.value==='전체'?'전체 학교급':grade.value);loadPreview();}
     round.addEventListener('change',upd); grade.addEventListener('change',upd); version.addEventListener('change',loadPreview);
@@ -544,7 +545,8 @@
     document.getElementById('dlBtn').addEventListener('click',function(){
       var match=round.value.match(/\d+/), selectedVersion=version.value.trim();
       if(!match||!selectedVersion){alert('회차와 설문 버전을 선택해 주세요.');return;}
-      fetch(AI_US_API_BASE+'/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion),{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+      var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
+      fetch(AI_US_API_BASE+'/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
         .then(function(response){if(!response.ok)throw new Error('결과를 내려받을 수 없습니다.');return response.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='설문결과_'+round.value+'_'+selectedVersion+'.csv';a.click();URL.revokeObjectURL(url);})
         .catch(function(error){alert(error.message);});

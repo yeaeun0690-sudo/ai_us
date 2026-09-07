@@ -880,6 +880,7 @@
     var dummyQ1=document.getElementById('dummyQ1'), dummyQ2=document.getElementById('dummyQ2'), dummyQ3=document.getElementById('dummyQ3');
     var role='participant';
     var DUMMY_SURVEY_ROUND=1, DUMMY_SURVEY_VERSION='demo-v1';
+    var dummySubmissionCompleted=false;
 
     function getRole(){
       var on=toggle&&toggle.querySelector('button.on');
@@ -924,15 +925,31 @@
       setTimeout(function(){firstPasswordCurrent.focus();},60);
     }
     function dummyDraftKey(){return 'ai_us:survey-draft:'+sessionStorage.getItem('ai_us_participant_phone')+':'+DUMMY_SURVEY_ROUND+':'+DUMMY_SURVEY_VERSION;}
+    function dummyCompletedKey(){return 'ai_us:survey-completed:'+sessionStorage.getItem('ai_us_participant_phone')+':'+DUMMY_SURVEY_ROUND+':'+DUMMY_SURVEY_VERSION;}
     function dummyAnswers(){return {q1:dummyQ1.value.trim(),q2:dummyQ2.value,q3:dummyQ3.value.trim()};}
     function saveDummyDraft(){
-      if(!sessionStorage.getItem('ai_us_participant_phone')) return;
+      if(dummySubmissionCompleted||!sessionStorage.getItem('ai_us_participant_phone')) return;
       localStorage.setItem(dummyDraftKey(),JSON.stringify(dummyAnswers()));
       dummySurveyStatus.textContent='작성 내용이 이 브라우저에 임시 저장되었습니다.';
     }
+    function setDummyCompleted(){
+      dummySubmissionCompleted=true;
+      localStorage.removeItem(dummyDraftKey());
+      localStorage.setItem(dummyCompletedKey(),'true');
+      [dummyQ1,dummyQ2,dummyQ3].forEach(function(field){field.disabled=true;});
+      dummySurveySubmit.disabled=true;
+      dummySurveySubmit.textContent='제출 완료';
+      dummySurveyStatus.textContent='최종 제출이 완료되었습니다. 임시 저장을 삭제했습니다.';
+    }
     function openDummySurvey(){
+      dummySubmissionCompleted=localStorage.getItem(dummyCompletedKey())==='true';
+      [dummyQ1,dummyQ2,dummyQ3].forEach(function(field){field.disabled=dummySubmissionCompleted;});
+      dummySurveySubmit.disabled=dummySubmissionCompleted;
+      dummySurveySubmit.textContent=dummySubmissionCompleted?'제출 완료':'최종 제출하기';
       var saved=localStorage.getItem(dummyDraftKey());
-      if(saved){
+      if(dummySubmissionCompleted){
+        dummySurveyStatus.textContent='이 회차의 더미 설문은 이미 최종 제출되었습니다.';
+      }else if(saved){
         try{var answers=JSON.parse(saved);dummyQ1.value=answers.q1||'';dummyQ2.value=answers.q2||'';dummyQ3.value=answers.q3||'';dummySurveyStatus.textContent='이전에 임시 저장한 내용을 복원했습니다.';}catch(error){}
       }
       dummySurveyErr.textContent='';dummySurveyErr.classList.remove('show');
@@ -942,9 +959,7 @@
       aiUsRequest('/api/v1/submission-jobs/'+submissionId,{headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')}})
         .then(function(result){
           if(result.status==='completed'){
-            localStorage.removeItem(dummyDraftKey());
-            dummySurveyStatus.textContent='최종 제출이 완료되었습니다. 임시 저장을 삭제했습니다.';
-            dummySurveySubmit.disabled=false;
+            setDummyCompleted();
             return;
           }
           if(result.status==='failed'){

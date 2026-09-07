@@ -339,6 +339,10 @@
                 <select id="fRound"><option>전체</option><option>1회차</option><option>2회차</option><option>3회차</option><option>4회차</option></select>
               </div>
               <div class="fgroup">
+                <label for="fVersion">설문 버전</label>
+                <input id="fVersion" type="text" value="demo-v1" placeholder="예: 2026-round-1-v1">
+              </div>
+              <div class="fgroup">
                 <label for="fGrade">학교급</label>
                 <select id="fGrade"><option>전체</option><option>초등</option><option>중등</option><option>고등</option></select>
               </div>
@@ -531,8 +535,30 @@
     function upd(){summary.textContent=(round.value==='전체'?'전체 회차':round.value)+' · '+(grade.value==='전체'?'전체 학교급':grade.value);}
     round.addEventListener('change',upd); grade.addEventListener('change',upd);
     document.getElementById('dlBtn').addEventListener('click',function(){
-      var csv='회차,이름,학교급,학년,제출일\n1회차,김민준,초등,4,2025-03-04\n1회차,이서연,중등,2,2025-03-05\n';
-      downloadBlob(csv,'설문결과_'+round.value+'_'+grade.value+'.csv','text/csv;charset=utf-8;');
+      var match=round.value.match(/\d+/), version=document.getElementById('fVersion').value.trim();
+      if(!match||!version){alert('회차와 설문 버전을 선택해 주세요.');return;}
+      fetch(AI_US_API_BASE+'/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(version),{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+        .then(function(response){if(!response.ok)throw new Error('결과를 내려받을 수 없습니다.');return response.blob();})
+        .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='설문결과_'+round.value+'_'+version+'.csv';a.click();URL.revokeObjectURL(url);})
+        .catch(function(error){alert(error.message);});
+    });
+  })();
+  // ---- live participation status and nonparticipants ----
+  (function(){
+    var statusPanel=document.getElementById('panel-status');
+    var absentPanel=document.getElementById('panel-absent');
+    if(!AI_US_ACCESS_TOKEN||!statusPanel||!absentPanel)return;
+    aiUsRequest('/api/v1/researcher/participation-status').then(function(data){
+      var values=statusPanel.querySelectorAll('.stats .stat .v');
+      [data.participants.elementary,data.participants.middle,data.participants.high,data.participants.total].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
+      var bars=statusPanel.querySelectorAll('.chart .col');
+      bars.forEach(function(bar,index){var round=data.completedByRound.filter(function(item){return item.surveyRound===index+1;})[0],count=round?round.completedCount:0;bar.querySelector('.n').textContent=count;bar.querySelector('.bar').style.height=(data.participants.total?Math.max(3,count/data.participants.total*100):3)+'%';});
+    });
+    aiUsRequest('/api/v1/researcher/nonparticipants?survey_round=1&survey_version=demo-v1').then(function(data){
+      var values=absentPanel.querySelectorAll('.stats .stat .v');
+      [data.counts.total,data.counts.elementary,data.counts.middle+data.counts.high].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
+      var body=absentPanel.querySelector('tbody');
+      body.innerHTML=data.participants.map(function(participant){return '<tr><td>'+esc(participant.name||'-')+'</td><td>'+esc(participant.schoolLevel||'-')+'</td><td>'+esc(participant.grade||'-')+'</td><td>'+esc(participant.phone)+'</td><td>미참여</td></tr>';}).join('');
     });
   })();
 

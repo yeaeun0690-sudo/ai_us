@@ -124,9 +124,10 @@
   .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
   .fgroup{display:flex;flex-direction:column;gap:6px}
   .fgroup label{font-size:.78rem;font-weight:700;color:var(--ink-2)}
-  .fgroup select{padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
-    font-family:var(--fb);font-size:.9rem;color:var(--ink);cursor:pointer;min-width:130px}
-  .fgroup select:focus{outline:none;border-color:var(--violet)}
+  .fgroup select,.fgroup input{padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
+    font-family:var(--fb);font-size:.9rem;color:var(--ink);min-width:130px}
+  .fgroup select{cursor:pointer}
+  .fgroup select:focus,.fgroup input:focus{outline:none;border-color:var(--violet)}
 
   /* signup management */
   .apfilter{display:flex;gap:8px;margin:18px 0 16px;flex-wrap:wrap}
@@ -570,17 +571,14 @@
     function upd(){cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value);}
     cRound.addEventListener('change',upd); cGrade.addEventListener('change',upd);
     document.getElementById('cDlBtn').addEventListener('click',function(){
-      // TODO: 제출 형식(링크/본문)이 정해지면 마지막 '대화문' 열을 실제 값으로 채움
-      var head=['제출회차','학교급','학년','아이디(휴대폰)','제출일','대화문'];
-      var rows=[
-        ['대화문 1 (1차 후)','초등','5','010-3456-7890','2025-03-11','(형식 미정 — 링크 또는 본문)'],
-        ['대화문 1 (1차 후)','중등','2','010-2345-6789','2025-03-12','(형식 미정 — 링크 또는 본문)'],
-        ['대화문 2 (4차 후)','고등','1','010-4567-8901','2025-06-20','(형식 미정 — 링크 또는 본문)']
-      ];
-      var csv=head.join(',')+'\n'+rows.map(function(r){
-        return r.map(function(v){var s=String(v==null?'':v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');
-      }).join('\n');
-      downloadBlob(csv,'대화문자료_'+cRound.value.replace(/\s/g,'')+'_'+cGrade.value+'.csv','text/csv;charset=utf-8;');
+      var params=new URLSearchParams();
+      if(cRound.value==='대화문 1 (1차 후)')params.set('submission_point','afterRound1');
+      if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
+      if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
+      fetch(AI_US_API_BASE+'/api/v1/researcher/exports/chat-submissions?'+params.toString(),{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+        .then(function(response){if(!response.ok)throw new Error('대화문 자료를 내려받을 수 없습니다.');return response.blob();})
+        .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='대화문자료_'+cRound.value.replace(/\s/g,'')+'_'+cGrade.value+'.csv';a.click();URL.revokeObjectURL(url);})
+        .catch(function(error){alert(error.message);});
     });
   })();
   // ---- 회원 신청 관리 ----

@@ -542,7 +542,7 @@
     var round=document.getElementById('fRound'), grade=document.getElementById('fGrade');
     var summary=document.getElementById('dlSummary');
     var version=document.getElementById('fVersion'), previewBody=document.getElementById('surveyPreviewBody');
-    function audienceLabel(audience){return audience==='secondary'?'중고등':audience==='elementary'?'초등':'전체';}
+    function audienceLabel(audience){return audience==='secondary'?'중고등':audience==='elementary'?'초등':'대상 미지정';}
     function optionLabel(definition){
       var part=definition.part?' · 파트'+definition.part:'';
       var label=audienceLabel(definition.audience)+part+' ('+definition.surveyVersion+')';

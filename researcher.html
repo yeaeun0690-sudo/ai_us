@@ -476,7 +476,7 @@
 
   // ---- template download ----
   document.getElementById('tplBtn').addEventListener('click',function(){
-    var csv='이름,휴대폰번호,학교급,학년\n홍길동,010-1234-5678,초등,4\n';
+    var csv='이름,휴대폰번호,학교급,학년,이메일\n홍길동,010-1234-5678,초등,4,participant@example.com\n';
     downloadBlob(csv,'참여자_등록_양식.csv','text/csv;charset=utf-8;');
   });
 

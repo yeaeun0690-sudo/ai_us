@@ -541,19 +541,23 @@
     <button class="x" id="resetClose" aria-label="닫기">×</button>
     <div id="resetForm">
       <h2 id="resetTitle">비밀번호 재설정</h2>
-      <p class="desc">가입할 때 등록한 이메일로 재설정 링크를 보내드려요.</p>
+      <p class="desc">가입한 휴대폰 번호와 이메일이 일치하면 초기 비밀번호로 재설정해요.</p>
       <div class="field">
         <label for="resetPhone">휴대폰 번호 (아이디)</label>
         <input id="resetPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="tel">
       </div>
-      <button class="btn-primary" id="resetSubmit" type="button">재설정 링크 보내기</button>
+      <div class="field">
+        <label for="resetEmail">이메일</label>
+        <input id="resetEmail" type="email" placeholder="가입할 때 등록한 이메일" autocomplete="email">
+      </div>
+      <button class="btn-primary" id="resetSubmit" type="button">초기 비밀번호로 재설정</button>
       <p class="err" id="resetErr" role="alert"></p>
-      <p class="hint">이메일이 기억나지 않으면 디지털상담 연구실 연구원에게 문의하세요.</p>
+      <p class="hint">초기 비밀번호는 1234이며, 로그인 후 새 비밀번호로 변경해야 합니다.</p>
     </div>
     <div id="resetDone" style="display:none;text-align:center">
-      <div style="font-size:2.6rem">📧</div>
-      <h2 style="margin-top:8px">링크를 보냈어요!</h2>
-      <p class="desc">등록하신 이메일로 <b>비밀번호 재설정 링크</b>를 보냈어요.<br>메일의 링크에서 새 비밀번호를 설정해 주세요.</p>
+      <div style="font-size:2.6rem">🔐</div>
+      <h2 style="margin-top:8px">비밀번호를 초기화했어요</h2>
+      <p class="desc">초기 비밀번호 <b>1234</b>로 로그인한 뒤<br>새 비밀번호로 변경해 주세요.</p>
       <button class="btn-primary" id="resetDoneBtn" type="button">확인</button>
     </div>
   </div>
@@ -1657,22 +1661,21 @@
         .then(function(){ chatSubmit.disabled=false; chatSubmit.textContent='제출하기'; });
     });
   })();
-  // ===== 비밀번호 재설정 (이메일 링크 방식) =====
+  // ===== 비밀번호 재설정 (휴대폰+이메일 확인 후 초기화) =====
   (function(){
     var loginBd=document.getElementById('loginBackdrop');
     var bd=document.getElementById('resetBackdrop');
     if(!bd) return;
     var toReset=document.getElementById('toReset');
     var formEl=document.getElementById('resetForm'), doneEl=document.getElementById('resetDone');
-    var phone=document.getElementById('resetPhone'), err=document.getElementById('resetErr');
+    var phone=document.getElementById('resetPhone'), email=document.getElementById('resetEmail'), err=document.getElementById('resetErr');
 
-    // --- backend hook (DEMO). TODO: Firebase/Supabase 비밀번호 재설정 이메일 발송 ---
-    var PasswordReset={ sendResetLink:function(phoneDigits){ return Promise.resolve({ok:true}); } };
+    var PasswordReset={ reset:function(phoneDigits,emailValue){ return aiUsRequest('/api/v1/auth/participant/password-reset',{method:'POST',body:{phone:phoneDigits,email:emailValue}}); } };
 
     function digits(v){return (v||'').replace(/\D/g,'');}
     function showErr(m){err.textContent=m;err.classList.add('show');}
     function clrErr(){err.classList.remove('show');}
-    function openReset(){ formEl.style.display=''; doneEl.style.display='none'; phone.value=''; phone.classList.remove('invalid'); clrErr(); bd.classList.add('open'); setTimeout(function(){phone.focus();},60); }
+    function openReset(){ formEl.style.display=''; doneEl.style.display='none'; phone.value=''; email.value=''; phone.classList.remove('invalid'); email.classList.remove('invalid'); clrErr(); bd.classList.add('open'); setTimeout(function(){phone.focus();},60); }
     function closeReset(){ bd.classList.remove('open'); }
 
     if(toReset) toReset.addEventListener('click',function(){ if(loginBd) loginBd.classList.remove('open'); openReset(); });
@@ -1687,14 +1690,17 @@
       if(v.length<4) phone.value=v; else if(v.length<8) phone.value=v.slice(0,3)+'-'+v.slice(3);
       else phone.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
     });
+    email.addEventListener('input',function(){clrErr(); email.classList.remove('invalid');});
 
     document.getElementById('resetSubmit').addEventListener('click',function(){
       var d=digits(phone.value);
       if(d.length!==11||d.slice(0,2)!=='01'){ showErr('휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)'); phone.classList.add('invalid'); phone.focus(); return; }
+      var emailValue=email.value.trim().toLowerCase();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)){ showErr('가입할 때 등록한 이메일을 정확히 입력해 주세요.'); email.classList.add('invalid'); email.focus(); return; }
       clrErr();
       var btn=this; btn.disabled=true;
-      PasswordReset.sendResetLink(d).then(function(){ btn.disabled=false; formEl.style.display='none'; doneEl.style.display=''; })
-        .catch(function(){ btn.disabled=false; showErr('요청 처리 중 문제가 발생했어요. 다시 시도해 주세요.'); });
+      PasswordReset.reset(d,emailValue).then(function(){ btn.disabled=false; formEl.style.display='none'; doneEl.style.display=''; })
+        .catch(function(error){ btn.disabled=false; showErr(error&&error.message?error.message:'등록 정보가 일치하지 않습니다.'); });
     });
   })();
 </script>

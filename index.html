@@ -1000,6 +1000,7 @@
   })();
 
   var AI_US_API_BASE='https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app';
+  var AI_US_TEMPORARY_ISSUE_SHOWN=false;
   // 백엔드가 '승인 없이 가입 즉시 계정 생성'으로 바뀌면 이 값을 true 로만 바꾸면 됩니다.
   // (true: 즉시 로그인 안내 + 연구자 승인 UI 숨김 / false: 현재 승인 방식 유지)
   var IMMEDIATE_SIGNUP=false;
@@ -1019,11 +1020,30 @@
     }
     return fetch(AI_US_API_BASE+path,options).then(function(response){
       return response.json().catch(function(){return {};}).then(function(data){
-        if(!response.ok){throw new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));}
+        if(!response.ok){
+          if(response.status>=500) aiUsShowTemporaryIssue();
+          var error=new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));
+          error.status=response.status;
+          throw error;
+        }
         return data;
       });
+    }).catch(function(error){
+      if(!error.status) aiUsShowTemporaryIssue();
+      throw error;
     });
   }
+  function aiUsShowTemporaryIssue(){
+    if(AI_US_TEMPORARY_ISSUE_SHOWN)return;
+    AI_US_TEMPORARY_ISSUE_SHOWN=true;
+    aiUsAudienceDialog({
+      title:'일시적인 연결 문제가 있어요',
+      message:'지금은 서버 점검 또는 일시적인 연결 문제로 요청을 처리하기 어렵습니다. 잠시 후 다시 접속해 주세요. 불편을 드려 죄송합니다.',
+      confirmText:'확인'
+    }).then(function(){setTimeout(function(){AI_US_TEMPORARY_ISSUE_SHOWN=false;},30000);});
+  }
+  function aiUsCheckHealth(){fetch(AI_US_API_BASE+'/health',{cache:'no-store'}).then(function(response){if(response.status>=500)aiUsShowTemporaryIssue();}).catch(aiUsShowTemporaryIssue);}
+  setTimeout(aiUsCheckHealth,500);
   function aiUsAudienceLabel(audience){return audience==='secondary'?'중고등':'초등';}
   function aiUsSetApiAudience(audience){if(window.aiUsSetAudience)window.aiUsSetAudience(audience==='secondary'?'teen':'kid');}
   function aiUsAudienceDialog(options){

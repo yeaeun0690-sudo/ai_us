@@ -63,6 +63,13 @@
   .btn:hover{transform:translateY(-1px)}
   .btn-ghost{background:#fff;color:var(--ink-2);border:1px solid var(--line)}
   .btn-ghost:hover{border-color:var(--violet);color:var(--violet);transform:none}
+  .server-backdrop{position:fixed;inset:0;background:rgba(36,29,61,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+  .server-backdrop.open{display:flex}
+  .server-modal{width:100%;max-width:420px;background:#fff;border-radius:20px;padding:30px 26px;box-shadow:0 30px 70px rgba(36,29,61,.3);text-align:center}
+  .server-modal .ic{width:54px;height:54px;border-radius:16px;margin:0 auto 12px;display:grid;place-items:center;background:var(--soft);color:var(--violet);font-size:1.7rem}
+  .server-modal h2{font-family:var(--fd);font-weight:400;color:var(--deep);font-size:1.45rem;margin-bottom:6px}
+  .server-modal p{color:var(--ink-2);font-size:.92rem;line-height:1.7}
+  .server-modal .btn{width:100%;justify-content:center;margin-top:18px}
 
   /* upload */
   .drop{margin-top:14px;border:2px dashed #cfc6ec;border-radius:14px;background:var(--soft);
@@ -400,8 +407,18 @@
 
 </div>
 
+<div class="server-backdrop" id="serverIssueDialog" role="dialog" aria-modal="true" aria-labelledby="serverIssueTitle">
+  <div class="server-modal">
+    <div class="ic">!</div>
+    <h2 id="serverIssueTitle">일시적인 연결 문제가 있어요</h2>
+    <p>지금은 서버 점검 또는 일시적인 연결 문제로 요청을 처리하기 어렵습니다. 잠시 후 다시 접속해 주세요. 불편을 드려 죄송합니다.</p>
+    <button class="btn" id="serverIssueClose" type="button">확인</button>
+  </div>
+</div>
+
 <script>
   var AI_US_API_BASE='https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app';
+  var AI_US_TEMPORARY_ISSUE_SHOWN=false;
   // 백엔드가 '승인 없이 가입 즉시 계정 생성'으로 바뀌면 이 값만 true 로 바꾸세요.
   // (true: 승인 버튼 숨김·안내 문구 즉시가입용 / false: 현재 승인 방식 유지)
   var IMMEDIATE_SIGNUP=false;
@@ -424,11 +441,32 @@
     return fetch(AI_US_API_BASE+path,options).then(function(response){
       if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';}
       return response.json().catch(function(){return {};}).then(function(data){
-        if(!response.ok){throw new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));}
+        if(!response.ok){
+          if(response.status>=500) aiUsShowTemporaryIssue();
+          var error=new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));
+          error.status=response.status;
+          throw error;
+        }
         return data;
       });
+    }).catch(function(error){
+      if(!error.status) aiUsShowTemporaryIssue();
+      throw error;
     });
   }
+  function aiUsShowTemporaryIssue(){
+    if(AI_US_TEMPORARY_ISSUE_SHOWN)return;
+    var dialog=document.getElementById('serverIssueDialog');
+    if(!dialog)return;
+    AI_US_TEMPORARY_ISSUE_SHOWN=true;
+    dialog.classList.add('open');
+  }
+  (function(){
+    var dialog=document.getElementById('serverIssueDialog'), close=document.getElementById('serverIssueClose');
+    if(close)close.addEventListener('click',function(){dialog.classList.remove('open');setTimeout(function(){AI_US_TEMPORARY_ISSUE_SHOWN=false;},30000);});
+  })();
+  function aiUsCheckHealth(){fetch(AI_US_API_BASE+'/health',{cache:'no-store'}).then(function(response){if(response.status>=500)aiUsShowTemporaryIssue();}).catch(aiUsShowTemporaryIssue);}
+  setTimeout(aiUsCheckHealth,500);
 
   document.getElementById('researcherLogout').addEventListener('click',function(){
     sessionStorage.removeItem('ai_us_access_token');
@@ -587,9 +625,9 @@
       if(!match||!selectedVersion){alert('회차와 설문 버전을 선택해 주세요.');return;}
       var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
       fetch(AI_US_API_BASE+'/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-        .then(function(response){if(!response.ok)throw new Error('결과를 내려받을 수 없습니다.');return response.blob();})
+        .then(function(response){if(!response.ok){if(response.status>=500)aiUsShowTemporaryIssue();var error=new Error('결과를 내려받을 수 없습니다.');error.status=response.status;throw error;}return response.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='설문결과_'+round.value+'_'+selectedVersion+'.csv';a.click();URL.revokeObjectURL(url);})
-        .catch(function(error){alert(error.message);});
+        .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
     });
   })();
   // ---- live participation status and nonparticipants ----
@@ -624,9 +662,9 @@
       if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
       if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
       fetch(AI_US_API_BASE+'/api/v1/researcher/exports/chat-submissions?'+params.toString(),{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-        .then(function(response){if(!response.ok)throw new Error('대화문 자료를 내려받을 수 없습니다.');return response.blob();})
+        .then(function(response){if(!response.ok){if(response.status>=500)aiUsShowTemporaryIssue();var error=new Error('대화문 자료를 내려받을 수 없습니다.');error.status=response.status;throw error;}return response.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='대화문자료_'+cRound.value.replace(/\s/g,'')+'_'+cGrade.value+'.csv';a.click();URL.revokeObjectURL(url);})
-        .catch(function(error){alert(error.message);});
+        .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
     });
   })();
   // ---- 회원 신청 관리 ----

@@ -1313,10 +1313,14 @@
       clearSurveyErr();
     }
     function onSvPrev(){if(currentPage>-2)goPage(currentPage-1);}
+    function showScreeningBlocked(message){
+      clearSurveyErr();
+      aiUsAudienceDialog({title:'참여 대상 확인',message:message,confirmText:'확인'});
+    }
     function screeningPass(n){
       var a=collectAnswers();
-      if(n===1){if(a['demo.screening1']==null){showSurveyErr('응답을 선택해 주세요.');return false;}if(a['demo.screening1']===1){showSurveyErr('이 연구는 생성형 AI를 사용해 본 청소년만 참여할 수 있어요.');return false;}}
-      if(n===2){if(a['demo.screening2']==null){showSurveyErr('응답을 선택해 주세요.');return false;}if(a['demo.screening2']===1||a['demo.screening2']===2){showSurveyErr('이 연구는 최근 생성형 AI를 사용하는 청소년만 참여할 수 있어요.');return false;}}
+      if(n===1){if(a['demo.screening1']==null){showSurveyErr('응답을 선택해 주세요.');return false;}if(a['demo.screening1']===1){showScreeningBlocked('이 연구는 생성형 AI 사용 경험이 있는 청소년을 대상으로 진행됩니다. 관심을 가져주셔서 감사합니다.');return false;}}
+      if(n===2){if(a['demo.screening2']==null){showSurveyErr('응답을 선택해 주세요.');return false;}if(a['demo.screening2']===1||a['demo.screening2']===2){showScreeningBlocked('이 연구는 최근 생성형 AI를 사용하는 청소년을 대상으로 진행됩니다. 관심을 가져주셔서 감사합니다.');return false;}}
       clearSurveyErr();return true;
     }
     function onSvNext(){

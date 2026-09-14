@@ -1599,9 +1599,10 @@
       var se=document.getElementById('scrErr');
       var a1=document.querySelector('input[name="scr_demo.screening1"]:checked');
       var a2=document.querySelector('input[name="scr_demo.screening2"]:checked');
-      if(!a1||!a2){se.textContent='두 질문에 모두 응답해 주세요.';return false;}
-      if(Number(a1.value)===1){se.textContent='이 연구는 생성형 AI를 사용해 본 청소년만 참여할 수 있어요.';return false;}
-      if(Number(a2.value)===1||Number(a2.value)===2){se.textContent='이 연구는 최근 생성형 AI를 사용하는 청소년만 참여할 수 있어요.';return false;}
+      function showScreeningModal(message){se.textContent='';aiUsAudienceDialog({title:'참여 대상 확인',message:message,confirmText:'확인'});}
+      if(!a1||!a2){showScreeningModal('두 질문에 모두 응답해 주세요.');return false;}
+      if(Number(a1.value)===1){showScreeningModal('이 연구는 생성형 AI 사용 경험이 있는 청소년을 대상으로 진행됩니다. 관심을 가져주셔서 감사합니다.');return false;}
+      if(Number(a2.value)===1||Number(a2.value)===2){showScreeningModal('이 연구는 최근 생성형 AI를 사용하는 청소년을 대상으로 진행됩니다. 관심을 가져주셔서 감사합니다.');return false;}
       se.textContent=''; window.__screening={screening1:Number(a1.value),screening2:Number(a2.value)}; return true;
     }
     function initIntro(){ cnSet=CARD_NEWS[cnAud()]; cnBuildDots(); cnRender(0); }

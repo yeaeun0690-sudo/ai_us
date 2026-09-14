@@ -162,6 +162,12 @@
   .modal .err{color:#e2586a;font-size:.82rem;text-align:center;margin-top:12px;display:none}
   .modal .err.show{display:block}
   .field input.invalid{border-color:#e2586a;box-shadow:0 0 0 3px rgba(226,88,106,.14)}
+  .audience-dialog{z-index:160}
+  .audience-dialog .modal{max-width:420px;text-align:center}
+  .audience-dialog .aud-icon{width:54px;height:54px;border-radius:16px;margin:0 auto 12px;display:grid;place-items:center;background:var(--soft);color:var(--sky);font-size:1.7rem}
+  .audience-dialog .aud-actions{display:flex;gap:10px;margin-top:18px}
+  .audience-dialog .aud-actions button{flex:1;margin-top:0}
+  .audience-dialog .aud-cancel{background:#fff;border:1px solid var(--line);color:var(--ink-2);box-shadow:none}
 
   /* ---------- Surveys view ---------- */
   .surveys{position:fixed;inset:0;background:#fff;z-index:90;overflow-y:auto;display:none}
@@ -866,6 +872,18 @@
   </div>
 </div>
 
+<div class="backdrop audience-dialog" id="audienceDialog" role="dialog" aria-modal="true" aria-labelledby="audienceDialogTitle">
+  <div class="modal">
+    <div class="aud-icon">↔</div>
+    <h2 id="audienceDialogTitle">페이지 전환</h2>
+    <p class="desc" id="audienceDialogMessage"></p>
+    <div class="aud-actions">
+      <button class="btn-primary aud-cancel" id="audienceDialogCancel" type="button">다시 선택하기</button>
+      <button class="btn-primary" id="audienceDialogConfirm" type="button">확인</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // audience toggle (초등 / 중고등 / 연구자): swaps hero + mission images & copy
   (function(){
@@ -922,6 +940,19 @@
         if(byId('m'+(i+1)+'desc')) byId('m'+(i+1)+'desc').textContent=c.m[i].desc;
       }
     }
+    function setAudience(aud){
+      var target=null;
+      btns.forEach(function(b){if(b.dataset.aud===aud)target=b;});
+      if(!target) return;
+      btns.forEach(function(x){x.classList.remove('on');x.setAttribute('aria-selected','false');});
+      target.classList.add('on');target.setAttribute('aria-selected','true');
+      applyAudience(aud);
+    }
+    window.aiUsSetAudience=setAudience;
+    window.aiUsCurrentAudience=function(){
+      var on=t.querySelector('button.on');
+      return on&&on.dataset.aud==='teen'?'secondary':'elementary';
+    };
 
     btns.forEach(function(b){
       b.addEventListener('click',function(){
@@ -991,6 +1022,34 @@
         if(!response.ok){throw new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));}
         return data;
       });
+    });
+  }
+  function aiUsAudienceLabel(audience){return audience==='secondary'?'중고등':'초등';}
+  function aiUsSetApiAudience(audience){if(window.aiUsSetAudience)window.aiUsSetAudience(audience==='secondary'?'teen':'kid');}
+  function aiUsAudienceDialog(options){
+    var dialog=document.getElementById('audienceDialog');
+    var title=document.getElementById('audienceDialogTitle');
+    var message=document.getElementById('audienceDialogMessage');
+    var confirm=document.getElementById('audienceDialogConfirm');
+    var cancel=document.getElementById('audienceDialogCancel');
+    if(!dialog||!title||!message||!confirm||!cancel)return Promise.resolve(true);
+    title.textContent=options.title||'페이지 전환';
+    message.textContent=options.message||'';
+    confirm.textContent=options.confirmText||'확인';
+    cancel.textContent=options.cancelText||'다시 선택하기';
+    cancel.style.display=options.cancelText?'':'none';
+    dialog.classList.add('open');
+    return new Promise(function(resolve){
+      function done(value){
+        dialog.classList.remove('open');
+        confirm.removeEventListener('click',onConfirm);
+        cancel.removeEventListener('click',onCancel);
+        resolve(value);
+      }
+      function onConfirm(){done(true);}
+      function onCancel(){done(false);}
+      confirm.addEventListener('click',onConfirm);
+      cancel.addEventListener('click',onCancel);
     });
   }
 
@@ -1362,13 +1421,25 @@
       aiUsRequest('/api/v1/auth/participant/login',{method:'POST',body:{phone:digits,password:pw,audience:getAudience()}})
         .then(function(data){
           submit.disabled=false;
+          var actualAudience=data.audience||getAudience();
+          var audienceSwitched=data.audienceSwitched===true||actualAudience!==getAudience();
+          if(audienceSwitched) aiUsSetApiAudience(actualAudience);
           sessionStorage.setItem('ai_us_access_token',data.accessToken);
           sessionStorage.setItem('ai_us_role',data.role);
           sessionStorage.setItem('ai_us_participant_phone',digits);
           sessionStorage.setItem('ai_us_chat_consent', data.chatConsent===true?'true':'false');
           applyChatConsent();
-          if(data.needsPasswordChange){openFirstPasswordChange();return;}
-          closeLogin(); openSurveys();
+          function continueLogin(){
+            if(data.needsPasswordChange){openFirstPasswordChange();return;}
+            closeLogin(); openSurveys();
+          }
+          if(audienceSwitched){
+            aiUsAudienceDialog({
+              title:'페이지를 전환했어요',
+              message:'등록된 학교급에 맞춰 ['+aiUsAudienceLabel(actualAudience)+'] 페이지로 전환합니다.',
+              confirmText:'확인'
+            }).then(continueLogin);
+          }else continueLogin();
         })
         .catch(function(error){submit.disabled=false;showErr(error.message);});
     });
@@ -1532,6 +1603,27 @@
         var v=digits(el.value).slice(0,11);
         if(v.length<4)el.value=v; else if(v.length<8)el.value=v.slice(0,3)+'-'+v.slice(3);
         else el.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+      });
+    });
+    function gradeAudience(value){
+      if((value||'').indexOf('초등학교')===0)return 'elementary';
+      if((value||'').indexOf('중학교')===0||(value||'').indexOf('고등학교')===0)return 'secondary';
+      return null;
+    }
+    var gradeSelect=document.getElementById('grade');
+    if(gradeSelect) gradeSelect.addEventListener('change',function(){
+      var targetAudience=gradeAudience(gradeSelect.value);
+      var currentAudience=window.aiUsCurrentAudience?window.aiUsCurrentAudience():targetAudience;
+      if(!targetAudience||targetAudience===currentAudience)return;
+      var label=aiUsAudienceLabel(targetAudience);
+      aiUsAudienceDialog({
+        title:'학교급을 전환할까요?',
+        message:'선택한 학년은 '+label+' 대상이에요. '+label+' 페이지로 전환할까요?',
+        confirmText:'전환하기',
+        cancelText:'다시 선택하기'
+      }).then(function(confirmed){
+        if(confirmed){aiUsSetApiAudience(targetAudience);initIntro();}
+        else{gradeSelect.value='';gradeSelect.focus();}
       });
     });
 

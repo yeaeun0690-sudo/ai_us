@@ -1663,7 +1663,7 @@
           guardian:document.getElementById('agreeGuardian').checked}};
       submit.disabled=true;
       AppStore.submitApplication(data).then(function(){submit.disabled=false;show(3);})
-        .catch(function(){submit.disabled=false;showErr('err2','신청 처리 중 문제가 발생했어요. 다시 시도해 주세요.');});
+        .catch(function(error){submit.disabled=false;showErr('err2',error&&error.message?error.message:'신청 처리 중 문제가 발생했어요. 다시 시도해 주세요.');});
     });
 
     // 진입/종료

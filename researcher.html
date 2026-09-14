@@ -342,10 +342,7 @@
               <div class="fgroup">
                 <label for="fVersion">설문 버전</label>
                 <select id="fVersion">
-                  <option value="t1-elem-part1-v1-draft">초등 · 파트1 (t1-elem-part1-v1-draft)</option>
-                  <option value="t1-elem-part2-v1-draft">초등 · 파트2 (t1-elem-part2-v1-draft)</option>
-                  <option value="t1-secondary-part1-v1-draft">중고등 · 파트1 (t1-secondary-part1-v1-draft)</option>
-                  <option value="t1-secondary-part2-v1-draft">중고등 · 파트2 (t1-secondary-part2-v1-draft)</option>
+                  <option value="">설문 버전을 불러오는 중...</option>
                 </select>
               </div>
               <div class="fgroup">
@@ -545,6 +542,20 @@
     var round=document.getElementById('fRound'), grade=document.getElementById('fGrade');
     var summary=document.getElementById('dlSummary');
     var version=document.getElementById('fVersion'), previewBody=document.getElementById('surveyPreviewBody');
+    function audienceLabel(audience){return audience==='secondary'?'중고등':audience==='elementary'?'초등':'전체';}
+    function optionLabel(definition){
+      var part=definition.part?' · 파트'+definition.part:'';
+      var label=audienceLabel(definition.audience)+part+' ('+definition.surveyVersion+')';
+      return definition.title?definition.title+' · '+definition.surveyVersion:label;
+    }
+    function selectedDefinition(){
+      var opt=version.options[version.selectedIndex];
+      return opt&&opt.value?opt:null;
+    }
+    function syncRoundToVersion(){
+      var opt=selectedDefinition();
+      if(opt&&opt.dataset.round)round.value=opt.dataset.round+'회차';
+    }
     function loadPreview(){
       var match=round.value.match(/\d+/), selectedVersion=version.value.trim();
       if(!match||!selectedVersion){previewBody.innerHTML='<tr><td colspan="6">회차와 설문 버전을 선택해 주세요.</td></tr>';return;}
@@ -555,8 +566,22 @@
       }).catch(function(error){previewBody.innerHTML='<tr><td colspan="6">'+esc(error.message)+'</td></tr>';});
     }
     function upd(){summary.textContent=(round.value==='전체'?'전체 회차':round.value)+' · '+(grade.value==='전체'?'전체 학교급':grade.value);loadPreview();}
-    round.addEventListener('change',upd); grade.addEventListener('change',upd); version.addEventListener('change',loadPreview);
-    loadPreview();
+    function loadSurveyDefinitions(){
+      previewBody.innerHTML='<tr><td colspan="6">설문 버전을 불러오는 중입니다.</td></tr>';
+      aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){
+        if(!definitions.length){version.innerHTML='<option value="">등록된 설문 정의가 없습니다</option>';upd();return;}
+        version.innerHTML=definitions.map(function(definition){
+          return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';
+        }).join('');
+        syncRoundToVersion();
+        upd();
+      }).catch(function(error){
+        version.innerHTML='<option value="">설문 버전 조회 실패</option>';
+        previewBody.innerHTML='<tr><td colspan="6">'+esc(error.message)+'</td></tr>';
+      });
+    }
+    round.addEventListener('change',upd); grade.addEventListener('change',upd); version.addEventListener('change',function(){syncRoundToVersion();loadPreview();});
+    loadSurveyDefinitions();
     document.getElementById('dlBtn').addEventListener('click',function(){
       var match=round.value.match(/\d+/), selectedVersion=version.value.trim();
       if(!match||!selectedVersion){alert('회차와 설문 버전을 선택해 주세요.');return;}

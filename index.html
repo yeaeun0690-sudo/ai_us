@@ -255,6 +255,14 @@
   .guide-steps .gimg{margin-top:10px;width:100%;border:1px solid var(--line);border-radius:10px;display:block}
   .chat-file{display:block;width:100%;box-sizing:border-box;border:1.5px dashed var(--sky);border-radius:12px;padding:18px;text-align:center;color:var(--ink-2);cursor:pointer;background:#f9f8ff;margin-top:10px}
   .chat-file b{color:var(--deep)}
+  .chat-history-open{display:block;margin:16px auto 0;background:none;border:0;color:var(--sky);font-family:var(--font-body);font-weight:700;cursor:pointer;font-size:.9rem}
+  .history-list{display:grid;gap:10px;margin-top:14px}
+  .history-item{border:1px solid var(--line);border-radius:12px;padding:13px}
+  .history-item.requested{opacity:.58;background:#f7f7f8}
+  .history-meta{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--muted)}
+  .history-files{font-size:.88rem;color:var(--ink-2);margin-top:5px;word-break:break-word}
+  .history-actions{display:flex;justify-content:flex-end;margin-top:10px}
+  .history-actions button{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:var(--font-body);font-size:.78rem;color:var(--ink-2);cursor:pointer}
   .openchat-btn{display:block;width:100%;box-sizing:border-box;text-align:center;background:#fee500;color:#3c1e1e;border:none;border-radius:12px;padding:14px;font-family:var(--font-body);font-weight:700;cursor:pointer;text-decoration:none;margin-top:6px}
   /* ---------- Surveys: 설문/대화문 tabs ---------- */
   .sv-tabs{display:inline-flex;gap:5px;background:var(--soft);border:1px solid var(--line);
@@ -694,6 +702,7 @@
     <div class="sv-tabpanel" id="tab-chat">
       <div id="chatOpen">
         <p class="lead">AI 대화문은 총 <b>2회</b> 제출할 수 있어요.<br>1차 설문 후와 4차 설문 후에 제출해요.</p>
+        <button class="chat-history-open" id="chatHistoryOpen" type="button">제출 내역</button>
         <div class="sv-list" style="margin-top:26px">
           <div class="sv-card available">
             <div class="sv-num">1</div>
@@ -1814,8 +1823,9 @@
       ]}
     ];
     var chatOv=document.getElementById('chatOv');
-    var chatPoint='afterRound1', chatFile=null, chatSubmitting=false;
+    var chatPoint='afterRound1', chatFile=null, chatSubmitting=false, chatHistoryBusy=false;
     function chatEsc(s){return String(s==null?'':s);}
+    function chatHtmlEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
     function renderToolSelect(){
       document.getElementById('chatTitle').textContent='AI 대화문 제출';
       var g='<p class="chat-desc">어떤 AI의 대화를 제출하시나요? 도구를 선택하면 <b>내보내는 방법</b>을 안내해 드려요.</p><div class="tool-grid">';
@@ -1890,11 +1900,49 @@
         .catch(function(e){ err.textContent=(e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'; })
         .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }
+    function historyDate(value){try{return new Date(value).toLocaleString('ko-KR');}catch(e){return value||'';}}
+    function historyType(item){return item.sourceType==='image'?'이미지':item.sourceType==='file'?'ZIP':item.sourceType==='link'?'링크':'본문';}
+    function renderHistory(){
+      document.getElementById('chatTitle').textContent='대화문 제출 내역';
+      document.getElementById('chatBody').innerHTML='<p class="chat-desc">제출한 대화문을 확인할 수 있어요.</p><div class="history-list" id="historyList">불러오는 중이에요.</div>';
+      aiUsRequest('/api/v1/chat-submissions/mine',{headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')}})
+        .then(function(items){
+          var list=document.getElementById('historyList');
+          if(!items.length){list.textContent='아직 제출한 대화문이 없어요.';return;}
+          list.innerHTML=items.map(function(item){
+            var requested=item.status==='deletion_requested';
+            var filenames=(item.filenames||[]).length?item.filenames.map(chatHtmlEsc).join(', '):'첨부 파일 없음';
+            return '<div class="history-item'+(requested?' requested':'')+'">'
+              +'<div class="history-meta"><span>'+chatHtmlEsc(item.tool||'미지정')+' · '+historyType(item)+'</span><span>'+(requested?'삭제 요청됨':historyDate(item.submittedAt))+'</span></div>'
+              +'<div class="history-files">'+filenames+'</div>'
+              +'<div class="history-actions">'+(requested
+                ?'<button type="button" data-restore="'+chatHtmlEsc(item.submissionId)+'">삭제 요청 취소</button>'
+                :'<button type="button" data-delete="'+chatHtmlEsc(item.submissionId)+'">삭제 요청</button>')+'</div></div>';
+          }).join('');
+          list.querySelectorAll('[data-delete],[data-restore]').forEach(function(button){button.addEventListener('click',function(){
+            if(chatHistoryBusy)return;
+            var deletionId=button.getAttribute('data-delete'), restoreId=button.getAttribute('data-restore');
+            if(deletionId){
+              aiUsAudienceDialog({title:'삭제 요청할까요?',message:'삭제 요청한 파일은 연구진이 확인한 뒤 삭제됩니다.',confirmText:'삭제 요청'}).then(function(confirmed){
+                if(!confirmed)return;chatHistoryBusy=true;button.disabled=true;
+                aiUsRequest('/api/v1/chat-submissions/'+encodeURIComponent(deletionId)+'/deletion-request',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')}})
+                  .then(renderHistory).catch(function(error){chatHistoryBusy=false;button.disabled=false;aiUsAudienceDialog({title:'요청하지 못했어요',message:error.message,confirmText:'확인'});});
+              });
+            }else if(restoreId){
+              chatHistoryBusy=true;button.disabled=true;
+              aiUsRequest('/api/v1/chat-submissions/'+encodeURIComponent(restoreId)+'/restore',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')}})
+                .then(renderHistory).catch(function(error){chatHistoryBusy=false;button.disabled=false;aiUsAudienceDialog({title:'되돌리지 못했어요',message:error.message,confirmText:'확인'});});
+            }
+          });});
+        }).catch(function(error){document.getElementById('historyList').textContent=error.message;});
+    }
     function openChat(point){ chatPoint=point||'afterRound1'; renderToolSelect(); chatOv.classList.add('open'); document.body.style.overflow='hidden'; }
+    function openHistory(){ chatHistoryBusy=false; renderHistory(); chatOv.classList.add('open'); document.body.style.overflow='hidden'; }
     function closeChat(){ chatOv.classList.remove('open'); document.body.style.overflow=''; }
     document.querySelectorAll('#tab-chat .sv-card.available .chat-go').forEach(function(b){
       b.addEventListener('click',function(){ openChat(b.getAttribute('data-point')||'afterRound1'); });
     });
+    var historyOpen=document.getElementById('chatHistoryOpen');if(historyOpen)historyOpen.addEventListener('click',openHistory);
     var cc=document.getElementById('chatClose'); if(cc) cc.addEventListener('click',closeChat);
     if(chatOv) chatOv.addEventListener('click',function(e){ if(e.target===chatOv) closeChat(); });
   })();

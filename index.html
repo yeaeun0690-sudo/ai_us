@@ -1747,7 +1747,7 @@
     });
 
     // ---- 대화문 제출 모달 (도구별 안내 → 제출) ----
-    var CHAT_UPLOAD_READY=false;   // 파일 업로드 backend 준비되면 true
+    var CHAT_UPLOAD_READY=true;
     var OPENCHAT_URL='';           // 스크린샷 제출용 오픈채팅방 링크 (추후 입력)
     var CHAT_TOOLS=[
       {id:'chatgpt',name:'ChatGPT',emoji:'🟢',result:'zip',steps:[
@@ -1876,8 +1876,7 @@
       for(var j=0;j<files.length;j++){ fd.append('files', files[j]); }
       fd.append('tool',t.id); fd.append('submissionPoint',chatPoint);
       fd.append('sourceType', t.result==='image'?'image':'file'); fd.append('submissionId',(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()));
-      fd.append('participantPhone', sessionStorage.getItem('ai_us_participant_phone')||'');
-      aiUsRequest('/api/v1/chat-submissions',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:fd})
+      aiUsRequest('/api/v1/chat-submissions/uploads',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:fd})
         .then(function(){ document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block'; })
         .catch(function(e){ err.textContent=(e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'; })
         .then(function(){ btn.disabled=false; btn.textContent='제출하기'; });

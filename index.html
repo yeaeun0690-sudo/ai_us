@@ -253,8 +253,9 @@
   .guide-steps .gnum{flex:0 0 26px;width:26px;height:26px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem}
   .guide-steps .gtxt{flex:1;line-height:1.65;color:var(--ink);font-size:.93rem}
   .guide-steps .gimg{margin-top:10px;width:100%;border:1px solid var(--line);border-radius:10px;display:block}
-  .chat-file{display:block;width:100%;box-sizing:border-box;border:1.5px dashed var(--sky);border-radius:12px;padding:18px;text-align:center;color:var(--ink-2);cursor:pointer;background:#f9f8ff;margin-top:10px}
+  .chat-file{display:block;width:100%;box-sizing:border-box;border:1.5px dashed var(--sky);border-radius:12px;padding:18px;text-align:center;color:var(--ink-2);cursor:pointer;background:#f9f8ff;margin-top:10px;font:inherit}
   .chat-file b{color:var(--deep)}
+  .chat-file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .chat-history-open{display:block;margin:16px auto 0;background:none;border:0;color:var(--sky);font-family:var(--font-body);font-weight:700;cursor:pointer;font-size:.9rem}
   .history-list{display:grid;gap:10px;margin-top:14px}
   .history-item{border:1px solid var(--line);border-radius:12px;padding:13px}
@@ -1873,8 +1874,8 @@
       g+='</ol>';
       if(t.result==='zip'||t.result==='image'){
         var isImg=(t.result==='image');
-        g+='<label class="chat-file" id="chatFileLabel"><b>'+(isImg?'이미지 선택':'ZIP 파일 선택')+'</b><br><span id="chatFileName" style="font-size:.85rem;color:#9a93b8">'+(isImg?'저장한 캡처 이미지를 선택하세요 (여러 장 가능)':'여기를 눌러 다운로드한 ZIP을 선택하세요')+'</span>'
-          +'<input type="file" id="chatFileInput" accept="'+(isImg?'image/*':'.zip')+'"'+(isImg?' multiple':'')+' style="display:none"></label>'
+        g+='<button class="chat-file" id="chatFileButton" type="button"><b>'+(isImg?'이미지 선택':'ZIP 파일 선택')+'</b><br><span id="chatFileName" style="font-size:.85rem;color:#9a93b8">'+(isImg?'저장한 캡처 이미지를 선택하세요 (여러 장 가능)':'여기를 눌러 다운로드한 ZIP을 선택하세요')+'</span></button>'
+          +'<input class="chat-file-input" type="file" id="chatFileInput" accept="'+(isImg?'image/*':'.zip')+'"'+(isImg?' multiple':'')+'>'
           +'<button class="btn-primary" id="chatSubmit" type="button" style="width:100%;margin-top:14px">제출하기</button>';
       }else{
         g+='<p class="chat-hint">스크린샷은 아래 <b>오픈채팅방</b>에 올려 제출해요.</p>'
@@ -1885,8 +1886,15 @@
       document.getElementById('guideBack').addEventListener('click',renderToolSelect);
       if(t.result==='zip'||t.result==='image'){
         var fi=document.getElementById('chatFileInput');
-        document.getElementById('chatFileLabel').addEventListener('click',function(){ fi.click(); });
-        fi.addEventListener('change',function(){ if(fi.files&&fi.files.length){ chatFile=fi.files; document.getElementById('chatFileName').textContent='선택됨: '+(fi.files.length>1?fi.files.length+'개 파일':fi.files[0].name); } });
+        var fileButton=document.getElementById('chatFileButton');
+        fileButton.addEventListener('click',function(){fi.click();});
+        function updateSelectedFiles(){
+          if(!fi.files||!fi.files.length)return;
+          chatFile=fi.files;
+          document.getElementById('chatFileName').textContent='선택됨: '+(fi.files.length>1?fi.files.length+'개 파일':fi.files[0].name);
+        }
+        fi.addEventListener('change',updateSelectedFiles);
+        fi.addEventListener('input',updateSelectedFiles);
         document.getElementById('chatSubmit').addEventListener('click',function(){ submitFile(t); });
       }else{
         var ob=document.getElementById('openchatBtn');

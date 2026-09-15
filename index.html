@@ -1903,7 +1903,8 @@
         .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }
     function historyDate(value){
-      var date=new Date(value);
+      var normalized=typeof value==='string'&&!/(Z|[+-]\d\d:?\d\d)$/i.test(value)?value+'Z':value;
+      var date=new Date(normalized);
       if(isNaN(date.getTime()))return chatHtmlEsc(value||'');
       return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(date)+'<small class="history-zone">KST</small>';
     }

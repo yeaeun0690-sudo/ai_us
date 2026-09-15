@@ -708,7 +708,7 @@
     var cBody=document.getElementById('chatPreviewBody');
     var cAll=document.getElementById('cAll'), cSelectAll=document.getElementById('cSelectAll');
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
-    var cBulkBtn=document.getElementById('cBulkBtn'), selectAllFiltered=false;
+    var cBulkBtn=document.getElementById('cBulkBtn'), selectAllFiltered=false, bulkDownloadBusy=false;
     if(!cRound) return;
     function pointLabel(p){return p==='afterRound1'?'대화문 1 (1차 후)':p==='afterRound4'?'대화문 2 (4차 후)':(p||'-');}
     function sourceTag(s){return s==='image'?'🖼 이미지':s==='file'?'📦 ZIP 파일':(s||'-');}
@@ -768,19 +768,20 @@
         .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
     });
     cBulkBtn.addEventListener('click',function(){
+      if(bulkDownloadBusy)return;
       var ids=selectedIds();
       if(!selectAllFiltered&&!ids.length){alert('다운로드할 제출 파일을 선택해 주세요.');return;}
-      cBulkBtn.disabled=true;cBulkBtn.textContent='ZIP 준비 중…';
+      bulkDownloadBusy=true;cBulkBtn.disabled=true;cBulkBtn.textContent='ZIP 준비 중…';
       var payload={submissionIds:selectAllFiltered?[]:ids};
       if(cRound.value==='대화문 1 (1차 후)')payload.submissionPoint='afterRound1';
       if(cRound.value==='대화문 2 (4차 후)')payload.submissionPoint='afterRound4';
       if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
       aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs',{method:'POST',body:payload}).then(function(job){
         function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs/'+job.jobId).then(function(state){
-          if(state.status==='completed'&&state.downloadUrl){return fetch(state.downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions.zip');}).then(function(){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+          if(state.status==='completed'&&state.downloadUrl){return fetch(state.downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
           if(state.status==='failed')throw new Error(state.error||'일괄 다운로드를 준비하지 못했습니다.');
           setTimeout(poll,1000);
-        }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+        }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
         poll();
       }).catch(function(error){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';alert(error.message);});
     });

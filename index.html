@@ -258,11 +258,13 @@
   .chat-history-open{display:block;margin:16px auto 0;background:none;border:0;color:var(--sky);font-family:var(--font-body);font-weight:700;cursor:pointer;font-size:.9rem}
   .history-list{display:grid;gap:10px;margin-top:14px}
   .history-item{border:1px solid var(--line);border-radius:12px;padding:13px}
-  .history-item.requested{opacity:.58;background:#f7f7f8}
+  .history-item.requested{background:#f7f7f8}
+  .history-item.requested .history-meta,.history-item.requested .history-files{opacity:.58}
   .history-meta{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--muted)}
   .history-files{font-size:.88rem;color:var(--ink-2);margin-top:5px;word-break:break-word}
   .history-actions{display:flex;justify-content:flex-end;margin-top:10px}
   .history-actions button{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:var(--font-body);font-size:.78rem;color:var(--ink-2);cursor:pointer}
+  .history-zone{font-size:.7rem;color:var(--muted);margin-left:3px}
   .openchat-btn{display:block;width:100%;box-sizing:border-box;text-align:center;background:#fee500;color:#3c1e1e;border:none;border-radius:12px;padding:14px;font-family:var(--font-body);font-weight:700;cursor:pointer;text-decoration:none;margin-top:6px}
   /* ---------- Surveys: 설문/대화문 tabs ---------- */
   .sv-tabs{display:inline-flex;gap:5px;background:var(--soft);border:1px solid var(--line);
@@ -1900,9 +1902,14 @@
         .catch(function(e){ err.textContent=(e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'; })
         .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }
-    function historyDate(value){try{return new Date(value).toLocaleString('ko-KR');}catch(e){return value||'';}}
+    function historyDate(value){
+      var date=new Date(value);
+      if(isNaN(date.getTime()))return chatHtmlEsc(value||'');
+      return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(date)+'<small class="history-zone">KST</small>';
+    }
     function historyType(item){return item.sourceType==='image'?'이미지':item.sourceType==='file'?'ZIP':item.sourceType==='link'?'링크':'본문';}
     function renderHistory(){
+      chatHistoryBusy=false;
       document.getElementById('chatTitle').textContent='대화문 제출 내역';
       document.getElementById('chatBody').innerHTML='<p class="chat-desc">제출한 대화문을 확인할 수 있어요.</p><div class="history-list" id="historyList">불러오는 중이에요.</div>';
       aiUsRequest('/api/v1/chat-submissions/mine',{headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')}})

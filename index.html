@@ -657,8 +657,8 @@
       <p class="lead">한 달에 한 번, 총 <b>4회</b>의 탐사를 완료해요.<br>지금은 1회차부터 시작할 수 있어요.</p>
 
       <div class="sv-prog">
-        <div class="bar"><span style="width:0%"></span></div>
-        <div class="lbl">0 / 4회 완료</div>
+        <div class="bar"><span id="roundProgBar" style="width:0%"></span></div>
+        <div class="lbl" id="roundProgLbl">0 / 4회 완료</div>
       </div>
 
       <div class="sv-list">
@@ -1460,6 +1460,15 @@
       var b1=document.querySelector('#tab-survey .go[data-part="0"]'),b2=document.querySelector('#tab-survey .go[data-part="1"]');
       if(b1) b1.textContent=p1?'다시 보기':'시작하기';
       if(b2){ if(SURVEY_PARTS[1].comingSoon){b2.disabled=true;b2.textContent=p1?'준비 중':'파트 1 완료 후';} else {b2.disabled=!p1;b2.textContent=!p1?'파트 1 완료 후':(partCompleted(1)?'다시 보기':'시작하기');} }
+      updateRoundProgress();
+    }
+    function updateRoundProgress(){
+      var TOTAL=4;
+      var done=(partCompleted(0)&&partCompleted(1))?SURVEY_ROUND:(SURVEY_ROUND-1);
+      if(done<0)done=0; if(done>TOTAL)done=TOTAL;
+      var lbl=document.getElementById('roundProgLbl'),bar=document.getElementById('roundProgBar');
+      if(lbl)lbl.textContent=done+' / '+TOTAL+'회 완료';
+      if(bar)bar.style.width=Math.round(done/TOTAL*100)+'%';
     }
     function setSurveyCompleted(){
       dummySubmissionCompleted=true;

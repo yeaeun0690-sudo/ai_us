@@ -590,7 +590,7 @@
 <div class="backdrop" id="firstPasswordBackdrop" role="dialog" aria-modal="true" aria-labelledby="firstPasswordTitle">
   <div class="modal">
     <h2 id="firstPasswordTitle">비밀번호 변경</h2>
-    <p class="desc">처음 로그인하셨네요. 계속하려면 새 비밀번호를 설정해 주세요.</p>
+    <p class="desc">처음 로그인하셨네요. 계속하려면 새 비밀번호를 설정해 주세요.<br>(초기 비밀번호는 <b>1234</b>입니다.)</p>
     <div class="field">
       <label for="firstPasswordCurrent">현재 비밀번호</label>
       <input id="firstPasswordCurrent" type="password" placeholder="현재 비밀번호" autocomplete="current-password">
@@ -1814,7 +1814,7 @@
       ]}
     ];
     var chatOv=document.getElementById('chatOv');
-    var chatPoint='afterRound1', chatFile=null;
+    var chatPoint='afterRound1', chatFile=null, chatSubmitting=false;
     function chatEsc(s){return String(s==null?'':s);}
     function renderToolSelect(){
       document.getElementById('chatTitle').textContent='AI 대화문 제출';
@@ -1865,12 +1865,21 @@
       }
     }
     function submitFile(t){
+      if(chatSubmitting) return;
       var err=document.getElementById('chatErr'); err.textContent='';
       var files = chatFile ? (chatFile.length!==undefined ? chatFile : [chatFile]) : [];
-      if(!files.length){ err.textContent=(t.result==='image'?'제출할 이미지를 선택해 주세요.':'제출할 ZIP 파일을 선택해 주세요.'); return; }
+      if(!files.length){
+        aiUsAudienceDialog({
+          title:'파일을 첨부해 주세요',
+          message:t.result==='image'?'제출할 이미지를 선택한 뒤 다시 제출해 주세요.':'제출할 ZIP 파일을 선택한 뒤 다시 제출해 주세요.',
+          confirmText:'확인'
+        });
+        return;
+      }
       if(t.result==='zip' && !/\.zip$/i.test(files[0].name)){ err.textContent='ZIP 파일만 제출할 수 있어요.'; return; }
       if(t.result==='image'){ for(var i=0;i<files.length;i++){ if(!/^image\//.test(files[i].type)){ err.textContent='이미지 파일만 제출할 수 있어요.'; return; } } }
       if(!CHAT_UPLOAD_READY){ err.textContent='파일 업로드 기능은 준비 중이에요(백엔드 연결 예정). 선택한 파일: '+(files.length>1?files.length+'개':files[0].name); return; }
+      chatSubmitting=true;
       var btn=document.getElementById('chatSubmit'); btn.disabled=true; btn.textContent='제출 중…';
       var fd=new FormData();
       for(var j=0;j<files.length;j++){ fd.append('files', files[j]); }
@@ -1879,7 +1888,7 @@
       aiUsRequest('/api/v1/chat-submissions/uploads',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:fd})
         .then(function(){ document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block'; })
         .catch(function(e){ err.textContent=(e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'; })
-        .then(function(){ btn.disabled=false; btn.textContent='제출하기'; });
+        .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }
     function openChat(point){ chatPoint=point||'afterRound1'; renderToolSelect(); chatOv.classList.add('open'); document.body.style.overflow='hidden'; }
     function closeChat(){ chatOv.classList.remove('open'); document.body.style.overflow=''; }

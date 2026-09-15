@@ -1008,7 +1008,10 @@
     });
   })();
 
-  var AI_US_API_BASE='https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app';
+  var AI_US_API_BASE={
+    'web-ai-us-mtmm0sg55da4c824.sel3.cloudtype.app':'https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app',
+    'web-ai-us-mu2jfq4sfccf2f38.sel3.cloudtype.app':'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app'
+  }[window.location.hostname]||'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app';
   var AI_US_TEMPORARY_ISSUE_SHOWN=false;
   // 백엔드가 '승인 없이 가입 즉시 계정 생성'으로 바뀌면 이 값을 true 로만 바꾸면 됩니다.
   // (true: 즉시 로그인 안내 + 연구자 승인 UI 숨김 / false: 현재 승인 방식 유지)

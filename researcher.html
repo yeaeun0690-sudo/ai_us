@@ -436,7 +436,10 @@
 </div>
 
 <script>
-  var AI_US_API_BASE='https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app';
+  var AI_US_API_BASE={
+    'web-ai-us-mtmm0sg55da4c824.sel3.cloudtype.app':'https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app',
+    'web-ai-us-mu2jfq4sfccf2f38.sel3.cloudtype.app':'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app'
+  }[window.location.hostname]||'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app';
   var AI_US_TEMPORARY_ISSUE_SHOWN=false;
   var AI_US_ACCESS_TOKEN=sessionStorage.getItem('ai_us_access_token');
   function aiUsRequest(path,options){

@@ -575,14 +575,14 @@
     <button class="x" id="resetClose" aria-label="닫기">×</button>
     <div id="resetForm">
       <h2 id="resetTitle">비밀번호 재설정</h2>
-      <p class="desc">가입한 휴대폰 번호와 이메일이 일치하면 초기 비밀번호로 재설정해요.</p>
+      <p class="desc">본인 휴대폰 번호와 법적 보호자 휴대폰 번호가 일치하면 초기 비밀번호로 재설정해요.</p>
       <div class="field">
         <label for="resetPhone">휴대폰 번호 (아이디)</label>
         <input id="resetPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="tel">
       </div>
       <div class="field">
-        <label for="resetEmail">이메일</label>
-        <input id="resetEmail" type="email" placeholder="가입할 때 등록한 이메일" autocomplete="email">
+        <label for="resetGuardianPhone">법적 보호자 휴대폰 번호</label>
+        <input id="resetGuardianPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="tel">
       </div>
       <button class="btn-primary" id="resetSubmit" type="button">초기 비밀번호로 재설정</button>
       <p class="err" id="resetErr" role="alert"></p>
@@ -854,7 +854,8 @@
       </div>
       <div class="field"><label for="suPhone">본인 휴대폰 번호 (로그인 아이디로 사용)</label><input id="suPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="off"></div>
       <div class="field"><label for="guPhone">법적 보호자 휴대폰 번호</label><input id="guPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="off"></div>
-      <div class="field"><label for="suEmail">이메일 (비밀번호 찾기용)</label><input id="suEmail" type="email" placeholder="example@email.com" autocomplete="off"></div>
+      <div class="field"><label for="suEmail">이메일 (선택사항)</label><input id="suEmail" type="email" placeholder="example@email.com" autocomplete="off"></div>
+      <div class="field"><label for="suSns">SNS (선택사항)</label><input id="suSns" type="text" placeholder="입력 예시: 인스타그램 @insta_user, 페이스북 faceuser" autocomplete="off"></div>
       <p class="su-err" id="err2"></p>
       <div class="su-actions">
         <button class="btn-ghost" type="button" data-prev="1">이전</button>
@@ -1478,6 +1479,15 @@
       if(svNext){svNext.disabled=true;svNext.textContent='제출 완료';}
       dummySurveyStatus.textContent='최종 제출이 완료되었습니다. 임시 저장을 삭제했습니다.';
       updatePartButtons();
+      setTimeout(function(){
+        dummySurveyBackdrop.classList.remove('open');
+        if(activePart===0&&!SURVEY_PARTS[1].comingSoon){openSurvey(1);return;}
+        if(activePart===1&&sessionStorage.getItem('ai_us_chat_consent')==='true'){
+          document.querySelectorAll('#svTabs .sv-tab').forEach(function(tab){tab.classList.toggle('on',tab.dataset.tab==='chat');});
+          document.getElementById('tab-survey').classList.remove('on');
+          document.getElementById('tab-chat').classList.add('on');
+        }
+      },300);
     }
     function openSurvey(partIndex){
       SURVEY_PARTS=SURVEY_SETS[getAudience()]||SURVEY_SETS.elementary;
@@ -1624,7 +1634,7 @@
     function clrErr(id){var e=document.getElementById(id);if(e)e.classList.remove('show');}
     function resetForm(){
       ['readAll','joinChat','agreeSelf','agreeGuardian'].forEach(function(id){var e=document.getElementById(id);if(e)e.checked=false;});
-      ['suPhone','guPhone','suEmail'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+      ['suPhone','guPhone','suEmail','suSns'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
       var g=document.getElementById('grade');if(g)g.value='';
       signup.querySelectorAll('input[name="gender"]').forEach(function(r){r.checked=false;});
       signup.querySelectorAll('.su-err').forEach(function(e){e.classList.remove('show');});
@@ -1753,13 +1763,14 @@
       var phone=digits(document.getElementById('suPhone').value);
       var gphone=digits(document.getElementById('guPhone').value);
       var email=document.getElementById('suEmail').value.trim();
+      var sns=document.getElementById('suSns').value.trim();
       if(!gender){showErr('err2','성별을 선택해 주세요.');return;}
       if(!grade){showErr('err2','학교급·학년을 선택해 주세요.');return;}
       if(phone.length!==11||phone.slice(0,2)!=='01'){showErr('err2','본인 휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');return;}
       if(gphone.length!==11||gphone.slice(0,2)!=='01'){showErr('err2','보호자 휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');return;}
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showErr('err2','이메일을 정확히 입력해 주세요.');return;}
+      if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showErr('err2','이메일 형식을 확인해 주세요.');return;}
       clrErr('err2');
-      var data={gender:gender,grade:grade,phone:phone,guardianPhone:gphone,email:email,
+      var data={gender:gender,grade:grade,phone:phone,guardianPhone:gphone,email:email||null,sns:sns||null,
         consents:{documentRead:document.getElementById('readAll').checked,survey:true,
           chat:document.getElementById('joinChat').checked,participant:document.getElementById('agreeSelf').checked,
           guardian:document.getElementById('agreeGuardian').checked}};
@@ -2013,21 +2024,21 @@
     var cc=document.getElementById('chatClose'); if(cc) cc.addEventListener('click',closeChat);
     if(chatOv) chatOv.addEventListener('click',function(e){ if(e.target===chatOv) closeChat(); });
   })();
-  // ===== 비밀번호 재설정 (휴대폰+이메일 확인 후 초기화) =====
+  // ===== 비밀번호 재설정 (본인 휴대폰+보호자 휴대폰 확인 후 초기화) =====
   (function(){
     var loginBd=document.getElementById('loginBackdrop');
     var bd=document.getElementById('resetBackdrop');
     if(!bd) return;
     var toReset=document.getElementById('toReset');
     var formEl=document.getElementById('resetForm'), doneEl=document.getElementById('resetDone');
-    var phone=document.getElementById('resetPhone'), email=document.getElementById('resetEmail'), err=document.getElementById('resetErr');
+    var phone=document.getElementById('resetPhone'), guardianPhone=document.getElementById('resetGuardianPhone'), err=document.getElementById('resetErr');
 
-    var PasswordReset={ reset:function(phoneDigits,emailValue){ return aiUsRequest('/api/v1/auth/participant/password-reset',{method:'POST',body:{phone:phoneDigits,email:emailValue}}); } };
+    var PasswordReset={ reset:function(phoneDigits,guardianDigits){ return aiUsRequest('/api/v1/auth/participant/password-reset',{method:'POST',body:{phone:phoneDigits,guardianPhone:guardianDigits}}); } };
 
     function digits(v){return (v||'').replace(/\D/g,'');}
     function showErr(m){err.textContent=m;err.classList.add('show');}
     function clrErr(){err.classList.remove('show');}
-    function openReset(){ formEl.style.display=''; doneEl.style.display='none'; phone.value=''; email.value=''; phone.classList.remove('invalid'); email.classList.remove('invalid'); clrErr(); bd.classList.add('open'); setTimeout(function(){phone.focus();},60); }
+    function openReset(){ formEl.style.display=''; doneEl.style.display='none'; phone.value=''; guardianPhone.value=''; phone.classList.remove('invalid'); guardianPhone.classList.remove('invalid'); clrErr(); bd.classList.add('open'); setTimeout(function(){phone.focus();},60); }
     function closeReset(){ bd.classList.remove('open'); }
 
     if(toReset) toReset.addEventListener('click',function(){ if(loginBd) loginBd.classList.remove('open'); openReset(); });
@@ -2042,16 +2053,16 @@
       if(v.length<4) phone.value=v; else if(v.length<8) phone.value=v.slice(0,3)+'-'+v.slice(3);
       else phone.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
     });
-    email.addEventListener('input',function(){clrErr(); email.classList.remove('invalid');});
+    guardianPhone.addEventListener('input',function(){clrErr(); guardianPhone.classList.remove('invalid');});
 
     document.getElementById('resetSubmit').addEventListener('click',function(){
       var d=digits(phone.value);
       if(d.length!==11||d.slice(0,2)!=='01'){ showErr('휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)'); phone.classList.add('invalid'); phone.focus(); return; }
-      var emailValue=email.value.trim().toLowerCase();
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)){ showErr('가입할 때 등록한 이메일을 정확히 입력해 주세요.'); email.classList.add('invalid'); email.focus(); return; }
+      var guardianDigits=digits(guardianPhone.value);
+      if(guardianDigits.length!==11||guardianDigits.slice(0,2)!=='01'){ showErr('법적 보호자 휴대폰 번호를 정확히 입력해 주세요.'); guardianPhone.classList.add('invalid'); guardianPhone.focus(); return; }
       clrErr();
       var btn=this; btn.disabled=true;
-      PasswordReset.reset(d,emailValue).then(function(){ btn.disabled=false; formEl.style.display='none'; doneEl.style.display=''; })
+      PasswordReset.reset(d,guardianDigits).then(function(){ btn.disabled=false; formEl.style.display='none'; doneEl.style.display=''; })
         .catch(function(error){ btn.disabled=false; showErr(error&&error.message?error.message:'등록 정보가 일치하지 않습니다.'); });
     });
   })();

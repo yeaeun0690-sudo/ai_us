@@ -135,6 +135,7 @@
     font-family:var(--fb);font-size:.9rem;color:var(--ink);min-width:130px}
   .fgroup select{cursor:pointer}
   .fgroup select:focus,.fgroup input:focus{outline:none;border-color:var(--violet)}
+  .linkbtn{background:none;border:0;padding:0;color:var(--violet);font:inherit;cursor:pointer;text-decoration:underline}
 
   /* signup management */
   .apfilter{display:flex;gap:8px;margin:18px 0 16px;flex-wrap:wrap}
@@ -201,7 +202,7 @@
 
     <div class="card">
       <h3><span class="step">1</span>양식 내려받기</h3>
-      <p class="sub">먼저 빈 양식을 받아 참여자 정보를 채워 주세요. (이름 · 휴대폰번호 · 학교급 · 학년)</p>
+      <p class="sub">먼저 빈 양식을 받아 참여자 정보를 채워 주세요. (이름 · 휴대폰번호 · 보호자 휴대폰 · 학교급 · 학년 · 이메일 · SNS)</p>
       <p style="margin-top:14px"><button class="btn btn-ghost" id="tplBtn" type="button">⬇ 등록 양식 내려받기</button></p>
     </div>
 
@@ -288,7 +289,7 @@
               <thead><tr>
                 <th style="width:36px"><input type="checkbox" class="allchk" id="apAll" aria-label="전체 선택"></th>
                 <th>신청일</th><th>성별</th><th>학교급·학년</th>
-                <th>본인 휴대폰(아이디)</th><th>보호자 휴대폰</th><th>이메일</th>
+                <th>본인 휴대폰(아이디)</th><th>보호자 휴대폰</th><th>이메일</th><th>SNS</th>
                 <th>참여 형태</th><th>상태</th>
               </tr></thead>
               <tbody id="apBody"></tbody>
@@ -403,18 +404,15 @@
                 <label for="cGrade">학교급</label>
                 <select id="cGrade"><option>전체</option><option>초등</option><option>중등</option><option>고등</option></select>
               </div>
-              <button class="btn" id="cDlBtn" type="button">⬇ 대화문 내려받기</button>
+              <button class="btn btn-ghost" id="cDlBtn" type="button">⬇ 대화문 CSV</button>
+              <button class="btn" id="cBulkBtn" type="button">⬇ 선택 파일 ZIP</button>
             </div>
-            <p class="sub">선택: <b id="cSummary">전체 · 전체 학교급</b> · 미리보기 아래 표 참고</p>
+            <p class="sub">선택: <b id="cSummary">전체 · 전체 학교급</b> · <button class="linkbtn" id="cSelectAll" type="button">현재 조건 전체 선택</button> <button class="linkbtn" id="cClearSelection" type="button">선택 해제</button> · <span id="cSelectionSummary">0건 선택</span></p>
 
             <div class="tbl-wrap" style="margin-top:14px">
               <table>
-                <thead><tr><th>제출 회차</th><th>학교급</th><th>학년</th><th>아이디(휴대폰)</th><th>제출일</th><th>대화문</th></tr></thead>
-                <tbody id="chatPreviewBody">
-                  <tr><td>대화문 1 (1차 후)</td><td>초등</td><td>5</td><td>010-3456-7890</td><td>2025-03-11</td><td><span class="form-tag">🔗 공유 링크</span></td></tr>
-                  <tr><td>대화문 1 (1차 후)</td><td>중등</td><td>2</td><td>010-2345-6789</td><td>2025-03-12</td><td><span class="form-tag">📋 붙여넣기</span></td></tr>
-                  <tr><td>대화문 2 (4차 후)</td><td>고등</td><td>1</td><td>010-4567-8901</td><td>2025-06-20</td><td><span class="form-tag">🔗 공유 링크</span></td></tr>
-                </tbody>
+                <thead><tr><th><input type="checkbox" id="cAll" aria-label="현재 목록 전체 선택"></th><th>제출 회차</th><th>학교급</th><th>학년</th><th>아이디(휴대폰)</th><th>제출일</th><th>도구·파일</th><th>원본</th></tr></thead>
+                <tbody id="chatPreviewBody"><tr><td colspan="8">대화문 제출 내역을 불러오는 중입니다.</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -565,7 +563,7 @@
 
   // ---- template download ----
   document.getElementById('tplBtn').addEventListener('click',function(){
-    var csv='이름,휴대폰번호,학교급,학년,이메일\n홍길동,010-1234-5678,초등,4,participant@example.com\n';
+    var csv='이름,휴대폰번호,보호자휴대폰,학교급,학년,이메일,SNS\n홍길동,010-1234-5678,010-9876-5432,초등,4,participant@example.com,인스타그램 @insta_user\n';
     downloadBlob(csv,'참여자_등록_양식.csv','text/csv;charset=utf-8;');
   });
 
@@ -708,24 +706,56 @@
     var cRound=document.getElementById('cRound'), cGrade=document.getElementById('cGrade');
     var cSummary=document.getElementById('cSummary');
     var cBody=document.getElementById('chatPreviewBody');
+    var cAll=document.getElementById('cAll'), cSelectAll=document.getElementById('cSelectAll');
+    var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
+    var cBulkBtn=document.getElementById('cBulkBtn'), selectAllFiltered=false;
     if(!cRound) return;
     function pointLabel(p){return p==='afterRound1'?'대화문 1 (1차 후)':p==='afterRound4'?'대화문 2 (4차 후)':(p||'-');}
     function sourceTag(s){return s==='image'?'🖼 이미지':s==='file'?'📦 ZIP 파일':(s||'-');}
-    function loadPreview(){
-      if(!cBody) return;
+    function filterParams(){
       var params=new URLSearchParams();
       if(cRound.value==='대화문 1 (1차 후)')params.set('submission_point','afterRound1');
       if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
       if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
-      aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
-        if(!records||!records.length){cBody.innerHTML='<tr><td colspan="6">해당 조건의 대화문 제출이 없습니다.</td></tr>';return;}
-        cBody.innerHTML=records.map(function(r){
-          return '<tr><td>'+esc(pointLabel(r.submissionPoint||r.submission_point))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.phone||r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc(sourceTag(r.sourceType))+'</span></td></tr>';
-        }).join('');
-      }).catch(function(){/* 백엔드 미연결 시 기존 데모 행 유지 */});
+      return params;
     }
-    function upd(){cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value);loadPreview();}
+    function selectedIds(){return Array.prototype.slice.call(cBody.querySelectorAll('.chat-row-check:checked')).map(function(input){return input.value;});}
+    function updateSelectionSummary(){
+      var count=selectedIds().length;
+      cSelectionSummary.textContent=selectAllFiltered?'현재 조건 전체 선택':count+'건 선택';
+      if(cAll)cAll.checked=!!(count&&count===cBody.querySelectorAll('.chat-row-check').length);
+    }
+    function downloadBlobResponse(response, fallback){
+      if(!response.ok){var error=new Error(fallback);error.status=response.status;throw error;}
+      return response.blob().then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fallback;a.click();URL.revokeObjectURL(url);});
+    }
+    function loadPreview(){
+      if(!cBody) return;
+      var params=filterParams();
+      cBody.innerHTML='<tr><td colspan="8">대화문 제출 내역을 불러오는 중입니다.</td></tr>';
+      aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
+        if(!records||!records.length){cBody.innerHTML='<tr><td colspan="8">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
+        cBody.innerHTML=records.map(function(r){
+          var files=(r.filenames||[]).map(esc).join(', ')||'첨부 없음';
+          var action=r.attachmentCount?'<button class="btn btn-ghost chat-file-download" data-id="'+esc(r.submissionId)+'" type="button">원본 받기</button>':'-';
+          return '<tr><td><input class="chat-row-check" type="checkbox" value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+action+'</td></tr>';
+        }).join('');
+        cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.addEventListener('change',function(){selectAllFiltered=false;updateSelectionSummary();});});
+        cBody.querySelectorAll('.chat-file-download').forEach(function(button){button.addEventListener('click',function(){
+          button.disabled=true;
+          fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download',{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+            .then(function(response){return downloadBlobResponse(response,'chat-submission-'+button.dataset.id+'.zip');})
+            .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);})
+            .then(function(){button.disabled=false;});
+        });});
+        updateSelectionSummary();
+      }).catch(function(error){cBody.innerHTML='<tr><td colspan="8">'+esc(error.message)+'</td></tr>';updateSelectionSummary();});
+    }
+    function upd(){selectAllFiltered=false;cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value);loadPreview();}
     cRound.addEventListener('change',upd); cGrade.addEventListener('change',upd);
+    if(cSelectAll)cSelectAll.addEventListener('click',function(){selectAllFiltered=true;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=true;});updateSelectionSummary();});
+    if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});
+    if(cAll)cAll.addEventListener('change',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=cAll.checked;});updateSelectionSummary();});
     loadPreview();
     document.getElementById('cDlBtn').addEventListener('click',function(){
       var params=new URLSearchParams();
@@ -736,6 +766,23 @@
         .then(function(response){if(!response.ok){if(response.status>=500)aiUsShowTemporaryIssue();var error=new Error('대화문 자료를 내려받을 수 없습니다.');error.status=response.status;throw error;}return response.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='대화문자료_'+cRound.value.replace(/\s/g,'')+'_'+cGrade.value+'.csv';a.click();URL.revokeObjectURL(url);})
         .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
+    });
+    cBulkBtn.addEventListener('click',function(){
+      var ids=selectedIds();
+      if(!selectAllFiltered&&!ids.length){alert('다운로드할 제출 파일을 선택해 주세요.');return;}
+      cBulkBtn.disabled=true;cBulkBtn.textContent='ZIP 준비 중…';
+      var payload={submissionIds:selectAllFiltered?[]:ids};
+      if(cRound.value==='대화문 1 (1차 후)')payload.submissionPoint='afterRound1';
+      if(cRound.value==='대화문 2 (4차 후)')payload.submissionPoint='afterRound4';
+      if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
+      aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs',{method:'POST',body:payload}).then(function(job){
+        function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs/'+job.jobId).then(function(state){
+          if(state.status==='completed'&&state.downloadUrl){return fetch(state.downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions.zip');}).then(function(){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+          if(state.status==='failed')throw new Error(state.error||'일괄 다운로드를 준비하지 못했습니다.');
+          setTimeout(poll,1000);
+        }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+        poll();
+      }).catch(function(error){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';alert(error.message);});
     });
   })();
   // ---- 회원 신청 관리 ----
@@ -787,7 +834,7 @@
         return '<tr>'
           +'<td>'+(a.status==='approved'?'':'<input type="checkbox" class="rowchk" data-i="'+i+'">')+'</td>'
           +'<td>'+esc(a.date)+'</td><td>'+esc(a.gender)+'</td><td>'+esc(a.grade)+'</td>'
-          +'<td>'+esc(a.phone)+'</td><td>'+esc(a.guardianPhone)+'</td><td>'+esc(a.email)+'</td>'
+          +'<td>'+esc(a.phone)+'</td><td>'+esc(a.guardianPhone)+'</td><td>'+esc(a.email||'-')+'</td><td>'+esc(a.sns||'-')+'</td>'
           +'<td>'+formText(a)+'</td><td>'+statusBadge(a.status)+'</td>'
           +'</tr>';
       }).join('');
@@ -808,11 +855,11 @@
       aiUsRequest('/api/v1/researcher/applications').then(function(records){
         applications=records.map(function(record){return {
           id:record.applicationId,date:formatKstDate(record.submittedAt),gender:record.gender,grade:record.grade,
-          phone:record.phone,guardianPhone:record.guardianPhone,email:record.email,
+          phone:record.phone,guardianPhone:record.guardianPhone,email:record.email,sns:record.sns,
           joinChat:record.consents&&record.consents.chat,status:record.status
         };});
         render();
-      }).catch(function(error){body.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';});
+      }).catch(function(error){body.innerHTML='<tr><td colspan="10">'+esc(error.message)+'</td></tr>';});
     }
 
     // 학교급 필터
@@ -859,10 +906,10 @@
 
     // 엑셀(CSV) 다운로드
     document.getElementById('apDownload').addEventListener('click',function(){
-      var head=['신청일','성별','학교급·학년','본인휴대폰(아이디)','보호자휴대폰','이메일','참여형태','상태'];
+      var head=['신청일','성별','학교급·학년','본인휴대폰(아이디)','보호자휴대폰','이메일','SNS','참여형태','상태'];
       var rows=applications.map(function(a){
         return [a.date,a.gender,a.grade,a.phone,a.guardianPhone,a.email,
-          '설문조사'+(a.joinChat?'+대화문':''), a.status==='approved'?'승인완료':'승인대기'];
+          a.sns||'', '설문조사'+(a.joinChat?'+대화문':''), a.status==='approved'?'승인완료':'승인대기'];
       });
       var csv=head.join(',')+'\n'+rows.map(function(r){
         return r.map(function(v){var s=String(v==null?'':v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');

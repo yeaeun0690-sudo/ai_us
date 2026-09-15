@@ -517,6 +517,16 @@
     document.body.removeChild(a);URL.revokeObjectURL(url);
   }
   function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  function formatKstDate(value){
+    var date=new Date(value);
+    if(isNaN(date.getTime()))return value||'';
+    return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:'Asia/Seoul'}).format(date);
+  }
+  function formatKstDateTime(value){
+    var date=new Date(value);
+    if(isNaN(date.getTime()))return value||'';
+    return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(date)+' (KST)';
+  }
 
   // ---- chat file management ----
   (function(){
@@ -524,7 +534,6 @@
     var status=document.getElementById('fileStatus');
     var refresh=document.getElementById('fileRefresh');
     if(!body||!status||!refresh)return;
-    function date(value){try{return new Date(value).toLocaleString('ko-KR');}catch(e){return value||'';}}
     function load(){
       body.innerHTML='<tr><td colspan="6">불러오는 중이에요.</td></tr>';
       aiUsRequest('/api/v1/researcher/chat-submissions/files?status_filter='+encodeURIComponent(status.value)).then(function(items){
@@ -534,7 +543,7 @@
           var action=item.status==='deletion_requested'
             ?'<button class="btn btn-ghost file-delete" data-id="'+item.submissionId+'" type="button">파일 삭제</button>'
             :'<span class="badge-st approved">보관 중</span>';
-          return '<tr><td>'+esc(date(item.submittedAt))+'</td><td>'+esc(item.participantId||'')+'</td><td>'+esc(item.tool||'미지정')+'</td><td>'+files+'</td><td>'+(item.status==='deletion_requested'?'삭제 요청됨':'보관 중')+'</td><td>'+action+'</td></tr>';
+          return '<tr><td>'+esc(formatKstDateTime(item.submittedAt))+'</td><td>'+esc(item.participantId||'')+'</td><td>'+esc(item.tool||'미지정')+'</td><td>'+files+'</td><td>'+(item.status==='deletion_requested'?'삭제 요청됨':'보관 중')+'</td><td>'+action+'</td></tr>';
         }).join('');
         body.querySelectorAll('.file-delete').forEach(function(button){button.addEventListener('click',function(){
           if(!confirm('이 제출 내역과 첨부 파일을 실제로 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;
@@ -640,7 +649,7 @@
       var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
       aiUsRequest('/api/v1/researcher/survey-response-previews?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter).then(function(records){
         if(!records.length){previewBody.innerHTML='<tr><td colspan="6">해당 조건의 설문 응답이 없습니다.</td></tr>';return;}
-        previewBody.innerHTML=records.map(function(record){return '<tr><td>'+esc(record.phone)+'</td><td>'+esc(record.schoolLevel||'-')+'</td><td>'+esc(record.grade||'-')+'</td><td>'+esc(record.surveyRound)+'회차</td><td>'+esc(record.surveyVersion)+'</td><td>'+esc((record.submittedAt||'').slice(0,10))+'</td></tr>';}).join('');
+        previewBody.innerHTML=records.map(function(record){return '<tr><td>'+esc(record.phone)+'</td><td>'+esc(record.schoolLevel||'-')+'</td><td>'+esc(record.grade||'-')+'</td><td>'+esc(record.surveyRound)+'회차</td><td>'+esc(record.surveyVersion)+'</td><td>'+esc(formatKstDate(record.submittedAt))+'</td></tr>';}).join('');
       }).catch(function(error){previewBody.innerHTML='<tr><td colspan="6">'+esc(error.message)+'</td></tr>';});
     }
     function upd(){summary.textContent=(round.value==='전체'?'전체 회차':round.value)+' · '+(grade.value==='전체'?'전체 학교급':grade.value);loadPreview();}
@@ -706,7 +715,7 @@
       aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="6">해당 조건의 대화문 제출이 없습니다.</td></tr>';return;}
         cBody.innerHTML=records.map(function(r){
-          return '<tr><td>'+esc(pointLabel(r.submissionPoint||r.submission_point))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.phone||r.participantPhone||'-')+'</td><td>'+esc((r.submittedAt||'').slice(0,10))+'</td><td><span class="form-tag">'+esc(sourceTag(r.sourceType))+'</span></td></tr>';
+          return '<tr><td>'+esc(pointLabel(r.submissionPoint||r.submission_point))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.phone||r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc(sourceTag(r.sourceType))+'</span></td></tr>';
         }).join('');
       }).catch(function(){/* 백엔드 미연결 시 기존 데모 행 유지 */});
     }
@@ -793,7 +802,7 @@
     function loadApplications(){
       aiUsRequest('/api/v1/researcher/applications').then(function(records){
         applications=records.map(function(record){return {
-          id:record.applicationId,date:(record.submittedAt||'').slice(0,10),gender:record.gender,grade:record.grade,
+          id:record.applicationId,date:formatKstDate(record.submittedAt),gender:record.gender,grade:record.grade,
           phone:record.phone,guardianPhone:record.guardianPhone,email:record.email,
           joinChat:record.consents&&record.consents.chat,status:record.status
         };});

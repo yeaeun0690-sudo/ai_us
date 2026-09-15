@@ -144,6 +144,12 @@
   .apfilter .fbtn.on{background:var(--grad);color:#fff;border-color:transparent}
   .appbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
   .appbar .spacer{flex:1}
+  .approval-setting{display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid var(--line);border-radius:12px;background:#faf9fe;padding:14px 16px;margin:16px 0}
+  .approval-setting b{color:var(--deep)}
+  .approval-setting p{font-size:.82rem;color:var(--muted);margin-top:2px}
+  .approval-switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap;font-size:.84rem;font-weight:700;color:var(--ink-2)}
+  .approval-switch input{width:38px;height:22px;accent-color:var(--violet);cursor:pointer}
+  .approval-switch input:disabled{cursor:not-allowed}
   .allchk,.rowchk{width:18px;height:18px;accent-color:var(--violet);cursor:pointer;vertical-align:middle}
   .badge-st{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.74rem;font-weight:700;white-space:nowrap}
   .badge-st.pending{background:#fef3e2;color:#b45309}
@@ -244,6 +250,11 @@
         <div class="panel on" id="panel-apply">
           <h2>회원 신청 관리</h2>
           <p class="note" id="applyNote">신청서를 확인하고 승인하세요. 승인 시 계정이 발급됩니다 — 아이디는 본인 휴대폰 번호, 초기 비밀번호는 <b>1234</b>. (아래는 예시 데이터)</p>
+
+          <div class="approval-setting" id="approvalSetting">
+            <div><b>자동 승인</b><p id="approvalSettingNote">현재 상태를 확인하고 있어요.</p></div>
+            <label class="approval-switch"><input id="autoApprovalToggle" type="checkbox" disabled><span id="autoApprovalStatus">확인 중</span></label>
+          </div>
 
           <div class="stats" style="grid-template-columns:repeat(3,1fr)">
             <div class="stat"><div class="k">전체 신청</div><div class="v" id="apTotal">0<small>명</small></div></div>
@@ -419,16 +430,6 @@
 <script>
   var AI_US_API_BASE='https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app';
   var AI_US_TEMPORARY_ISSUE_SHOWN=false;
-  // 백엔드가 '승인 없이 가입 즉시 계정 생성'으로 바뀌면 이 값만 true 로 바꾸세요.
-  // (true: 승인 버튼 숨김·안내 문구 즉시가입용 / false: 현재 승인 방식 유지)
-  var IMMEDIATE_SIGNUP=false;
-  function applyApprovalMode(){
-    if(!IMMEDIATE_SIGNUP) return;
-    ['approveSel','approveAll'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
-    var note=document.getElementById('applyNote');
-    if(note) note.innerHTML='가입 즉시 계정이 발급됩니다(승인 불필요) — 아이디는 본인 휴대폰 번호, 초기 비밀번호는 <b>1234</b>. 아래는 가입 현황이에요.';
-  }
-  if(document.readyState!=='loading') applyApprovalMode(); else document.addEventListener('DOMContentLoaded',applyApprovalMode);
   var AI_US_ACCESS_TOKEN=sessionStorage.getItem('ai_us_access_token');
   function aiUsRequest(path,options){
     options=options||{};
@@ -695,7 +696,23 @@
     var elElem=document.getElementById('apElem'), elMid=document.getElementById('apMid'), elHigh=document.getElementById('apHigh');
     var elElemP=document.getElementById('apElemP'), elMidP=document.getElementById('apMidP'), elHighP=document.getElementById('apHighP');
     var allChk=document.getElementById('apAll');
+    var autoApprovalToggle=document.getElementById('autoApprovalToggle');
+    var autoApprovalStatus=document.getElementById('autoApprovalStatus');
+    var autoApprovalNote=document.getElementById('approvalSettingNote');
+    var researcherRole=sessionStorage.getItem('ai_us_role');
     var filter='all';
+
+    function renderAutoApproval(enabled){
+      if(autoApprovalToggle){autoApprovalToggle.checked=enabled;autoApprovalToggle.disabled=researcherRole!=='admin';}
+      if(autoApprovalStatus)autoApprovalStatus.textContent=enabled?'사용 중':'꺼짐';
+      if(autoApprovalNote)autoApprovalNote.textContent=enabled
+        ? '새 신청자는 동의 확인 후 즉시 승인되어 초기 비밀번호 변경 화면으로 이동합니다.'
+        : '새 신청자는 연구자 승인 후 로그인할 수 있습니다.';
+    }
+    function loadAutoApproval(){
+      aiUsRequest('/api/v1/researcher/application-settings').then(function(data){renderAutoApproval(data.autoApproval===true);})
+        .catch(function(){if(autoApprovalStatus)autoApprovalStatus.textContent='확인 실패';if(autoApprovalNote)autoApprovalNote.textContent='자동 승인 상태를 불러오지 못했습니다.';});
+    }
 
     function levelOf(grade){
       var g=grade||'';
@@ -766,6 +783,15 @@
     }
 
     document.getElementById('approveSel').addEventListener('click',function(){ approve(checkedIdx()); });
+    if(autoApprovalToggle)autoApprovalToggle.addEventListener('change',function(){
+      var enabled=autoApprovalToggle.checked;
+      if(researcherRole!=='admin'){autoApprovalToggle.checked=!enabled;return;}
+      if(!confirm('자동 승인을 '+(enabled?'사용':'해제')+'할까요?')){autoApprovalToggle.checked=!enabled;return;}
+      autoApprovalToggle.disabled=true;
+      aiUsRequest('/api/v1/admin/application-settings',{method:'PUT',body:{autoApproval:enabled}})
+        .then(function(data){renderAutoApproval(data.autoApproval===true);})
+        .catch(function(error){alert(error.message);renderAutoApproval(!enabled);});
+    });
     document.getElementById('approveAll').addEventListener('click',function(){
       var pend=applications.map(function(a,i){
         return (a.status==='pending' && (filter==='all'||levelOf(a.grade)===filter)) ? i : -1;
@@ -792,6 +818,7 @@
     });
 
     if(!AI_US_ACCESS_TOKEN||!['admin','researcher'].includes(sessionStorage.getItem('ai_us_role'))){window.location.href='index.html';return;}
+    loadAutoApproval();
     loadApplications();
   })();
 </script>

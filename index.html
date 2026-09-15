@@ -1142,6 +1142,27 @@
     function closeLogin(){ if(bd) bd.classList.remove('open'); }
     function openSurveys(){ if(surveys){surveys.classList.add('open');document.body.style.overflow='hidden';updatePartButtons();} }
     function closeSurveys(){ if(surveys){surveys.classList.remove('open');document.body.style.overflow='';} }
+    window.aiUsStartParticipantSession=function(data,digits){
+      var actualAudience=data.audience||getAudience();
+      var audienceSwitched=data.audienceSwitched===true||actualAudience!==getAudience();
+      if(audienceSwitched) aiUsSetApiAudience(actualAudience);
+      sessionStorage.setItem('ai_us_access_token',data.accessToken);
+      sessionStorage.setItem('ai_us_role',data.role||'participant');
+      sessionStorage.setItem('ai_us_participant_phone',digits);
+      sessionStorage.setItem('ai_us_chat_consent', data.chatConsent===true?'true':'false');
+      applyChatConsent();
+      function continueLogin(){
+        if(data.needsPasswordChange){openFirstPasswordChange();return;}
+        closeLogin(); openSurveys();
+      }
+      if(audienceSwitched){
+        aiUsAudienceDialog({
+          title:'페이지를 전환했어요',
+          message:'등록된 학교급에 맞춰 ['+aiUsAudienceLabel(actualAudience)+'] 페이지로 전환합니다.',
+          confirmText:'확인'
+        }).then(continueLogin);
+      }else continueLogin();
+    };
     function openFirstPasswordChange(){
       if(!firstPasswordBackdrop) return;
       firstPasswordCurrent.value=''; firstPasswordNew.value=''; firstPasswordConfirm.value='';
@@ -1449,25 +1470,7 @@
       aiUsRequest('/api/v1/auth/participant/login',{method:'POST',body:{phone:digits,password:pw,audience:getAudience()}})
         .then(function(data){
           submit.disabled=false;
-          var actualAudience=data.audience||getAudience();
-          var audienceSwitched=data.audienceSwitched===true||actualAudience!==getAudience();
-          if(audienceSwitched) aiUsSetApiAudience(actualAudience);
-          sessionStorage.setItem('ai_us_access_token',data.accessToken);
-          sessionStorage.setItem('ai_us_role',data.role);
-          sessionStorage.setItem('ai_us_participant_phone',digits);
-          sessionStorage.setItem('ai_us_chat_consent', data.chatConsent===true?'true':'false');
-          applyChatConsent();
-          function continueLogin(){
-            if(data.needsPasswordChange){openFirstPasswordChange();return;}
-            closeLogin(); openSurveys();
-          }
-          if(audienceSwitched){
-            aiUsAudienceDialog({
-              title:'페이지를 전환했어요',
-              message:'등록된 학교급에 맞춰 ['+aiUsAudienceLabel(actualAudience)+'] 페이지로 전환합니다.',
-              confirmText:'확인'
-            }).then(continueLogin);
-          }else continueLogin();
+          window.aiUsStartParticipantSession(data,digits);
         })
         .catch(function(error){submit.disabled=false;showErr(error.message);});
     });
@@ -1691,7 +1694,15 @@
           chat:document.getElementById('joinChat').checked,participant:document.getElementById('agreeSelf').checked,
           guardian:document.getElementById('agreeGuardian').checked}};
       submit.disabled=true;
-      AppStore.submitApplication(data).then(function(){submit.disabled=false;show(3);})
+      AppStore.submitApplication(data).then(function(result){
+        submit.disabled=false;
+        if(result.status==='approved'&&result.accessToken){
+          closeSignup();
+          window.aiUsStartParticipantSession(result,phone);
+          return;
+        }
+        show(3);
+      })
         .catch(function(error){submit.disabled=false;showErr('err2',error&&error.message?error.message:'신청 처리 중 문제가 발생했어요. 다시 시도해 주세요.');});
     });
 

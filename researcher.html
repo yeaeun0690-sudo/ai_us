@@ -778,8 +778,8 @@
       if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
       aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs',{method:'POST',body:payload}).then(function(job){
         function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs/'+job.jobId).then(function(state){
-          if(state.status==='completed'&&state.downloadUrl){return fetch(state.downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
-          if(state.status==='failed')throw new Error(state.error||'일괄 다운로드를 준비하지 못했습니다.');
+          if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+          if(state.status==='failed'){var failed=new Error(state.error||'일괄 다운로드를 준비하지 못했습니다.');failed.status=422;throw failed;}
           setTimeout(poll,1000);
         }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
         poll();

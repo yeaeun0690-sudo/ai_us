@@ -476,7 +476,7 @@
       </div>
     </div>
 
-    <button class="start" id="startBtn" type="button">탐사 시작하기</button>
+    <button class="start" id="startBtn" type="button">설문 시작하기</button>
   </header>
 
   <!-- RESEARCH (heading only) -->
@@ -536,7 +536,7 @@
 <div class="backdrop" id="loginBackdrop" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="modal">
     <button class="x" id="loginClose" aria-label="닫기">×</button>
-    <h2 id="loginTitle">탐사 시작</h2>
+    <h2 id="loginTitle">설문 시작</h2>
     <p class="desc" id="loginDesc">휴대폰 번호와 비밀번호를 입력해 주세요.</p>
 
     <div id="pPanel">
@@ -1141,7 +1141,7 @@
         hintEl.textContent='연구자 계정이 없다면 연구책임자에게 문의하세요.';
         pPanel.style.display='none'; rPanel.style.display='block';
       }else{
-        titleEl.textContent='탐사 시작';
+        titleEl.textContent='설문 시작';
         descEl.textContent='휴대폰 번호와 비밀번호를 입력해 주세요.';
         hintEl.textContent='로그인 정보는 디지털상담 연구실 연구원에게 받아요.';
         pPanel.style.display='block'; rPanel.style.display='none';
@@ -1300,7 +1300,7 @@
       if(scr2)html+='<div class="survey-page" data-page="-1" style="display:none"><div class="sq-scale"><div class="sq-scale-name">참여 전 확인 (2/2)</div><div class="sq-instr">먼저 참여 대상인지 확인할게요. 아래 질문에 답해 주세요.</div>'+renderQuestion(scr2)+'</div></div>';
       html+='<div class=\"survey-page\" data-page=\"0\"><div class=\"survey-intro\"><p>안녕하세요. 이 설문은 여러분이 AI를 어떻게 사용하고 있는지, 그리고 요즘 어떻게 지내고 있는지를 알아보기 위한 것입니다. 여러분의 응답은 청소년들이 AI와 건강하게 지낼 수 있도록 돕는 기초 자료로 소중하게 활용됩니다.</p><div class=\"survey-intro-title\">참여 전에 꼭 확인해 주세요</div><ol><li>설문은 두 개의 링크로 나누어져 있습니다. 첫 번째 설문을 마친 뒤 두 번째 링크로 이어서 참여해 주세요.</li><li>핸드폰보다는 태블릿(갤럭시탭, 아이패드 등)이나 노트북·컴퓨터에서 참여하는 것을 권장합니다. 화면이 넓어야 문항을 편하게 볼 수 있습니다.</li><li>정답은 없습니다. 좋아 보이는 답이 아니라, 평소 나의 모습에 가장 가까운 것을 편안하게 골라 주세요.</li><li>응답 내용은 연구 목적으로만 사용되며, 개인 정보는 안전하게 보호됩니다.</li><li>참여 사례비: 한 회차의 <b>파트 1과 파트 2를 모두 완료</b>해야 그 회차 사례비(<b>10,000원</b> 상당 모바일 상품권)가 지급됩니다. 4회차를 모두 완료하면 <b>총 40,000원</b>이에요.</li></ol></div></div>';
       SPEC().scales.forEach(function(s,idx){
-        html+='<div class="survey-page" data-page="'+(idx+1)+'" style="display:none"><div class="sq-scale"><div class="sq-scale-name">'+sqEsc(s.scaleName)+'</div>';
+        html+='<div class="survey-page" data-page="'+(idx+1)+'" style="display:none"><div class="sq-scale"><div class="sq-scale-name">'+sqEsc(SPEC().part===2?s.scaleName.replace(/\s*\([A-Za-z0-9][A-Za-z0-9\- ]*\)\s*$/,''):s.scaleName)+'</div>';
         if(s.instruction) html+='<div class="sq-instr">'+sqEsc(s.instruction).replace(/&lt;u&gt;/g,'<u>').replace(/&lt;\/u&gt;/g,'</u>')+'</div>';
         s.questions.forEach(function(q){if(q.key==='demo.screening1'||q.key==='demo.screening2')return;html+=renderQuestion(q);});
         html+='</div></div>';
@@ -1376,7 +1376,7 @@
       else{
         topbar.style.display='block';
         document.getElementById('progFill').style.width=Math.round(i/total*100)+'%';
-        document.getElementById('progName').textContent=SPEC().scales[i-1].scaleName;
+        document.getElementById('progName').textContent=SPEC().part===2?SPEC().scales[i-1].scaleName.replace(/\s*\([A-Za-z0-9][A-Za-z0-9\- ]*\)\s*$/,''):SPEC().scales[i-1].scaleName;
         document.getElementById('progCount').textContent=' '+i+' / '+total;
         if(svPrev)svPrev.style.visibility='visible';
         if(svNext)svNext.textContent=(i===total)?'최종 제출하기':'다음 →';

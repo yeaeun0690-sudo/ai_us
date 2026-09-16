@@ -1017,6 +1017,7 @@
     'web-ai-us-mu2jfq4sfccf2f38.sel3.cloudtype.app':'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app'
   }[window.location.hostname]||'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app';
   var AI_US_TEMPORARY_ISSUE_SHOWN=false;
+  var AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=null;
   // 백엔드가 '승인 없이 가입 즉시 계정 생성'으로 바뀌면 이 값을 true 로만 바꾸면 됩니다.
   // (true: 즉시 로그인 안내 + 연구자 승인 UI 숨김 / false: 현재 승인 방식 유지)
   var IMMEDIATE_SIGNUP=false;
@@ -1030,6 +1031,14 @@
   function aiUsRequest(path,options){
     options=options||{};
     options.headers=options.headers||{};
+    var participantToken=sessionStorage.getItem('ai_us_access_token');
+    if(path!=='/api/v1/auth/participant/refresh'&&options.headers.Authorization&&sessionStorage.getItem('ai_us_role')==='participant'&&participantToken&&aiUsParticipantTokenExpiresSoon(participantToken)){
+      return aiUsMaybeRefreshParticipantSession().then(function(refreshed){
+        if(!refreshed){var expiredError=new Error('로그인이 만료되었습니다. 작성 내용은 임시 저장되어 있으니 다시 로그인해 주세요.');expiredError.status=401;throw expiredError;}
+        options.headers.Authorization='Bearer '+sessionStorage.getItem('ai_us_access_token');
+        return aiUsRequest(path,options);
+      });
+    }
     if(options.body && !(options.body instanceof FormData)){
       options.headers['Content-Type']='application/json';
       options.body=JSON.stringify(options.body);
@@ -1042,6 +1051,7 @@
           error.status=response.status;
           throw error;
         }
+        if(path!=='/api/v1/auth/participant/refresh'&&options.headers.Authorization)aiUsMaybeRefreshParticipantSession();
         return data;
       });
     }).catch(function(error){
@@ -1049,6 +1059,26 @@
       throw error;
     });
   }
+  function aiUsParticipantTokenExpiresSoon(token){
+    try{
+      var encoded=token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+      var payload=JSON.parse(atob(encoded));
+      return !payload.exp||payload.exp*1000-Date.now()<30*60*1000;
+    }catch(error){return true;}
+  }
+  function aiUsMaybeRefreshParticipantSession(){
+    var token=sessionStorage.getItem('ai_us_access_token');
+    if(!token||sessionStorage.getItem('ai_us_role')!=='participant'||!aiUsParticipantTokenExpiresSoon(token))return Promise.resolve(true);
+    if(AI_US_PARTICIPANT_REFRESH_IN_FLIGHT)return AI_US_PARTICIPANT_REFRESH_IN_FLIGHT;
+    AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=fetch(AI_US_API_BASE+'/api/v1/auth/participant/refresh',{method:'POST',headers:{Authorization:'Bearer '+token}})
+      .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok){var error=new Error(data.detail||'로그인이 만료되었습니다.');error.status=response.status;throw error;}return data;});})
+      .then(function(data){sessionStorage.setItem('ai_us_access_token',data.accessToken);sessionStorage.setItem('ai_us_chat_consent',data.chatConsent===true?'true':'false');return true;})
+      .catch(function(error){if(error.status===401)sessionStorage.setItem('ai_us_session_expired','true');return false;})
+      .then(function(refreshed){AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=null;return refreshed;});
+    return AI_US_PARTICIPANT_REFRESH_IN_FLIGHT;
+  }
+  setInterval(function(){aiUsMaybeRefreshParticipantSession();},5*60*1000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)aiUsMaybeRefreshParticipantSession();});
   function aiUsShowTemporaryIssue(){
     if(AI_US_TEMPORARY_ISSUE_SHOWN)return;
     AI_US_TEMPORARY_ISSUE_SHOWN=true;
@@ -1167,6 +1197,7 @@
       var audienceSwitched=data.audienceSwitched===true||actualAudience!==getAudience();
       if(audienceSwitched) aiUsSetApiAudience(actualAudience);
       sessionStorage.setItem('ai_us_access_token',data.accessToken);
+      sessionStorage.removeItem('ai_us_session_expired');
       sessionStorage.setItem('ai_us_role',data.role||'participant');
       sessionStorage.setItem('ai_us_participant_phone',digits);
       sessionStorage.setItem('ai_us_chat_consent', data.chatConsent===true?'true':'false');

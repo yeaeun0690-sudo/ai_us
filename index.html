@@ -208,6 +208,9 @@
     font-family:var(--font-body);font-weight:700;font-size:.9rem;cursor:pointer;
     box-shadow:0 6px 16px rgba(71,85,105,.2);transition:transform .18s}
   .sv-action .go:hover{transform:translateY(-1px)}
+  .sv-action .go.done,.sv-action .go.done:disabled{background:#daf3ec;color:#0e9a8b;box-shadow:none;cursor:default}
+  .sv-action .go.done::before{content:"✓ "}
+  .sv-action .go.done:hover{transform:none}
   .sv-action .lock{color:var(--muted);font-size:.85rem;white-space:nowrap}
   @media(max-width:520px){
     .sv-card{flex-wrap:wrap}
@@ -1460,8 +1463,8 @@
       SURVEY_PARTS=SURVEY_SETS[getAudience()]||SURVEY_SETS.elementary;
       var p1=partCompleted(0);
       var b1=document.querySelector('#tab-survey .go[data-part="0"]'),b2=document.querySelector('#tab-survey .go[data-part="1"]');
-      if(b1) b1.textContent=p1?'다시 보기':'시작하기';
-      if(b2){ if(SURVEY_PARTS[1].comingSoon){b2.disabled=true;b2.textContent=p1?'준비 중':'파트 1 완료 후';} else {b2.disabled=!p1;b2.textContent=!p1?'파트 1 완료 후':(partCompleted(1)?'다시 보기':'시작하기');} }
+      if(b1){ if(p1){b1.textContent='완료';b1.disabled=true;b1.classList.add('done');} else {b1.textContent='시작하기';b1.disabled=false;b1.classList.remove('done');} }
+      if(b2){ b2.classList.remove('done'); if(SURVEY_PARTS[1].comingSoon){b2.disabled=true;b2.textContent=p1?'준비 중':'파트 1 완료 후';} else if(!p1){b2.disabled=true;b2.textContent='파트 1 완료 후';} else if(partCompleted(1)){b2.disabled=true;b2.textContent='완료';b2.classList.add('done');} else {b2.disabled=false;b2.textContent='시작하기';} }
       updateRoundProgress();
     }
     function updateRoundProgress(){

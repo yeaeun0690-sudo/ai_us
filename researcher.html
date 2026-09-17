@@ -311,7 +311,7 @@
 
           <div class="chart-card">
             <h3>회차별 참여 인원</h3>
-            <p class="sub">한 달에 한 번, 총 4회차 중 각 회차 참여 인원이에요.</p>
+            <p class="sub">설문 버전과 관계없이 회차별로 집계한 참여 인원이에요.</p>
             <div class="chart">
               <div class="col"><div class="barwrap"><div class="bar" style="height:100%"><span class="n">300</span></div></div><div class="lbl">1회차<small>완료</small></div></div>
               <div class="col"><div class="barwrap"><div class="bar" style="height:80%"><span class="n">240</span></div></div><div class="lbl">2회차<small>진행중</small></div></div>
@@ -337,6 +337,7 @@
               <label for="absentDefinition">기준 설문</label>
               <select id="absentDefinition"><option value="">설문 버전을 불러오는 중...</option></select>
             </div>
+            <label class="fgroup"><span>조회 옵션</span><span><input id="absentIncludeLegacy" type="checkbox"> 과거 v1 포함</span></label>
             <button class="btn btn-ghost" id="absentDownload" type="button" disabled>⬇ 미참여자 CSV 다운로드</button>
           </div>
 
@@ -375,6 +376,7 @@
                   <option value="">설문 버전을 불러오는 중...</option>
                 </select>
               </div>
+              <label class="fgroup"><span>조회 옵션</span><span><input id="includeLegacyVersions" type="checkbox"> 과거 v1 포함</span></label>
               <div class="fgroup">
                 <label for="fGrade">학교급</label>
                 <select id="fGrade"><option>전체</option><option>초등</option><option>중등</option><option>고등</option></select>
@@ -641,6 +643,7 @@
     var round=document.getElementById('fRound'), grade=document.getElementById('fGrade');
     var summary=document.getElementById('dlSummary');
     var version=document.getElementById('fVersion'), previewBody=document.getElementById('surveyPreviewBody');
+    var includeLegacy=document.getElementById('includeLegacyVersions');
     function audienceLabel(audience){return audience==='secondary'?'중고등':audience==='elementary'?'초등':'대상 미지정';}
     function optionLabel(definition){
       var part=definition.part?' · 파트'+definition.part:'';
@@ -669,7 +672,8 @@
       previewBody.innerHTML='<tr><td colspan="6">설문 버전을 불러오는 중입니다.</td></tr>';
       aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){
         if(!definitions.length){version.innerHTML='<option value="">등록된 설문 정의가 없습니다</option>';upd();return;}
-        version.innerHTML=definitions.map(function(definition){
+        var visibleDefinitions=includeLegacy&&includeLegacy.checked?definitions:definitions.filter(function(definition){return !/-v1-draft$/.test(definition.surveyVersion);});
+        version.innerHTML=visibleDefinitions.map(function(definition){
           return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';
         }).join('');
         syncRoundToVersion();
@@ -680,6 +684,7 @@
       });
     }
     round.addEventListener('change',upd); grade.addEventListener('change',upd); version.addEventListener('change',function(){syncRoundToVersion();loadPreview();});
+    if(includeLegacy)includeLegacy.addEventListener('change',loadSurveyDefinitions);
     loadSurveyDefinitions();
     document.getElementById('dlBtn').addEventListener('click',function(){
       var match=round.value.match(/\d+/), selectedVersion=version.value.trim();
@@ -697,6 +702,7 @@
     var absentPanel=document.getElementById('panel-absent');
     var absentDownload=document.getElementById('absentDownload');
     var absentDefinition=document.getElementById('absentDefinition');
+    var absentIncludeLegacy=document.getElementById('absentIncludeLegacy');
     var nonparticipantReport=null;
     if(!AI_US_ACCESS_TOKEN||!statusPanel||!absentPanel)return;
     aiUsRequest('/api/v1/researcher/participation-status').then(function(data){
@@ -727,11 +733,16 @@
         absentDownload.disabled=false;
       }).catch(function(error){body.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     }
-    aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){
+    function loadAbsentDefinitions(){
+      aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){
       if(!definitions.length){absentDefinition.innerHTML='<option value="">등록된 설문 정의가 없습니다</option>';return;}
-      absentDefinition.innerHTML=definitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(definitionLabel(definition))+'</option>';}).join('');
+      var visibleDefinitions=absentIncludeLegacy&&absentIncludeLegacy.checked?definitions:definitions.filter(function(definition){return !/-v1-draft$/.test(definition.surveyVersion);});
+      absentDefinition.innerHTML=visibleDefinitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(definitionLabel(definition))+'</option>';}).join('');
       loadNonparticipants();
-    }).catch(function(error){absentDefinition.innerHTML='<option value="">설문 버전 조회 실패</option>';absentPanel.querySelector('tbody').innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
+      }).catch(function(error){absentDefinition.innerHTML='<option value="">설문 버전 조회 실패</option>';absentPanel.querySelector('tbody').innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
+    }
+    loadAbsentDefinitions();
+    if(absentIncludeLegacy)absentIncludeLegacy.addEventListener('change',loadAbsentDefinitions);
     absentDefinition.addEventListener('change',loadNonparticipants);
     if(absentDownload)absentDownload.addEventListener('click',function(){
       if(!nonparticipantReport)return;

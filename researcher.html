@@ -715,7 +715,7 @@
     });
     function definitionLabel(definition){
       var audience=definition.audience==='secondary'?'중고등':definition.audience==='elementary'?'초등':'대상 미지정';
-      return definition.title||audience+(definition.part?' · 파트'+definition.part:'')+' · '+definition.surveyVersion;
+      return (definition.title||audience+(definition.part?' · 파트'+definition.part:''))+' · '+definition.surveyVersion;
     }
     function formatPhone(phone){
       var digits=String(phone||'').replace(/\D/g,'');

@@ -1630,6 +1630,7 @@
           .then(function(data){
             sessionStorage.setItem('ai_us_access_token',data.accessToken);
             sessionStorage.setItem('ai_us_role',data.role);
+            sessionStorage.setItem('ai_us_username',data.username||id);
             window.location.href='researcher.html';
           })
           .catch(function(error){submit.disabled=false;showErr(error.message);});

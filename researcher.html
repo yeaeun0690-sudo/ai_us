@@ -135,6 +135,7 @@
     font-family:var(--fb);font-size:.9rem;color:var(--ink);min-width:130px}
   .fgroup select{cursor:pointer}
   .fgroup select:focus,.fgroup input:focus{outline:none;border-color:var(--violet)}
+  .absent-version-select{min-width:520px;max-width:100%}
   .linkbtn{background:none;border:0;padding:0;color:var(--violet);font:inherit;cursor:pointer;text-decoration:underline}
 
   /* signup management */
@@ -164,8 +165,9 @@
     .side{position:static;display:flex;gap:6px;overflow-x:auto}
     .side button{white-space:nowrap}
     .stats{grid-template-columns:1fr 1fr}
+    .absent-version-select{min-width:360px}
   }
-  @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.tabs-in{gap:18px}}
+  @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.tabs-in{gap:18px}.absent-version-select{min-width:0;width:100%}}
 </style>
 </head>
 <body>
@@ -335,7 +337,7 @@
           <div class="filters">
             <div class="fgroup">
               <label for="absentDefinition">기준 설문</label>
-              <select id="absentDefinition"><option value="">설문 버전을 불러오는 중...</option></select>
+              <select class="absent-version-select" id="absentDefinition"><option value="">설문 버전을 불러오는 중...</option></select>
             </div>
             <label class="fgroup"><span>조회 옵션</span><span><input id="absentIncludeLegacy" type="checkbox"> 과거 v1 포함</span></label>
             <button class="btn btn-ghost" id="absentDownload" type="button" disabled>⬇ 미참여자 CSV 다운로드</button>

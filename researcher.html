@@ -446,7 +446,7 @@
   var researcherRole=sessionStorage.getItem('ai_us_role');
   var researcherDisplayName=document.getElementById('researcherDisplayName');
   var researcherDisplayRole=document.getElementById('researcherDisplayRole');
-  if(researcherDisplayName)researcherDisplayName.textContent=sessionStorage.getItem('ai_us_username')||'연구자';
+  if(researcherDisplayName)researcherDisplayName.textContent=sessionStorage.getItem('ai_us_username')||(researcherRole==='admin'?'':'연구자');
   if(researcherDisplayRole)researcherDisplayRole.textContent=researcherRole==='admin'?'관리자':'연구원';
   function aiUsRequest(path,options){
     options=options||{};

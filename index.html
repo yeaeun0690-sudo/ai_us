@@ -135,6 +135,40 @@
   .policy.open .policy__body{grid-template-rows:1fr}
   .policy__body > div{overflow:hidden}
   .policy__inner{padding:6px 4px 14px;font-size:.88rem;color:var(--muted);line-height:1.75}
+  .policy__inner{text-align:left}
+  .policy__inner .pp-lead{margin-bottom:14px;color:var(--ink-2)}
+  .policy__inner .pp-sec{margin-bottom:14px}
+  .policy__inner .pp-sec:last-child{margin-bottom:0}
+  .policy__inner h4{font-family:var(--font-display);font-weight:400;font-size:.98rem;
+    color:var(--sky);margin-bottom:6px}
+  .policy__inner ul{list-style:none;margin:0;padding:0}
+  .policy__inner li{position:relative;padding-left:12px;margin-bottom:5px}
+  .policy__inner li::before{content:"·";position:absolute;left:2px;color:var(--indigo)}
+  .policy__inner p{margin:0}
+  .policy__inner b{color:var(--ink);font-weight:700}
+  .foot-contact{max-width:760px;margin:16px auto 0;padding-top:18px;border-top:1px solid var(--line)}
+  .foot-contact__org{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
+    gap:6px 14px;margin-bottom:10px;
+    font-family:var(--font-body);font-weight:700;font-size:.95rem;color:var(--ink)}
+  .foot-contact__org span{position:relative}
+  .foot-contact__org span:not(:last-child)::after{content:"|";position:absolute;right:-8px;
+    color:var(--line);font-weight:400}
+  .foot-contact__title{font-family:var(--font-display);font-size:1rem;color:var(--sky);margin-bottom:8px}
+  .foot-contact__list{list-style:none;margin:0;padding:0;
+    display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;
+    font-size:.86rem;color:var(--ink-2);line-height:1.6}
+  .foot-contact__list li{position:relative}
+  .foot-contact__list li:not(:last-child)::after{content:"|";position:absolute;right:-10px;color:var(--line)}
+  .foot-contact__list a{color:var(--indigo);text-decoration:none}
+  .foot-contact__list a:hover{text-decoration:underline}
+  .foot-contact__list b{color:var(--ink);font-weight:700}
+  .foot-copy{margin-top:16px;font-size:.78rem;color:var(--muted);letter-spacing:.2px}
+  @media(max-width:560px){
+    .foot-contact__list{flex-direction:column;gap:5px}
+    .foot-contact__list li:not(:last-child)::after{display:none}
+    .foot-contact__org{flex-direction:column;gap:2px}
+    .foot-contact__org span:not(:last-child)::after{display:none}
+  }
 
   /* ---------- Login modal ---------- */
   .backdrop{position:fixed;inset:0;background:rgba(36,29,61,.45);
@@ -524,7 +558,7 @@
     </div>
   </section>
 
-  <!-- FOOTER: privacy policy toggle -->
+  <!-- FOOTER: privacy policy + contact -->
   <footer class="site-foot">
     <div class="policy" id="policy">
       <button class="policy__toggle" id="policyToggle" aria-expanded="false" aria-controls="policyBody">
@@ -534,11 +568,54 @@
       <div class="policy__body" id="policyBody" role="region" aria-labelledby="policyToggle">
         <div>
           <div class="policy__inner">
-            여기에 개인정보 수집·이용 목적, 수집 항목, 보유 및 이용 기간, 동의 및 철회 방법 등 개인정보처리방침 내용이 들어갈 예정이에요. (내용 준비되면 채워 넣기)
+            <p class="pp-lead">본 연구는 아래와 같이 개인정보를 수집·이용합니다.</p>
+
+            <div class="pp-sec">
+              <h4>1. 수집 항목</h4>
+              <ul>
+                <li><b>필수</b> : 성별, 학년, 학교 이름, 연구 참여자 연락처(휴대폰 번호), 법적 보호자 연락처(휴대폰 번호)</li>
+                <li><b>선택</b> : 이메일, SNS 연락처</li>
+              </ul>
+            </div>
+
+            <div class="pp-sec">
+              <h4>2. 수집·이용 목적</h4>
+              <ul>
+                <li><b>성별 · 학년 · 학교 이름</b> : 연구 참여자 식별 및 인구통계학적 정보 수집, 연구의 원활한 진행</li>
+                <li><b>연구 참여자 연락처(휴대폰)</b> : 연구 안내 및 참여 보상 지급</li>
+                <li><b>법적 보호자 연락처(휴대폰)</b> : 비밀번호 찾기 지원, 그리고 청소년 참여자의 안전과 권익 보장. 연구 도중 참여자에게 심리적 불편감이나 예상치 못한 상황이 발생할 경우, 보호자에게 즉시 연락하여 적절한 조치를 취하기 위함입니다.</li>
+                <li><b>이메일 · SNS 연락처(선택)</b> : 휴대폰 외 보조 연락 수단</li>
+              </ul>
+            </div>
+
+            <div class="pp-sec">
+              <h4>3. 보관 및 처리 방식</h4>
+              <p>수집된 개인정보는 설문 응답 결과 등 다른 정보와 <b>분리되어 보관</b>됩니다. 이 때문에 연구자는 각 설문의 응답자가 누구인지 확인할 수 없습니다.</p>
+            </div>
+
+            <div class="pp-sec">
+              <h4>4. 동의 및 철회</h4>
+              <p>참여자 또는 보호자는 언제든지 개인정보 수집·이용 동의를 철회할 수 있습니다. 철회를 원하시면 아래 연락처로 연락해 주시기 바라며, 철회 시 수집된 개인정보는 지체 없이 파기됩니다.</p>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <div class="foot-contact">
+      <div class="foot-contact__org">
+        <span>계명대학교 디지털상담 연구실</span>
+        <span>연구책임자 조수현 교수</span>
+      </div>
+      <ul class="foot-contact__list">
+        <li>전화 및 문자 : <a href="tel:010-9386-0839">010-9386-0839</a></li>
+        <li>카카오톡 채널 : 디지털상담연구실 (<b>@calm연구실</b> 검색)</li>
+        <li>이메일 : <a href="mailto:ai.mental.health26@gmail.com">ai.mental.health26@gmail.com</a></li>
+        <li>주소 : 대구광역시 달서구 달구벌대로 1095 계명대학교 성서캠퍼스 영암관 308호</li>
+      </ul>
+    </div>
+
+    <div class="foot-copy">© 2026 Keimyung Univ. Digital Counseling Lab.</div>
   </footer>
 </div>
 

@@ -693,8 +693,8 @@
       if(!match||!selectedVersion){alert('회차와 설문 버전을 선택해 주세요.');return;}
       var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
       fetch(AI_US_API_BASE+'/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-        .then(function(response){if(!response.ok){if(response.status>=500)aiUsShowTemporaryIssue();var error=new Error('결과를 내려받을 수 없습니다.');error.status=response.status;throw error;}return response.blob();})
-        .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='설문결과_'+round.value+'_'+selectedVersion+'.csv';a.click();URL.revokeObjectURL(url);})
+        .then(function(response){if(!response.ok){if(response.status>=500)aiUsShowTemporaryIssue();var error=new Error('결과를 내려받을 수 없습니다.');error.status=response.status;throw error;}var disposition=response.headers.get('Content-Disposition')||'',name=disposition.match(/filename="?([^";]+)"?/i);return response.blob().then(function(blob){return {blob:blob,filename:name?name[1]:'설문결과_'+round.value+'_'+selectedVersion+'.csv'};});})
+        .then(function(result){var url=URL.createObjectURL(result.blob),a=document.createElement('a');a.href=url;a.download=result.filename;a.click();URL.revokeObjectURL(url);})
         .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
     });
   })();

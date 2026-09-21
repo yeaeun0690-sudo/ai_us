@@ -57,6 +57,8 @@
   .step{display:inline-block;width:24px;height:24px;border-radius:8px;background:var(--grad);
     color:#fff;font-family:var(--fd);font-size:.85rem;display:inline-grid;place-items:center;margin-right:8px;vertical-align:-4px}
   .sub{color:var(--muted);font-size:.9rem}
+  .abuse-callout{margin:0 0 18px;padding:14px 16px;border:1px solid #e7d8b0;border-left:4px solid #d99a2b;border-radius:12px;background:#fffaf0;color:#5e4a22;font-size:.84rem;line-height:1.65}
+  .abuse-callout strong{color:#463515}
   .btn{display:inline-flex;align-items:center;gap:7px;background:var(--grad);color:#fff;border:none;
     border-radius:11px;padding:11px 20px;font-weight:700;font-size:.92rem;cursor:pointer;
     box-shadow:0 8px 18px rgba(71,85,105,.18);transition:transform .16s}
@@ -491,6 +493,7 @@
         <div class="panel" id="panel-abuse">
           <h2>어뷰징 검토</h2>
           <p class="note">자동 제외가 아니라, 휴대폰번호로 확인할 검토 후보와 권고 사유를 정리해 보여줘요. 페이지 수가 낮은 것만으로는 판단하지 않아요.</p>
+          <div class="abuse-callout"><strong>후보 포함 기준</strong><br>개인 단위 속도 이상: 활동시간 60초 미만 또는 전체 경과시간 120초 미만인 응답자.<br>응답 패턴 pairing: 같은 설문 회차·버전에서 응답 유사도 90% 이상인 두 참여자.<br>복합 의심: 응답 유사도 90% 이상에 더해 페이지 누락, 짧은 활동시간, 필수 응답 완성 등 복수 신호가 함께 나타난 pair.<br><strong>주의:</strong> 이 목록은 매크로 사용을 확정하거나 자동 제외하지 않으며, 연구진의 확인 우선순위를 위한 권고입니다.</div>
           <div class="card">
             <h3>검토 범위</h3>
             <div class="filters">
@@ -611,11 +614,13 @@
     function selectedQuery(){var match=round.value.match(/\d+/);return match&&version.value?('?survey_round='+match[0]+'&survey_version='+encodeURIComponent(version.value)):'';}
     function render(data){
       buckets.innerHTML=(data.similarityBuckets||[]).map(function(item){return '<div class="stat"><div class="k">'+esc(item.label)+'</div><div class="v">'+esc(item.pairCount)+'<small>쌍</small></div></div>';}).join('');
-      summary.textContent='전체 응답 '+data.totalResponses+'건 · 후보 '+data.candidates.length+'쌍 · 휴대폰번호는 기존 결과 CSV와 같은 식별자입니다.';
-      if(!data.candidates.length){groups.innerHTML='<p class="sub">현재 조건에서 권고 후보가 없습니다.</p>';return;}
-      var order=['우선 검토','확인 필요','참고'],labels={'우선 검토':'먼저 확인할 후보','확인 필요':'추가 확인 후보','참고':'참고 후보'},html='';
-      order.forEach(function(priority){var items=(data.candidates||[]).filter(function(item){return item.reviewPriority===priority;});if(!items.length)return;html+='<div class="card"><h3>'+labels[priority]+' <small>('+items.length+'쌍)</small></h3><div class="tbl-wrap"><table><thead><tr><th>참여자 휴대폰</th><th>비교 대상 휴대폰</th><th>응답 유사도</th><th>유사도 구간</th><th>권고 사유</th><th>응답 확인</th></tr></thead><tbody>'+items.map(function(item){return '<tr><td>'+esc(item.phone)+'</td><td>'+esc(item.pairedPhone)+'</td><td>'+esc(item.similarityPercent)+'%</td><td>'+esc(item.similarityBucket)+'</td><td>'+item.reasons.map(esc).join('<br>')+'</td><td>'+esc(item.left.activeSeconds==null?'-':item.left.activeSeconds)+'초 / '+esc(item.right.activeSeconds==null?'-':item.right.activeSeconds)+'초 · 페이지 '+esc(item.left.pageCount==null?'-':item.left.pageCount)+' / '+esc(item.right.pageCount==null?'-':item.right.pageCount)+'</td></tr>';}).join('')+'</tbody></table></div></div>';});
-      groups.innerHTML=html;
+      var speed=data.speedCandidates||[],pairing=data.pairingCandidates||[],combined=data.combinedCandidates||[];
+      summary.textContent='전체 응답 '+data.totalResponses+'건 · 개인 속도 이상 '+speed.length+'명 · pairing '+pairing.length+'쌍 · 복합 의심 '+combined.length+'쌍 · 휴대폰번호는 기존 결과 CSV와 같은 식별자입니다.';
+      function candidateTable(items,paired){
+        if(!items.length)return '';
+        return '<div class="card"><h3>'+({'개인 단위 속도 이상':'개인 단위 속도 이상','응답 패턴 pairing':'응답 패턴 pairing','복합 의심':'복합 의심 후보'}[items[0].candidateType]||'검토 후보')+' <small>('+items.length+(paired?'쌍':'명')+')</small></h3><div class="tbl-wrap"><table><thead><tr><th>참여자 휴대폰</th>'+ (paired?'<th>비교 대상 휴대폰</th><th>응답 유사도</th><th>유사도 구간</th>':'<th>속도 지표</th>') +'<th>권고 사유</th><th>검토 우선순위</th></tr></thead><tbody>'+items.map(function(item){var left=item.left||{},right=item.right||{};return '<tr><td>'+esc(item.phone)+'</td>'+ (paired?'<td>'+esc(item.pairedPhone)+'</td><td>'+esc(item.similarityPercent)+'%</td><td>'+esc(item.similarityBucket)+'</td>':'<td>'+esc(left.activeSeconds==null?'-':left.activeSeconds)+'초 활동 · '+esc(left.wallClockSeconds==null?'-':left.wallClockSeconds)+'초 경과</td>') +'<td>'+item.reasons.map(esc).join('<br>')+'</td><td>'+esc(item.reviewPriority)+'</td></tr>';}).join('')+'</tbody></table></div></div>';
+      }
+      groups.innerHTML=candidateTable(speed,false)+candidateTable(pairing,true)+candidateTable(combined,true)||( '<p class="sub">현재 조건에서 권고 후보가 없습니다.</p>' );
     }
     function load(){var query=selectedQuery();if(!query){summary.textContent='회차와 설문 버전을 선택해 주세요.';buckets.innerHTML='';groups.innerHTML='<p class="sub">검토할 설문을 선택해 주세요.</p>';return;}groups.innerHTML='<p class="sub">검토 후보를 계산하는 중입니다.</p>';aiUsRequest('/api/v1/researcher/abuse-review'+query).then(render).catch(function(error){groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
     function loadDefinitions(){aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){version.innerHTML=definitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';}).join('')||'<option value="">등록된 설문 정의가 없습니다</option>';if(version.value){var opt=version.options[version.selectedIndex];round.value=opt.dataset.round+'회차';load();}}).catch(function(error){version.innerHTML='<option value="">설문 버전 조회 실패</option>';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}

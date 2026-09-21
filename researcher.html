@@ -123,8 +123,8 @@
   .status-bar-list{display:grid;gap:8px}
   .status-bar-row{display:grid;grid-template-columns:46px minmax(90px,1fr) 100px;gap:9px;align-items:center;font-size:.8rem}
   .status-bar-label{color:var(--ink-2);font-weight:700}
-  .status-bar-track{height:11px;border-radius:99px;background:#eeeaf6;overflow:hidden}
-  .status-bar-fill{height:100%;min-width:2px;border-radius:inherit;transition:width .45s ease}
+  .status-bar-track{display:block;height:11px;border-radius:99px;background:#e4e0eb;overflow:hidden}
+  .status-bar-fill{display:block;height:100%;min-width:2px;border-radius:inherit;transition:width .45s ease}
   .status-bar-fill.elementary{background:#2f9e88}.status-bar-fill.middle{background:#e07a5f}.status-bar-fill.high{background:#4c78a8}
   .status-bar-value{color:var(--muted);font-size:.76rem;text-align:right;white-space:nowrap}
   .status-bar-legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:.76rem;margin-top:12px}
@@ -325,7 +325,7 @@
             <h3>설문 회차별 완료 현황</h3>
             <p class="sub">설문 버전이 여러 개여도 같은 참여자는 회차별 한 명으로 집계합니다.</p>
             <div class="status-bars" id="statusSurveyChart"><p class="sub">참여 현황을 불러오는 중이에요.</p></div>
-            <div class="status-bar-legend"><span><i class="elementary"></i>초등</span><span><i class="middle"></i>중등</span><span><i class="high"></i>고등</span></div>
+            <div class="status-bar-legend"><span><i class="elementary"></i>초등 완료</span><span><i class="middle"></i>중등 완료</span><span><i class="high"></i>고등 완료</span><span>회색: 등록 인원 중 미완료</span></div>
             <div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>회차</th><th>초등 완료/등록</th><th>중등 완료/등록</th><th>고등 완료/등록</th><th>전체 완료/등록</th></tr></thead><tbody id="statusSurveyBody"><tr><td colspan="5">참여 현황을 불러오는 중이에요.</td></tr></tbody></table></div>
           </div>
 
@@ -333,7 +333,7 @@
             <h3>대화문 참여 현황</h3>
             <p class="sub">대화문 제출에 동의한 인원과 실제 제출 이력을 비교합니다. 삭제 요청된 제출도 이력으로 표시합니다.</p>
             <div class="status-bars" id="statusChatChart"><p class="sub">대화문 참여 현황을 불러오는 중이에요.</p></div>
-            <div class="status-bar-legend"><span><i class="elementary"></i>초등</span><span><i class="middle"></i>중등</span><span><i class="high"></i>고등</span></div>
+            <div class="status-bar-legend"><span><i class="elementary"></i>초등</span><span><i class="middle"></i>중등</span><span><i class="high"></i>고등</span><span>회색: 등록 인원 중 미제출</span></div>
             <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
               <div class="stat"><div class="k">제출 동의자</div><div class="v" id="statusChatConsented">-<small>명</small></div></div>
               <div class="stat"><div class="k">1차 후 제출자</div><div class="v" id="statusChatRound1">-<small>명</small></div></div>

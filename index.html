@@ -1293,7 +1293,7 @@
     function beginSurveySession(){
       stopSurveySession();
       var now=new Date().toISOString();
-      surveySession={sessionId:window.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now()),startedAt:now,lastHeartbeatAt:now,activeSeconds:0,resumeCount:1,currentPage:0,pageCount:0};
+      surveySession={sessionId:window.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now()),startedAt:now,lastHeartbeatAt:now,activeSeconds:0,resumeCount:1,currentPage:0,pageCount:0,visitedPages:{},totalPageCount:SPEC().scales.length,navigationCount:0};
       surveyHeartbeatTimer=setInterval(sendSurveyHeartbeat,30000);
     }
     function stopSurveySession(){if(surveyHeartbeatTimer){clearInterval(surveyHeartbeatTimer);surveyHeartbeatTimer=null;}}
@@ -1302,12 +1302,12 @@
       var nowMs=Date.now(),lastMs=Date.parse(surveySession.lastHeartbeatAt),delta=Math.max(0,Math.min(45000,nowMs-lastMs));
       if(document.visibilityState==='visible')surveySession.activeSeconds+=Math.round(delta/1000);
       surveySession.lastHeartbeatAt=new Date(nowMs).toISOString();
-      aiUsRequest('/api/v1/participant/survey-sessions/heartbeat',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:{sessionId:surveySession.sessionId,surveyRound:SURVEY_ROUND,surveyVersion:SPEC().surveyVersion,startedAt:surveySession.startedAt,lastHeartbeatAt:surveySession.lastHeartbeatAt,activeSeconds:surveySession.activeSeconds,resumeCount:surveySession.resumeCount,currentPage:surveySession.currentPage}}).catch(function(){});
+      aiUsRequest('/api/v1/participant/survey-sessions/heartbeat',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:{sessionId:surveySession.sessionId,surveyRound:SURVEY_ROUND,surveyVersion:SPEC().surveyVersion,startedAt:surveySession.startedAt,lastHeartbeatAt:surveySession.lastHeartbeatAt,activeSeconds:surveySession.activeSeconds,resumeCount:surveySession.resumeCount,currentPage:surveySession.currentPage,visitedPageCount:Object.keys(surveySession.visitedPages).length,totalPageCount:surveySession.totalPageCount,navigationCount:surveySession.navigationCount}}).catch(function(){});
     }
     function surveyDetail(){
       if(!surveySession)return null;
       var started=Date.parse(surveySession.startedAt);
-      return {sessionId:surveySession.sessionId,startedAt:surveySession.startedAt,wallClockSeconds:Math.max(0,Math.round((Date.now()-started)/1000)),activeSeconds:surveySession.activeSeconds,resumeCount:surveySession.resumeCount,pageCount:surveySession.pageCount,metricsVersion:'v1'};
+      return {sessionId:surveySession.sessionId,startedAt:surveySession.startedAt,wallClockSeconds:Math.max(0,Math.round((Date.now()-started)/1000)),activeSeconds:surveySession.activeSeconds,resumeCount:surveySession.resumeCount,pageCount:surveySession.pageCount,visitedPageCount:Object.keys(surveySession.visitedPages).length,totalPageCount:surveySession.totalPageCount,navigationCount:surveySession.navigationCount,metricsVersion:'v1'};
     }
     window.aiUsStartParticipantSession=function(data,digits){
       var actualAudience=data.audience||getAudience();
@@ -1612,7 +1612,7 @@
     }
     function goPage(i){
       currentPage=i;
-      if(surveySession&&i>0){surveySession.currentPage=i;surveySession.pageCount=Math.max(surveySession.pageCount,i);}
+      if(surveySession&&i>0){if(surveySession.currentPage!==i)surveySession.navigationCount+=1;surveySession.currentPage=i;surveySession.pageCount=Math.max(surveySession.pageCount,i);surveySession.visitedPages[i]=true;}
       surveyBody.querySelectorAll('.survey-page').forEach(function(p){p.style.display=(+p.dataset.page===i)?'block':'none';});
       var total=SPEC().scales.length;
       var topbar=document.getElementById('surveyTopbar');

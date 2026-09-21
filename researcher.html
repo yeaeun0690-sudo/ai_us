@@ -1078,11 +1078,12 @@
               if(state.status==='warning'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.textContent=' 파싱 보류: '+((state.warnings||[]).join(' ')||'이 형식의 parser adapter를 준비 중입니다.');return;}
               if(state.status==='failed'){button.disabled=false;if(statusEl)statusEl.textContent=' 파싱 실패: '+(state.error||'파일 형식을 읽지 못했습니다.');return;}
               setTimeout(poll,1000);
-            }).catch(function(error){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+error.message;});}
+            }).catch(function(error){button.disabled=false;if(statusEl)statusEl.innerHTML=' 파싱 상태 확인 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
             poll();
-          }).catch(function(error){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+error.message;});
+          }).catch(function(error){button.disabled=false;if(statusEl)statusEl.innerHTML=' 파싱 요청을 전송하지 못했습니다. 서버 배포 상태와 연결을 확인해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});
         });});
         cBody.querySelectorAll('.transcript-json,.transcript-csv').forEach(function(button){button.addEventListener('click',function(){var format=button.classList.contains('transcript-json')?'json':'csv';fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcript-'+button.dataset.id+'.'+format);}).catch(function(error){alert(error.message);});});});
+        cBody.querySelectorAll('.transcript-retry').forEach(function(button){button.addEventListener('click',function(){var parseButton=cBody.querySelector('.transcript-parse[data-id="'+button.dataset.id+'"]');if(parseButton)parseButton.click();});});
         updateSelectionSummary();
       }).catch(function(error){cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();});
     }

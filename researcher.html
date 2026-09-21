@@ -1064,6 +1064,10 @@
       if(button)button.textContent='다시 파싱';
       if(statusEl)statusEl.innerHTML='파싱 완료 · <button class="linkbtn transcript-json" data-id="'+esc(submissionId)+'" type="button">JSON 받기</button>';
     }
+    function hideParseDownloads(submissionId){
+      var actions=cBody.querySelector('.download-actions[data-id="'+submissionId+'"]');
+      if(actions)actions.querySelectorAll('.transcript-csv').forEach(function(button){button.remove();});
+    }
     function compactFilename(name){var value=String(name||''),dot=value.lastIndexOf('.'),extension=dot>0?value.slice(dot):'',stem=dot>0?value.slice(0,dot):value;if(value.length<=42)return value;return stem.slice(0,20)+'…'+stem.slice(-12)+extension;}
     function loadPreview(){
       if(!cBody) return;
@@ -1088,7 +1092,7 @@
             .then(function(){button.disabled=false;});
         });});
         cBody.querySelectorAll('.transcript-parse').forEach(function(button){button.addEventListener('click',function(){
-          var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;if(statusEl)statusEl.textContent=' 파싱 요청 중…';
+          var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;hideParseDownloads(button.dataset.id);if(statusEl)statusEl.textContent=' 파싱 요청 중…';
           function requestParse(attempt){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST'}).then(function(run){
             function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse-runs/'+encodeURIComponent(run.runId)).then(function(state){
               var labels={queued:' 대기열에 등록됨',processing:' 원본 파일을 분석하는 중…'};if(statusEl&&labels[state.status])statusEl.textContent=labels[state.status];

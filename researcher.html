@@ -1060,7 +1060,7 @@
     }
     function showCompletedParse(submissionId){
       var actions=cBody.querySelector('.download-actions[data-id="'+submissionId+'"]'),statusEl=cBody.querySelector('.transcript-status[data-id="'+submissionId+'"]'),button=cBody.querySelector('.transcript-parse[data-id="'+submissionId+'"]');
-      if(actions&&!actions.querySelector('.transcript-csv'))actions.insertAdjacentHTML('beforeend','<button class="btn btn-ghost transcript-csv" data-id="'+esc(submissionId)+'" type="button">CSV 받기</button>');
+      if(actions&&!actions.querySelector('.transcript-csv'))actions.insertAdjacentHTML('beforeend','<button class="btn transcript-csv" data-id="'+esc(submissionId)+'" type="button">CSV 받기</button>');
       if(button)button.textContent='다시 파싱';
       if(statusEl)statusEl.innerHTML='파싱 완료 · <button class="linkbtn transcript-json" data-id="'+esc(submissionId)+'" type="button">JSON 받기</button>';
     }
@@ -1074,7 +1074,7 @@
         cBody.innerHTML=records.map(function(r){
           var names=r.filenames||[],fileClass=names.length===1?'single':'multi',files=names.map(function(name){var display=names.length===1?compactFilename(name):name;return '<span class="file-name '+fileClass+'" title="'+esc(name)+'">'+esc(display)+'</span>';}).join('<br>')||'첨부 없음';
           var original=r.attachmentCount?'<button class="btn btn-ghost chat-file-download" data-id="'+esc(r.submissionId)+'" type="button">원본 받기</button>':'';
-          var csv=r.parseStatus==='parsed'?'<button class="btn btn-ghost transcript-csv" data-id="'+esc(r.submissionId)+'" type="button">CSV 받기</button>':'';
+          var csv=r.parseStatus==='parsed'?'<button class="btn transcript-csv" data-id="'+esc(r.submissionId)+'" type="button">CSV 받기</button>':'';
           var downloads='<div class="download-actions" data-id="'+esc(r.submissionId)+'">'+original+csv+'</div>';
           var parsed=r.parseStatus==='parsed',parse='<div class="parse-actions"><button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button">'+(parsed?'다시 파싱':'파싱 요청')+'</button></div><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'">'+(parsed?'파싱 완료 · <button class="linkbtn transcript-json" data-id="'+esc(r.submissionId)+'" type="button">JSON 받기</button>':'')+'</span>';
           return '<tr><td><input class="chat-row-check" type="checkbox" value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+downloads+'</td><td>'+parse+'</td></tr>';

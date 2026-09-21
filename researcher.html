@@ -158,7 +158,11 @@
   .badge-st.approved{background:#e7f6ec;color:#15803d}
   .form-tag{display:inline-block;padding:2px 8px;border-radius:8px;background:var(--soft);color:var(--indigo);
     font-size:.72rem;font-weight:700;margin-left:4px}
+  #apTable{min-width:980px}
   #apTable td{vertical-align:middle}
+  .file-name{display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+  .consent-toggle{background:none;border:0;padding:4px 8px;border-radius:8px;color:var(--violet);cursor:pointer;font:inherit;text-align:left}
+  .consent-toggle:hover{background:var(--soft)}
 
   @media(max-width:820px){
     .manage{grid-template-columns:1fr}
@@ -555,7 +559,7 @@
       aiUsRequest('/api/v1/researcher/chat-submissions/files?status_filter='+encodeURIComponent(status.value)).then(function(items){
         if(!items.length){body.innerHTML='<tr><td colspan="6">해당 파일 제출 내역이 없어요.</td></tr>';return;}
         body.innerHTML=items.map(function(item){
-          var files=(item.filenames||[]).map(esc).join(', ')||'첨부 파일 없음';
+          var files=(item.filenames||[]).map(function(name){return '<span class="file-name" title="'+esc(name)+'">'+esc(name)+'</span>';}).join(', ')||'첨부 파일 없음';
           var action='<button class="btn btn-ghost file-original-download" data-id="'+item.submissionId+'" type="button">원본 받기</button>';
           if(item.status==='deletion_requested') action+='<button class="btn btn-ghost file-delete" data-id="'+item.submissionId+'" type="button">파일 삭제</button>';
           return '<tr><td>'+esc(formatKstDateTime(item.submittedAt))+'</td><td>'+esc(item.participantId||'')+'</td><td>'+esc(item.tool||'미지정')+'</td><td>'+files+'</td><td>'+(item.status==='deletion_requested'?'삭제 요청됨':'보관 중')+'</td><td>'+action+'</td></tr>';
@@ -893,7 +897,7 @@
     function statusBadge(s){return s==='approved'
       ? '<span class="badge-st approved">승인 완료</span>'
       : '<span class="badge-st pending">승인 대기</span>';}
-    function formText(a){return '설문조사'+(a.joinChat?'<span class="form-tag">+대화문</span>':'');}
+    function formText(a){var label='설문조사'+(a.joinChat?'<span class="form-tag">+대화문</span>':'');if(a.status==='approved')return '<button class="consent-toggle" data-id="'+esc(a.id)+'" data-enabled="'+(a.joinChat?'true':'false')+'" type="button">'+label+'</button>';return label;}
 
     function render(){
       body.innerHTML=applications.map(function(a,i){
@@ -905,6 +909,14 @@
           +'<td>'+formText(a)+'</td><td>'+statusBadge(a.status)+'</td>'
           +'</tr>';
       }).join('');
+      body.querySelectorAll('.consent-toggle').forEach(function(button){button.addEventListener('click',function(){
+        var enabled=button.dataset.enabled==='true';
+        if(!confirm('이 참여자의 대화문 제출을 '+(enabled?'허용 해제':'허용')+'할까요?'))return;
+        button.disabled=true;
+        aiUsRequest('/api/v1/researcher/applications/'+encodeURIComponent(button.dataset.id)+'/chat-consent',{method:'PUT',body:{chatConsent:!enabled}})
+          .then(function(){var item=applications.find(function(row){return row.id===button.dataset.id;});if(item)item.joinChat=!enabled;render();})
+          .catch(function(error){button.disabled=false;alert(error.message);});
+      });});
       var total=applications.length;
       var approved=applications.filter(function(a){return a.status==='approved';}).length;
       elTotal.innerHTML=total+'<small>명</small>';
@@ -923,7 +935,7 @@
         applications=records.map(function(record){return {
           id:record.applicationId,date:formatKstDate(record.submittedAt),gender:record.gender,grade:record.grade,
           phone:record.phone,guardianPhone:record.guardianPhone,email:record.email,sns:record.sns,
-          joinChat:record.consents&&record.consents.chat,status:record.status
+          joinChat:record.chatConsent===true||(record.chatConsent==null&&record.consents&&record.consents.chat),status:record.status
         };});
         render();
       }).catch(function(error){body.innerHTML='<tr><td colspan="10">'+esc(error.message)+'</td></tr>';});

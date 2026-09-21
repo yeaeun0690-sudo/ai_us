@@ -1297,6 +1297,11 @@
       sessionStorage.setItem('ai_us_role',data.role||'participant');
       sessionStorage.setItem('ai_us_participant_phone',digits);
       sessionStorage.setItem('ai_us_chat_consent', data.chatConsent===true?'true':'false');
+      setProfileItem('ai_us_profile_guardian_phone',data.guardianPhone);
+      setProfileItem('ai_us_profile_school_level',data.schoolLevel);
+      setProfileItem('ai_us_profile_grade',data.grade);
+      setProfileItem('ai_us_profile_email',data.email);
+      setProfileItem('ai_us_profile_sns',data.sns);
       applyChatConsent();
       function continueLogin(){
         if(data.needsPasswordChange){openFirstPasswordChange();return;}
@@ -1310,6 +1315,7 @@
         }).then(continueLogin);
       }else continueLogin();
     };
+    function setProfileItem(key,value){if(value===undefined||value===null||value==='')sessionStorage.removeItem(key);else sessionStorage.setItem(key,String(value));}
     function openFirstPasswordChange(){
       if(!firstPasswordBackdrop) return;
       firstPasswordCurrent.value=''; firstPasswordNew.value=''; firstPasswordConfirm.value='';
@@ -1431,6 +1437,10 @@
       }
       return head+body+'</div>';
     }
+    function profileGradeValue(level,grade){var n=Number(grade);if(level==='초등'&&n>=4&&n<=6)return String(n-3);if(level==='중등'&&n>=1&&n<=3)return String(n+3);if(level==='고등'&&n>=1&&n<=3)return String(n+6);return '';}
+    function formatProfilePhone(value){var d=String(value||'').replace(/\D/g,'').slice(0,11);if(d.length>7)return d.length<=10?d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6):d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);if(d.length>3)return d.slice(0,3)+'-'+d.slice(3);return d;}
+    function markProfileFilled(el){if(!el)return;el.disabled=true;var card=el.closest&&el.closest('.q-card');if(card&&!card.querySelector('.profile-note')){var note=document.createElement('div');note.className='q-note profile-note';note.textContent='신청 정보에서 자동 입력되었어요.';card.appendChild(note);}}
+    function applyProfilePrefill(){var phone=sessionStorage.getItem('ai_us_participant_phone')||'',guardian=sessionStorage.getItem('ai_us_profile_guardian_phone')||'',gradeValue=profileGradeValue(sessionStorage.getItem('ai_us_profile_school_level'),sessionStorage.getItem('ai_us_profile_grade'));var gradeEl=surveyBody.querySelector('select[name="demo.grade"]');if(gradeEl&&gradeValue){gradeEl.value=gradeValue;markProfileFilled(gradeEl);}var phoneEl=surveyBody.querySelector('[data-comp="demo.contact"][data-cfield="demo.contact_phone"]');if(phoneEl&&phone){phoneEl.value=formatProfilePhone(phone);markProfileFilled(phoneEl);}var guardianEl=surveyBody.querySelector('[data-comp="demo.guardianContact"][data-cfield="demo.guardianContact_phone"]');if(guardianEl&&guardian){guardianEl.value=formatProfilePhone(guardian);markProfileFilled(guardianEl);}}
     function bindConditionals(){
       surveyBody.querySelectorAll('.sq-cond').forEach(function(c){
         var key=c.getAttribute('data-cond'), when=String(c.getAttribute('data-when'));
@@ -1630,6 +1640,7 @@
       if(currentPage===total){submitSurvey();}else{var nx2=currentPage+1;while(nx2<=total&&!scaleActive(nx2-1))nx2++;if(nx2>total){submitSurvey();}else{goPage(nx2);}}
     }
     function submitSurvey(){
+      applyProfilePrefill();
       var answers=collectAnswers();
       if(window.AI_US_PREVIEW){var pm=null;allQuestions().some(function(q){if(q.required&&isQuestionActive(q)&&!isAnswered(q,answers)){pm=q;return true;}return false;});if(pm){showSurveyErr('아직 응답하지 않은 필수 문항이 있어요.');return;}alert('[미리보기] 모든 필수 문항 응답 완료. 실제 서비스에서는 여기서 서버로 제출됩니다.\n응답 변수 '+Object.keys(answers).length+'개');console.log('PREVIEW answers',answers);return;}
       var miss=null;allQuestions().some(function(q){if(q.required&&isQuestionActive(q)&&!isAnswered(q,answers)){miss=q;return true;}return false;});
@@ -1689,6 +1700,7 @@
         unlockSurvey();
         dummySurveyStatus.textContent='작성 내용은 이 브라우저에 임시 저장됩니다.';
         restoreDraft();
+        applyProfilePrefill();
       }
       var hasScr=!!(SPEC().scales[0]&&SPEC().scales[0].questions.some(function(q){return q.key==='demo.screening1';}));
       goPage(dummySubmissionCompleted?1:(hasScr?-2:0));
@@ -1748,6 +1760,11 @@
       sessionStorage.removeItem('ai_us_role');
       sessionStorage.removeItem('ai_us_participant_phone');
       sessionStorage.removeItem('ai_us_chat_consent');
+      sessionStorage.removeItem('ai_us_profile_guardian_phone');
+      sessionStorage.removeItem('ai_us_profile_school_level');
+      sessionStorage.removeItem('ai_us_profile_grade');
+      sessionStorage.removeItem('ai_us_profile_email');
+      sessionStorage.removeItem('ai_us_profile_sns');
       closeSurveys();
     });
 
@@ -1972,6 +1989,7 @@
       if(!grade){showErr('err2','학교급·학년을 선택해 주세요.');return;}
       if(phone.length!==11||phone.slice(0,2)!=='01'){showErr('err2','본인 휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');return;}
       if(gphone.length!==11||gphone.slice(0,2)!=='01'){showErr('err2','보호자 휴대폰 번호를 정확히 입력해 주세요. (숫자 11자리)');return;}
+      if(phone===gphone){aiUsAudienceDialog({title:'연락처를 다시 확인해 주세요',message:'본인 휴대폰 번호와 보호자 휴대폰 번호가 같으면 신청할 수 없습니다. 입력이 맞는지 확인해 주세요. 도움이 필요하면 카카오톡 채널에서 calm 연구실을 검색해서 문의해 주세요.',confirmText:'확인'});return;}
       if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showErr('err2','이메일 형식을 확인해 주세요.');return;}
       clrErr('err2');
       var data={gender:gender,grade:grade,phone:phone,guardianPhone:gphone,email:email||null,sns:sns||null,

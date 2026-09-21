@@ -512,8 +512,8 @@
                 <label for="cGrade">학교급</label>
                 <select id="cGrade"><option>전체</option><option>초등</option><option>중등</option><option>고등</option></select>
               </div>
-              <button class="btn btn-ghost" id="cDlBtn" type="button">⬇ 대화문 CSV</button>
-              <button class="btn" id="cBulkBtn" type="button">⬇ 선택 파일 ZIP</button>
+              <button class="btn" id="cDlBtn" type="button">⬇ 선택 대화문 CSV 내려받기</button>
+              <button class="btn btn-ghost" id="cBulkBtn" type="button">⬇ 선택 원본 ZIP 내려받기</button>
             </div>
             <p class="sub">선택: <b id="cSummary">전체 · 전체 학교급</b> · <button class="linkbtn" id="cSelectAll" type="button">현재 조건 전체 선택</button> <button class="linkbtn" id="cClearSelection" type="button">선택 해제</button> · <span id="cSelectionSummary">0건 선택</span></p>
 
@@ -1133,12 +1133,12 @@
       if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
       aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs',{method:'POST',body:payload}).then(function(job){
         function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs/'+job.jobId).then(function(state){
-          if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions_'+formatKstFilenameTimestamp()+'.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+          if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions_'+formatKstFilenameTimestamp()+'.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';});}
           if(state.status==='failed'){var failed=new Error(state.error||'일괄 다운로드를 준비하지 못했습니다.');failed.status=422;throw failed;}
           setTimeout(poll,1000);
-        }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';});}
+        }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';});}
         poll();
-      }).catch(function(error){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 파일 ZIP';alert(error.message);});
+      }).catch(function(error){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';alert(error.message);});
     });
   })();
   // ---- 회원 신청 관리 ----

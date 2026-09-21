@@ -85,7 +85,11 @@
   .preview .cap{font-size:.82rem;color:var(--muted);margin-bottom:8px}
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
   #abuseCandidateGroups table{width:100%;table-layout:fixed}
-  #abuseCandidateGroups th,#abuseCandidateGroups td{overflow-wrap:anywhere}
+  #abuseCandidateGroups th,#abuseCandidateGroups td{white-space:normal;overflow-wrap:anywhere;vertical-align:top}
+  #abuseCandidateGroups th:nth-child(1),#abuseCandidateGroups td:nth-child(1),#abuseCandidateGroups th:nth-child(2),#abuseCandidateGroups td:nth-child(2){width:15%}
+  #abuseCandidateGroups th:nth-child(3),#abuseCandidateGroups td:nth-child(3),#abuseCandidateGroups th:nth-child(4),#abuseCandidateGroups td:nth-child(4){width:11%}
+  #abuseCandidateGroups th:nth-child(5),#abuseCandidateGroups td:nth-child(5){width:28%}
+  #abuseCandidateGroups th:nth-child(6),#abuseCandidateGroups td:nth-child(6){width:20%}
   table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:460px}
   th{text-align:left;color:var(--muted);font-weight:700;padding:11px 14px;background:#faf9fe;border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--ink-2);white-space:nowrap}

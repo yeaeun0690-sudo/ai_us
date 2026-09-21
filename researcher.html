@@ -1055,9 +1055,10 @@
           var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;if(statusEl)statusEl.textContent=' 파싱 요청 중…';
           aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST'}).then(function(run){
             function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse-runs/'+encodeURIComponent(run.runId)).then(function(state){
-              if(statusEl)statusEl.textContent=' '+state.status;
-              if(state.status==='completed'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.innerHTML=' 완료 <button class="linkbtn transcript-json" data-id="'+esc(button.dataset.id)+'" type="button">JSON</button> <button class="linkbtn transcript-csv" data-id="'+esc(button.dataset.id)+'" type="button">CSV</button>';return;}
-              if(state.status==='failed'){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+(state.error||'알 수 없는 오류');return;}
+              var labels={queued:' 대기열에 등록됨',processing:' 원본 파일을 분석하는 중…'};if(statusEl&&labels[state.status])statusEl.textContent=labels[state.status];
+              if(state.status==='completed'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.innerHTML=' 파싱 완료 <button class="linkbtn transcript-json" data-id="'+esc(button.dataset.id)+'" type="button">JSON</button> <button class="linkbtn transcript-csv" data-id="'+esc(button.dataset.id)+'" type="button">CSV</button>';return;}
+              if(state.status==='warning'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.textContent=' 파싱 보류: '+((state.warnings||[]).join(' ')||'이 형식의 parser adapter를 준비 중입니다.');return;}
+              if(state.status==='failed'){button.disabled=false;if(statusEl)statusEl.textContent=' 파싱 실패: '+(state.error||'파일 형식을 읽지 못했습니다.');return;}
               setTimeout(poll,1000);
             }).catch(function(error){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+error.message;});}
             poll();

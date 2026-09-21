@@ -249,6 +249,7 @@
         <button data-panel="absent" type="button"><span class="dot"></span>미참여자</button>
         <button data-panel="files" type="button"><span class="dot"></span>파일 관리</button>
         <button data-panel="download" type="button"><span class="dot"></span>결과 다운로드</button>
+        <button data-panel="activity" type="button"><span class="dot"></span>활성/유입 분석</button>
       </nav>
 
       <!-- panels -->
@@ -429,6 +430,19 @@
           </div>
         </div>
 
+        <div class="panel" id="panel-activity">
+          <h2>활성/유입 분석</h2>
+          <p class="note">설문 세션 heartbeat 기준으로 집계한 참여 활동 요약이에요.</p>
+          <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+            <div class="stat"><div class="k">오늘 활성 참여자</div><div class="v" id="activityDau">-<small>명</small></div></div>
+            <div class="stat"><div class="k">최근 7일 활성 참여자</div><div class="v" id="activityWau">-<small>명</small></div></div>
+            <div class="stat total"><div class="k">최근 30일 활성 참여자</div><div class="v" id="activityMau">-<small>명</small></div></div>
+            <div class="stat"><div class="k">현재 진행 세션</div><div class="v" id="activityNow">-<small>명</small></div></div>
+          </div>
+          <div class="card"><h3>세션 요약</h3><p class="sub">전체 세션 <b id="activitySessions">-</b>개 · 평균 활동시간 <b id="activityAverage">-</b>초</p><p class="sub" id="activityGeneratedAt"></p></div>
+          <div class="card" id="activityCampaignSection" hidden><h3>캠페인별 유입</h3><div class="tbl-wrap"><table><thead><tr><th>캠페인</th><th>유입</th><th>고유 방문자</th><th>신청 완료</th><th>설문 완료</th></tr></thead><tbody id="activityCampaignBody"></tbody></table></div></div>
+        </div>
+
       </div>
     </div>
   </section>
@@ -517,7 +531,7 @@
   // ---- manage sidebar ----
   (function(){
     var btns=document.querySelectorAll('#side button');
-    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),absent:document.getElementById('panel-absent'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download')};
+    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),absent:document.getElementById('panel-absent'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),activity:document.getElementById('panel-activity')};
     btns.forEach(function(b){
       b.addEventListener('click',function(){
         btns.forEach(function(x){x.classList.remove('on');});
@@ -525,6 +539,21 @@
         Object.keys(panels).forEach(function(k){panels[k].classList.toggle('on',k===b.dataset.panel);});
       });
     });
+  })();
+
+  // ---- activity summary ----
+  (function(){
+    var panel=document.getElementById('panel-activity');
+    if(!panel)return;
+    function setValue(id,value){var el=document.getElementById(id);if(el)el.innerHTML=String(value==null?0:value)+'<small>명</small>';}
+    aiUsRequest('/api/v1/researcher/activity-summary').then(function(data){
+      setValue('activityDau',data.dau);setValue('activityWau',data.wau);setValue('activityMau',data.mau);setValue('activityNow',data.activeNow);
+      var sessions=document.getElementById('activitySessions'),average=document.getElementById('activityAverage'),generated=document.getElementById('activityGeneratedAt');
+      if(sessions)sessions.textContent=data.sessionCount||0;if(average)average.textContent=data.averageActiveSeconds||0;if(generated)generated.textContent=data.generatedAt?'집계 시각: '+formatKstDateTime(data.generatedAt):'';
+      var campaignSection=document.getElementById('activityCampaignSection'),body=document.getElementById('activityCampaignBody');
+      if(campaignSection)campaignSection.hidden=!data.hasCampaignData;
+      if(body&&data.hasCampaignData)body.innerHTML=(data.campaigns||[]).map(function(item){return '<tr><td>'+esc(item.campaign)+'</td><td>'+esc(item.visits)+'</td><td>'+esc(item.uniqueVisitors)+'</td><td>'+esc(item.signupCompleted)+'</td><td>'+esc(item.surveyCompleted)+'</td></tr>';}).join('');
+    }).catch(function(error){var generated=document.getElementById('activityGeneratedAt');if(generated)generated.textContent=error.message;});
   })();
 
   // ---- helpers ----

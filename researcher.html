@@ -556,11 +556,18 @@
         if(!items.length){body.innerHTML='<tr><td colspan="6">해당 파일 제출 내역이 없어요.</td></tr>';return;}
         body.innerHTML=items.map(function(item){
           var files=(item.filenames||[]).map(esc).join(', ')||'첨부 파일 없음';
-          var action=item.status==='deletion_requested'
-            ?'<button class="btn btn-ghost file-delete" data-id="'+item.submissionId+'" type="button">파일 삭제</button>'
-            :'<span class="badge-st approved">보관 중</span>';
+          var action='<button class="btn btn-ghost file-original-download" data-id="'+item.submissionId+'" type="button">원본 받기</button>';
+          if(item.status==='deletion_requested') action+='<button class="btn btn-ghost file-delete" data-id="'+item.submissionId+'" type="button">파일 삭제</button>';
           return '<tr><td>'+esc(formatKstDateTime(item.submittedAt))+'</td><td>'+esc(item.participantId||'')+'</td><td>'+esc(item.tool||'미지정')+'</td><td>'+files+'</td><td>'+(item.status==='deletion_requested'?'삭제 요청됨':'보관 중')+'</td><td>'+action+'</td></tr>';
         }).join('');
+        body.querySelectorAll('.file-original-download').forEach(function(button){button.addEventListener('click',function(){
+          button.disabled=true;
+          fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download',{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+            .then(function(response){if(!response.ok)throw new Error('원본 파일을 내려받을 수 없습니다.');return response.blob();})
+            .then(function(blob){var url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='chat-submission-'+button.dataset.id+'.zip';document.body.appendChild(link);link.click();document.body.removeChild(link);URL.revokeObjectURL(url);})
+            .catch(function(error){alert(error.message);})
+            .finally(function(){button.disabled=false;});
+        });});
         body.querySelectorAll('.file-delete').forEach(function(button){button.addEventListener('click',function(){
           if(!confirm('이 제출 내역과 첨부 파일을 실제로 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;
           button.disabled=true;

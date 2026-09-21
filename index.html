@@ -1232,6 +1232,8 @@
     var surveyBody=document.getElementById('surveyBody');
     var svPrev=document.getElementById('svPrev'),svNext=document.getElementById('svNext');
     var currentPage=0;
+    var surveySession=null;
+    var surveyHeartbeatTimer=null;
     var role='participant';
     var SURVEY_ROUND=1;
     var activePart=0;
@@ -1287,7 +1289,26 @@
         .catch(function(){});
     }
     function openSurveys(){ if(surveys){surveys.classList.add('open');document.body.style.overflow='hidden';updatePartButtons();loadServerSurveyProgress();} }
-    function closeSurveys(){ if(surveys){surveys.classList.remove('open');document.body.style.overflow='';} }
+    function closeSurveys(){ if(surveys){surveys.classList.remove('open');document.body.style.overflow='';} stopSurveySession(); }
+    function beginSurveySession(){
+      stopSurveySession();
+      var now=new Date().toISOString();
+      surveySession={sessionId:window.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now()),startedAt:now,lastHeartbeatAt:now,activeSeconds:0,resumeCount:1,currentPage:0,pageCount:0};
+      surveyHeartbeatTimer=setInterval(sendSurveyHeartbeat,30000);
+    }
+    function stopSurveySession(){if(surveyHeartbeatTimer){clearInterval(surveyHeartbeatTimer);surveyHeartbeatTimer=null;}}
+    function sendSurveyHeartbeat(){
+      if(!surveySession||!sessionStorage.getItem('ai_us_access_token'))return;
+      var nowMs=Date.now(),lastMs=Date.parse(surveySession.lastHeartbeatAt),delta=Math.max(0,Math.min(45000,nowMs-lastMs));
+      if(document.visibilityState==='visible')surveySession.activeSeconds+=Math.round(delta/1000);
+      surveySession.lastHeartbeatAt=new Date(nowMs).toISOString();
+      aiUsRequest('/api/v1/participant/survey-sessions/heartbeat',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:{sessionId:surveySession.sessionId,surveyRound:SURVEY_ROUND,surveyVersion:SPEC().surveyVersion,startedAt:surveySession.startedAt,lastHeartbeatAt:surveySession.lastHeartbeatAt,activeSeconds:surveySession.activeSeconds,resumeCount:surveySession.resumeCount,currentPage:surveySession.currentPage}}).catch(function(){});
+    }
+    function surveyDetail(){
+      if(!surveySession)return null;
+      var started=Date.parse(surveySession.startedAt);
+      return {sessionId:surveySession.sessionId,startedAt:surveySession.startedAt,wallClockSeconds:Math.max(0,Math.round((Date.now()-started)/1000)),activeSeconds:surveySession.activeSeconds,resumeCount:surveySession.resumeCount,pageCount:surveySession.pageCount,metricsVersion:'v1'};
+    }
     window.aiUsStartParticipantSession=function(data,digits){
       var actualAudience=data.audience||getAudience();
       var audienceSwitched=data.audienceSwitched===true||actualAudience!==getAudience();
@@ -1591,6 +1612,7 @@
     }
     function goPage(i){
       currentPage=i;
+      if(surveySession&&i>0){surveySession.currentPage=i;surveySession.pageCount=Math.max(surveySession.pageCount,i);}
       surveyBody.querySelectorAll('.survey-page').forEach(function(p){p.style.display=(+p.dataset.page===i)?'block':'none';});
       var total=SPEC().scales.length;
       var topbar=document.getElementById('surveyTopbar');
@@ -1646,7 +1668,8 @@
       var miss=null;allQuestions().some(function(q){if(q.required&&isQuestionActive(q)&&!isAnswered(q,answers)){miss=q;return true;}return false;});
       if(miss){showSurveyErr('아직 응답하지 않은 필수 문항이 있어요.');return;}
       saveSurveyDraft();clearSurveyErr();if(svNext)svNext.disabled=true;
-      aiUsRequest('/api/v1/survey-responses',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:{surveyRound:SURVEY_ROUND,surveyVersion:SPEC().surveyVersion,answers:answers,submissionId:window.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now())}})
+      sendSurveyHeartbeat();
+      aiUsRequest('/api/v1/survey-responses',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:{surveyRound:SURVEY_ROUND,surveyVersion:SPEC().surveyVersion,answers:answers,detail:surveyDetail(),submissionId:window.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now())}})
         .then(function(result){dummySurveyStatus.textContent='최종 제출을 접수했습니다. 저장 상태를 확인 중입니다.';checkSurveySubmission(result.submissionId);})
         .catch(function(error){if(svNext)svNext.disabled=false;showSurveyErr(error.message);});
     }
@@ -1669,6 +1692,7 @@
     }
     function setSurveyCompleted(){
       dummySubmissionCompleted=true;
+      stopSurveySession();
       localStorage.removeItem(draftKey());
       localStorage.setItem(completedKey(),'true');
       serverCompletedVersions[SPEC().surveyVersion]=true;
@@ -1689,6 +1713,7 @@
     function openSurvey(partIndex){
       SURVEY_PARTS=SURVEY_SETS[getAudience()]||SURVEY_SETS.elementary;
       activePart=partIndex||0;
+      beginSurveySession();
       if(SPEC().comingSoon){ showSurveyErr(''); alert('파트 2 설문은 준비 중이에요.'); return; }
       var t=document.getElementById('dummySurveyTitle'); if(t) t.textContent='1회차 설문 · '+(getAudience()==='secondary'?'중고등':'초등')+' 파트 '+(activePart+1);
       surveyRendered=false; renderSurvey();

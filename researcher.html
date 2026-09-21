@@ -86,12 +86,20 @@
   .preview.show{display:block}
   .preview .cap{font-size:.82rem;color:var(--muted);margin-bottom:8px}
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
-  #abuseCandidateGroups table{width:100%;table-layout:fixed}
-  #abuseCandidateGroups th,#abuseCandidateGroups td{white-space:normal;overflow-wrap:anywhere;vertical-align:top}
-  #abuseCandidateGroups th:nth-child(1),#abuseCandidateGroups td:nth-child(1),#abuseCandidateGroups th:nth-child(2),#abuseCandidateGroups td:nth-child(2){width:15%}
-  #abuseCandidateGroups th:nth-child(3),#abuseCandidateGroups td:nth-child(3),#abuseCandidateGroups th:nth-child(4),#abuseCandidateGroups td:nth-child(4){width:11%}
-  #abuseCandidateGroups th:nth-child(5),#abuseCandidateGroups td:nth-child(5){width:28%}
-  #abuseCandidateGroups th:nth-child(6),#abuseCandidateGroups td:nth-child(6){width:20%}
+  #abuseCandidateGroups table{width:100%;min-width:0;table-layout:fixed;font-size:.76rem}
+  #abuseCandidateGroups th,#abuseCandidateGroups td{white-space:normal;overflow-wrap:anywhere;vertical-align:top;padding:8px 6px}
+  #abuseCandidateGroups .abuse-paired-table th:nth-child(1),#abuseCandidateGroups .abuse-paired-table td:nth-child(1),#abuseCandidateGroups .abuse-paired-table th:nth-child(2),#abuseCandidateGroups .abuse-paired-table td:nth-child(2){width:14%}
+  #abuseCandidateGroups .abuse-paired-table th:nth-child(3),#abuseCandidateGroups .abuse-paired-table td:nth-child(3){width:9%}
+  #abuseCandidateGroups .abuse-paired-table th:nth-child(4),#abuseCandidateGroups .abuse-paired-table td:nth-child(4){width:11%}
+  #abuseCandidateGroups .abuse-paired-table th:nth-child(5),#abuseCandidateGroups .abuse-paired-table td:nth-child(5){width:25%}
+  #abuseCandidateGroups .abuse-paired-table th:nth-child(6),#abuseCandidateGroups .abuse-paired-table td:nth-child(6){width:17%}
+  #abuseCandidateGroups .abuse-paired-table th:nth-child(7),#abuseCandidateGroups .abuse-paired-table td:nth-child(7){width:10%}
+  #abuseCandidateGroups .abuse-speed-table th:nth-child(1),#abuseCandidateGroups .abuse-speed-table td:nth-child(1){width:18%}
+  #abuseCandidateGroups .abuse-speed-table th:nth-child(2),#abuseCandidateGroups .abuse-speed-table td:nth-child(2){width:25%}
+  #abuseCandidateGroups .abuse-speed-table th:nth-child(3),#abuseCandidateGroups .abuse-speed-table td:nth-child(3){width:27%}
+  #abuseCandidateGroups .abuse-speed-table th:nth-child(4),#abuseCandidateGroups .abuse-speed-table td:nth-child(4){width:18%}
+  #abuseCandidateGroups .abuse-speed-table th:nth-child(5),#abuseCandidateGroups .abuse-speed-table td:nth-child(5){width:12%}
+  #abuseCandidateGroups .abuse-review-toggle{width:28px;min-width:28px;height:28px;padding:0;display:inline-grid;place-items:center;font-size:1rem;line-height:1}
   table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:460px}
   th{text-align:left;color:var(--muted);font-weight:700;padding:11px 14px;background:#faf9fe;border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
@@ -624,7 +632,7 @@
       function candidateTable(items,paired){
         var visible=items.filter(function(item){return !hideReviewed.checked||!reviewedStatuses[item.candidateKey];});
         if(!visible.length)return '';
-        return '<div class="card"><h3>'+({'개인 단위 속도 이상':'개인 단위 속도 이상','응답 패턴 유사':'응답 패턴 유사','복합 의심':'복합 의심 후보'}[visible[0].candidateType]||'검토 후보')+' <small>('+visible.length+(paired?'쌍':'명')+')</small></h3><div class="tbl-wrap"><table><thead><tr><th>참여자 휴대폰</th>'+ (paired?'<th>비교 대상 휴대폰</th><th>응답 유사도</th><th>유사도 구간</th>':'<th>속도 지표</th>') +'<th>권고 사유</th><th>검토 우선순위</th><th>확인 상태</th></tr></thead><tbody>'+visible.map(function(item){var left=item.left||{},right=item.right||{},reviewed=!!reviewedStatuses[item.candidateKey];return '<tr><td>'+esc(item.phone)+'</td>'+ (paired?'<td>'+esc(item.pairedPhone)+'</td><td>'+esc(item.similarityPercent)+'%</td><td>'+esc(item.similarityBucket)+'</td>':'<td>'+esc(left.activeSeconds==null?'-':left.activeSeconds)+'초 활동 · '+esc(left.wallClockSeconds==null?'-':left.wallClockSeconds)+'초 경과</td>') +'<td>'+item.reasons.map(esc).join('<br>')+'</td><td>'+esc(item.reviewPriority)+'</td><td><button class="linkbtn abuse-review-toggle" data-key="'+esc(item.candidateKey)+'" data-phone="'+esc(item.phone)+'" data-paired-phone="'+esc(item.pairedPhone||'')+'" type="button">'+(reviewed?'확인 완료 취소':'확인 완료')+'</button></td></tr>';}).join('')+'</tbody></table></div></div>';
+        return '<div class="card"><h3>'+({'개인 단위 속도 이상':'개인 단위 속도 이상','응답 패턴 유사':'응답 패턴 유사','복합 의심':'복합 의심 후보'}[visible[0].candidateType]||'검토 후보')+' <small>('+visible.length+(paired?'쌍':'명')+')</small></h3><div class="tbl-wrap"><table class="'+(paired?'abuse-paired-table':'abuse-speed-table')+'"><thead><tr><th>참여자 휴대폰</th>'+ (paired?'<th>비교 대상 휴대폰</th><th>응답 유사도</th><th>유사도 구간</th>':'<th>속도 지표</th>') +'<th>권고 사유</th><th>검토 우선순위</th><th>확인 상태</th></tr></thead><tbody>'+visible.map(function(item){var left=item.left||{},right=item.right||{},reviewed=!!reviewedStatuses[item.candidateKey],statusLabel=reviewed?'확인 완료 취소':'확인 완료';return '<tr><td>'+esc(item.phone)+'</td>'+ (paired?'<td>'+esc(item.pairedPhone)+'</td><td>'+esc(item.similarityPercent)+'%</td><td>'+esc(item.similarityBucket)+'</td>':'<td>'+esc(left.activeSeconds==null?'-':left.activeSeconds)+'초 활동 · '+esc(left.wallClockSeconds==null?'-':left.wallClockSeconds)+'초 경과</td>') +'<td>'+item.reasons.map(esc).join('<br>')+'</td><td>'+esc(item.reviewPriority)+'</td><td><button class="linkbtn abuse-review-toggle" aria-label="'+statusLabel+'" title="'+statusLabel+'" data-key="'+esc(item.candidateKey)+'" data-phone="'+esc(item.phone)+'" data-paired-phone="'+esc(item.pairedPhone||'')+'" type="button">'+(reviewed?'✓':'○')+'</button></td></tr>';}).join('')+'</tbody></table></div></div>';
       }
       groups.innerHTML=candidateTable(speed,false)+candidateTable(pairing,true)+candidateTable(combined,true)||( '<p class="sub">현재 조건에서 권고 후보가 없습니다.</p>' );
       groups.querySelectorAll('.abuse-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query,{method:'PUT',body:{phone:button.dataset.phone,pairedPhone:button.dataset.pairedPhone||null,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});

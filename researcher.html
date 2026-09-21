@@ -339,7 +339,6 @@
               <div class="stat"><div class="k">1차 후 제출자</div><div class="v" id="statusChatRound1">-<small>명</small></div></div>
               <div class="stat"><div class="k">4차 후 제출자</div><div class="v" id="statusChatRound4">-<small>명</small></div></div>
             </div>
-            <div class="tbl-wrap"><table><thead><tr><th>이름</th><th>학교급</th><th>학년</th><th>휴대폰번호</th><th>제출 동의</th><th>1차 후</th><th>4차 후</th></tr></thead><tbody id="statusChatBody"><tr><td colspan="7">대화문 참여 현황을 불러오는 중이에요.</td></tr></tbody></table></div>
           </div>
         </div>
 
@@ -607,6 +606,11 @@
     if(isNaN(date.getTime()))return value||'';
     return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(date)+' (KST)';
   }
+  function formatKstFilenameTimestamp(){
+    var parts=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZone:'Asia/Seoul'}).formatToParts(new Date());
+    var values={};parts.forEach(function(part){values[part.type]=part.value;});
+    return values.year+'-'+values.month+'-'+values.day+'_'+values.hour+'-'+values.minute+'-'+values.second;
+  }
 
   // ---- chat file management ----
   (function(){
@@ -796,9 +800,6 @@
       var chatChart=document.getElementById('statusChatChart');
       if(chatChart){chatChart.innerHTML=[['제출 동의',consented,''],['1차 후 제출',round1,'afterRound1'],['4차 후 제출',round4,'afterRound4']].map(function(item){var label=item[2]?'<button class="linkbtn status-round-label" data-incomplete-category="chat" data-incomplete-criterion="'+item[2]+'" type="button">'+item[0]+'</button>':'<div class="status-round-label">'+item[0]+'</div>';return '<div class="status-round">'+label+'<div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
       [['statusChatConsented',consented.total],['statusChatRound1',round1.total],['statusChatRound4',round4.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
-      var chatBody=document.getElementById('statusChatBody');
-      function submissionBadge(value){if(value==='active')return '<span class="badge-st approved">제출</span>';if(value==='deletion_requested')return '<span class="badge-st pending">삭제 요청</span>';return '<span class="sub">미제출</span>';}
-      if(chatBody){chatBody.innerHTML=(chat.participants||[]).length?chat.participants.map(function(item){return '<tr><td>'+esc(item.name||'-')+'</td><td>'+esc(item.schoolLevel||'-')+'</td><td>'+esc(item.grade||'-')+'</td><td>'+esc(formatPhone(item.phone))+'</td><td>'+(item.chatConsent?'<span class="badge-st approved">동의</span>':'<span class="sub">미동의</span>')+'</td><td>'+submissionBadge(item.afterRound1)+'</td><td>'+submissionBadge(item.afterRound4)+'</td></tr>';}).join(''):'<tr><td colspan="7">대화문 제출 동의자나 제출 이력이 없어요.</td></tr>';}
     }).catch(function(error){var surveyBody=document.getElementById('statusSurveyBody');if(surveyBody)surveyBody.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     function formatPhone(phone){
       var digits=String(phone||'').replace(/\D/g,'');
@@ -853,7 +854,7 @@
       var csv=head.join(',')+'\n'+rows.map(function(row){
         return row.map(function(value){var text=String(value==null?'':value);return /[",\n]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;}).join(',');
       }).join('\n');
-      downloadBlob(csv,'미완료자_목록_'+incompleteReport.category+'_'+incompleteReport.criterion+'.csv','text/csv;charset=utf-8;');
+      downloadBlob(csv,'미완료자_목록_'+incompleteReport.category+'_'+incompleteReport.criterion+'_'+formatKstFilenameTimestamp()+'.csv','text/csv;charset=utf-8;');
     });
   })();
 

@@ -1040,7 +1040,7 @@
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="8">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
         cBody.innerHTML=records.map(function(r){
           var files=(r.filenames||[]).map(function(name){return '<span class="file-name" title="'+esc(name)+'">'+esc(name)+'</span>';}).join('<br>')||'첨부 없음';
-          var action=r.attachmentCount?'<button class="btn btn-ghost chat-file-download" data-id="'+esc(r.submissionId)+'" type="button">원본 받기</button>':'-';
+          var action=(r.attachmentCount?'<button class="btn btn-ghost chat-file-download" data-id="'+esc(r.submissionId)+'" type="button">원본 받기</button> ':'')+'<button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button">파싱 요청</button><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'"></span>';
           return '<tr><td><input class="chat-row-check" type="checkbox" value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+action+'</td></tr>';
         }).join('');
         cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.addEventListener('change',function(){selectAllFiltered=false;updateSelectionSummary();});});
@@ -1051,6 +1051,19 @@
             .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);})
             .then(function(){button.disabled=false;});
         });});
+        cBody.querySelectorAll('.transcript-parse').forEach(function(button){button.addEventListener('click',function(){
+          var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;if(statusEl)statusEl.textContent=' 파싱 요청 중…';
+          aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST'}).then(function(run){
+            function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse-runs/'+encodeURIComponent(run.runId)).then(function(state){
+              if(statusEl)statusEl.textContent=' '+state.status;
+              if(state.status==='completed'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.innerHTML=' 완료 <button class="linkbtn transcript-json" data-id="'+esc(button.dataset.id)+'" type="button">JSON</button> <button class="linkbtn transcript-csv" data-id="'+esc(button.dataset.id)+'" type="button">CSV</button>';return;}
+              if(state.status==='failed'){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+(state.error||'알 수 없는 오류');return;}
+              setTimeout(poll,1000);
+            }).catch(function(error){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+error.message;});}
+            poll();
+          }).catch(function(error){button.disabled=false;if(statusEl)statusEl.textContent=' 실패: '+error.message;});
+        });});
+        cBody.querySelectorAll('.transcript-json,.transcript-csv').forEach(function(button){button.addEventListener('click',function(){var format=button.classList.contains('transcript-json')?'json':'csv';fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcript-'+button.dataset.id+'.'+format);}).catch(function(error){alert(error.message);});});});
         updateSelectionSummary();
       }).catch(function(error){cBody.innerHTML='<tr><td colspan="8">'+esc(error.message)+'</td></tr>';updateSelectionSummary();});
     }

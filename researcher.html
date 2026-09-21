@@ -499,6 +499,7 @@
             <div class="filters">
               <div class="fgroup"><label for="abuseRound">회차</label><select id="abuseRound"><option>전체</option><option>1회차</option><option>2회차</option><option>3회차</option><option>4회차</option></select></div>
               <div class="fgroup"><label for="abuseVersion">설문 버전</label><select id="abuseVersion"><option value="">설문 버전을 불러오는 중...</option></select></div>
+              <label class="fgroup"><span>조회 옵션</span><span><input id="abuseIncludeLegacyVersions" type="checkbox"> 과거 v1 포함</span></label>
               <label class="fgroup"><span>표시 필터</span><span><input id="abuseHideReviewed" type="checkbox"> 확인 완료 숨기기</span></label>
               <button class="btn" id="abuseRefresh" type="button">검토 후보 불러오기</button>
             </div>
@@ -610,7 +611,7 @@
   (function(){
     var panel=document.getElementById('panel-abuse');
     if(!panel)return;
-    var round=document.getElementById('abuseRound'),version=document.getElementById('abuseVersion'),refresh=document.getElementById('abuseRefresh'),hideReviewed=document.getElementById('abuseHideReviewed');
+    var round=document.getElementById('abuseRound'),version=document.getElementById('abuseVersion'),refresh=document.getElementById('abuseRefresh'),includeLegacy=document.getElementById('abuseIncludeLegacyVersions'),hideReviewed=document.getElementById('abuseHideReviewed');
     var buckets=document.getElementById('abuseBuckets'),speedBuckets=document.getElementById('abuseSpeedBuckets'),summary=document.getElementById('abuseSummary'),groups=document.getElementById('abuseCandidateGroups');
     var reviewedStatuses={};
     function optionLabel(definition){return (definition.title?definition.title+' · ':'')+definition.surveyVersion;}
@@ -629,8 +630,8 @@
       groups.querySelectorAll('.abuse-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query,{method:'PUT',body:{phone:button.dataset.phone,pairedPhone:button.dataset.pairedPhone||null,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});
     }
     function load(){var query=selectedQuery();if(!query){summary.textContent='회차와 설문 버전을 선택해 주세요.';buckets.innerHTML='';speedBuckets.innerHTML='';groups.innerHTML='<p class="sub">검토할 설문을 선택해 주세요.</p>';return;}groups.innerHTML='<p class="sub">검토 후보를 계산하는 중입니다.</p>';Promise.all([aiUsRequest('/api/v1/researcher/abuse-review'+query),aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query)]).then(function(results){reviewedStatuses={};(results[1]||[]).forEach(function(item){reviewedStatuses[item.candidateKey]=item.reviewed;});render(results[0]);}).catch(function(error){groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
-    function loadDefinitions(){aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){version.innerHTML=definitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';}).join('')||'<option value="">등록된 설문 정의가 없습니다</option>';if(version.value){var opt=version.options[version.selectedIndex];round.value=opt.dataset.round+'회차';load();}}).catch(function(error){version.innerHTML='<option value="">설문 버전 조회 실패</option>';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
-    version.addEventListener('change',function(){var opt=version.options[version.selectedIndex];if(opt&&opt.dataset.round)round.value=opt.dataset.round+'회차';load();});round.addEventListener('change',load);refresh.addEventListener('click',load);hideReviewed.addEventListener('change',function(){load();});loadDefinitions();
+    function loadDefinitions(){aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){var visibleDefinitions=includeLegacy&&includeLegacy.checked?definitions:definitions.filter(function(definition){return !/v1-draft$/.test(definition.surveyVersion);});version.innerHTML=visibleDefinitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';}).join('')||'<option value="">등록된 설문 정의가 없습니다</option>';if(version.value){var opt=version.options[version.selectedIndex];round.value=opt.dataset.round+'회차';load();}}).catch(function(error){version.innerHTML='<option value="">설문 버전 조회 실패</option>';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
+    version.addEventListener('change',function(){var opt=version.options[version.selectedIndex];if(opt&&opt.dataset.round)round.value=opt.dataset.round+'회차';load();});round.addEventListener('change',load);refresh.addEventListener('click',load);includeLegacy.addEventListener('change',loadDefinitions);hideReviewed.addEventListener('change',function(){load();});loadDefinitions();
   })();
 
   // ---- activity summary ----

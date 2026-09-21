@@ -1071,7 +1071,7 @@
         });});
         cBody.querySelectorAll('.transcript-parse').forEach(function(button){button.addEventListener('click',function(){
           var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;if(statusEl)statusEl.textContent=' 파싱 요청 중…';
-          aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST'}).then(function(run){
+          function requestParse(attempt){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST'}).then(function(run){
             function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse-runs/'+encodeURIComponent(run.runId)).then(function(state){
               var labels={queued:' 대기열에 등록됨',processing:' 원본 파일을 분석하는 중…'};if(statusEl&&labels[state.status])statusEl.textContent=labels[state.status];
               if(state.status==='completed'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.innerHTML=' 파싱 완료 <button class="linkbtn transcript-json" data-id="'+esc(button.dataset.id)+'" type="button">JSON</button> <button class="linkbtn transcript-csv" data-id="'+esc(button.dataset.id)+'" type="button">CSV</button>';return;}
@@ -1080,7 +1080,8 @@
               setTimeout(poll,1000);
             }).catch(function(error){button.disabled=false;if(statusEl)statusEl.innerHTML=' 파싱 상태 확인 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
             poll();
-          }).catch(function(error){button.disabled=false;if(statusEl){var network=/failed to fetch|networkerror/i.test(error.message||'');statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. 배포 직후에는 잠시 기다린 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';}});
+          }).catch(function(error){var network=/failed to fetch|networkerror/i.test(error.message||'');if(network&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){requestParse(1);},800);return;}button.disabled=false;if(statusEl)statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. backend 컨테이너를 재배포한 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
+          requestParse(0);
         });});
         cBody.querySelectorAll('.transcript-json,.transcript-csv').forEach(function(button){button.addEventListener('click',function(){var format=button.classList.contains('transcript-json')?'json':'csv';fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcript-'+button.dataset.id+'.'+format);}).catch(function(error){alert(error.message);});});});
         cBody.querySelectorAll('.transcript-retry').forEach(function(button){button.addEventListener('click',function(){var parseButton=cBody.querySelector('.transcript-parse[data-id="'+button.dataset.id+'"]');if(parseButton)parseButton.click();});});

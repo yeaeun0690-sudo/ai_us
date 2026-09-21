@@ -86,6 +86,9 @@
   .preview.show{display:block}
   .preview .cap{font-size:.82rem;color:var(--muted);margin-bottom:8px}
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  .manage .tbl-wrap table{min-width:0;table-layout:fixed;font-size:.78rem}
+  .manage .tbl-wrap th,.manage .tbl-wrap td{padding:8px 7px;white-space:normal;overflow-wrap:anywhere;vertical-align:top}
+  .manage .tbl-wrap .file-name{max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
   #abuseCandidateGroups table{width:100%;min-width:0;table-layout:fixed;font-size:.76rem}
   #abuseCandidateGroups th,#abuseCandidateGroups td{white-space:normal;overflow-wrap:anywhere;vertical-align:top;padding:8px 6px}
   #abuseCandidateGroups .abuse-paired-table th:nth-child(1),#abuseCandidateGroups .abuse-paired-table td:nth-child(1),#abuseCandidateGroups .abuse-paired-table th:nth-child(2),#abuseCandidateGroups .abuse-paired-table td:nth-child(2){width:14%}
@@ -109,6 +112,9 @@
   #abuseGroupSummary th:nth-child(5),#abuseGroupSummary td:nth-child(5){width:25%}
   #abuseGroupSummary th:nth-child(6),#abuseGroupSummary td:nth-child(6){width:13%}
   #abuseGroupSummary th:nth-child(7),#abuseGroupSummary td:nth-child(7){width:12%}
+  .abuse-pair-pagination{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0;color:var(--muted);font-size:.78rem}
+  .abuse-pair-pagination button{padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink-2);cursor:pointer}
+  .abuse-pair-pagination button:disabled{opacity:.45;cursor:default}
   table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:460px}
   th{text-align:left;color:var(--muted);font-weight:700;padding:11px 14px;background:#faf9fe;border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
@@ -199,7 +205,7 @@
   .badge-st.approved{background:#e7f6ec;color:#15803d}
   .form-tag{display:inline-block;padding:2px 8px;border-radius:8px;background:var(--soft);color:var(--indigo);
     font-size:.72rem;font-weight:700;margin-left:4px}
-  #apTable{min-width:980px}
+  #apTable{min-width:0}
   #apTable td{vertical-align:middle}
   .file-name{display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
   .consent-toggle{background:none;border:0;padding:4px 8px;border-radius:8px;color:var(--violet);cursor:pointer;font:inherit;text-align:left}
@@ -631,9 +637,9 @@
     if(!panel)return;
     var round=document.getElementById('abuseRound'),version=document.getElementById('abuseVersion'),refresh=document.getElementById('abuseRefresh'),includeLegacy=document.getElementById('abuseIncludeLegacyVersions'),hideReviewed=document.getElementById('abuseHideReviewed');
     var buckets=document.getElementById('abuseBuckets'),speedBuckets=document.getElementById('abuseSpeedBuckets'),summary=document.getElementById('abuseSummary'),groupSummary=document.getElementById('abuseGroupSummary'),groups=document.getElementById('abuseCandidateGroups');
-    var reviewedStatuses={};
+    var reviewedStatuses={},pairPage=1;
     function optionLabel(definition){return (definition.title?definition.title+' · ':'')+definition.surveyVersion;}
-    function selectedQuery(){var match=round.value.match(/\d+/);return match&&version.value?('?survey_round='+match[0]+'&survey_version='+encodeURIComponent(version.value)):'';}
+    function selectedQuery(includePage){var match=round.value.match(/\d+/);if(!match||!version.value)return '';var query='?survey_round='+match[0]+'&survey_version='+encodeURIComponent(version.value);return includePage?query+'&pair_page='+pairPage+'&pair_page_size=200':query;}
     function render(data){
       buckets.innerHTML=(data.similarityBuckets||[]).map(function(item){return '<div class="stat"><div class="k">'+esc(item.label)+'</div><div class="v">'+esc(item.pairCount)+'<small>쌍</small></div></div>';}).join('');
       speedBuckets.innerHTML=(data.speedBuckets||[]).map(function(item){return '<div class="stat"><div class="k">'+esc(item.label)+'</div><div class="v">'+esc(item.responseCount)+'<small>명</small></div></div>';}).join('');
@@ -649,13 +655,15 @@
         if(!visible.length)return '<div class="card"><h3>'+title+' <small>(0'+unit+' / 전체 '+totalCount+unit+')</small></h3><p class="sub">현재 조건에 해당하는 후보가 없습니다.</p></div>';
         return '<div class="card"><h3>'+title+' <small>('+countLabel+')</small></h3><div class="tbl-wrap"><table class="'+(paired?'abuse-paired-table':'abuse-speed-table')+'"><thead><tr><th>참여자 휴대폰</th>'+ (paired?'<th>비교 대상 휴대폰</th><th>응답 유사도</th><th>유사도 구간</th>':'<th>속도 지표</th>') +'<th>권고 사유</th><th>검토 우선순위</th><th>확인 상태</th></tr></thead><tbody>'+visible.map(function(item){var left=item.left||{},right=item.right||{},reviewed=!!reviewedStatuses[item.candidateKey],statusLabel=reviewed?'확인 완료 취소':'확인 완료';return '<tr><td>'+esc(item.phone)+'</td>'+ (paired?'<td>'+esc(item.pairedPhone)+'</td><td>'+esc(item.similarityPercent)+'%</td><td>'+esc(item.similarityBucket)+'</td>':'<td>'+esc(left.activeSeconds==null?'-':left.activeSeconds)+'초 활동 · '+esc(left.wallClockSeconds==null?'-':left.wallClockSeconds)+'초 경과</td>') +'<td>'+item.reasons.map(esc).join('<br>')+'</td><td>'+esc(item.reviewPriority)+'</td><td><button class="linkbtn abuse-review-toggle" aria-label="'+statusLabel+'" title="'+statusLabel+'" data-key="'+esc(item.candidateKey)+'" data-phone="'+esc(item.phone)+'" data-paired-phone="'+esc(item.pairedPhone||'')+'" type="button">'+(reviewed?'✓':'○')+'</button></td></tr>';}).join('')+'</tbody></table></div></div>';
       }
-      groups.innerHTML=candidateTable(speed,false,'개인 단위 속도 이상','명',speedTotal)+candidateTable(pairing,true,'응답 패턴 유사','쌍',pairingTotal)+candidateTable(combined,true,'복합 의심 후보','쌍',combinedTotal);
-      groups.querySelectorAll('.abuse-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query,{method:'PUT',body:{phone:button.dataset.phone,pairedPhone:button.dataset.pairedPhone||null,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});
-      groupSummary.querySelectorAll('.abuse-group-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/group-statuses'+query,{method:'PUT',body:{groupKey:button.dataset.key,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});
+      function pagination(){var page=data.pairPage||1,totalPages=data.pairPageCount||1;return '<div class="abuse-pair-pagination"><button type="button" data-pair-page="'+(page-1)+'" '+(page<=1?'disabled':'')+'>이전</button><span>pair 목록 '+page+' / '+totalPages+' 페이지</span><button type="button" data-pair-page="'+(page+1)+'" '+(page>=totalPages?'disabled':'')+'>다음</button></div>';}
+      groups.innerHTML=pagination()+candidateTable(speed,false,'개인 단위 속도 이상','명',speedTotal)+candidateTable(pairing,true,'응답 패턴 유사','쌍',pairingTotal)+candidateTable(combined,true,'복합 의심 후보','쌍',combinedTotal)+pagination();
+      groups.querySelectorAll('[data-pair-page]').forEach(function(button){button.addEventListener('click',function(){if(button.disabled)return;pairPage=Number(button.dataset.pairPage);load();});});
+      groups.querySelectorAll('.abuse-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(false),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query,{method:'PUT',body:{phone:button.dataset.phone,pairedPhone:button.dataset.pairedPhone||null,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});
+      groupSummary.querySelectorAll('.abuse-group-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(false),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/group-statuses'+query,{method:'PUT',body:{groupKey:button.dataset.key,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});
     }
-    function load(){var query=selectedQuery();if(!query){summary.textContent='회차와 설문 버전을 선택해 주세요.';buckets.innerHTML='';speedBuckets.innerHTML='';groups.innerHTML='<p class="sub">검토할 설문을 선택해 주세요.</p>';return;}groups.innerHTML='<p class="sub">검토 후보를 계산하는 중입니다.</p>';Promise.all([aiUsRequest('/api/v1/researcher/abuse-review'+query),aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query)]).then(function(results){reviewedStatuses={};(results[1]||[]).forEach(function(item){reviewedStatuses[item.candidateKey]=item.reviewed;});render(results[0]);}).catch(function(error){groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
+    function load(){var query=selectedQuery(true),statusQuery=selectedQuery(false);if(!query){summary.textContent='회차와 설문 버전을 선택해 주세요.';buckets.innerHTML='';speedBuckets.innerHTML='';groups.innerHTML='<p class="sub">검토할 설문을 선택해 주세요.</p>';return;}groups.innerHTML='<p class="sub">검토 후보를 계산하는 중입니다.</p>';Promise.all([aiUsRequest('/api/v1/researcher/abuse-review'+query),aiUsRequest('/api/v1/researcher/abuse-review/statuses'+statusQuery)]).then(function(results){reviewedStatuses={};(results[1]||[]).forEach(function(item){reviewedStatuses[item.candidateKey]=item.reviewed;});render(results[0]);}).catch(function(error){groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
     function loadDefinitions(){aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){var visibleDefinitions=includeLegacy&&includeLegacy.checked?definitions:definitions.filter(function(definition){return !/v1-draft$/.test(definition.surveyVersion);});version.innerHTML=visibleDefinitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';}).join('')||'<option value="">등록된 설문 정의가 없습니다</option>';if(version.value){var opt=version.options[version.selectedIndex];round.value=opt.dataset.round+'회차';load();}}).catch(function(error){version.innerHTML='<option value="">설문 버전 조회 실패</option>';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
-    version.addEventListener('change',function(){var opt=version.options[version.selectedIndex];if(opt&&opt.dataset.round)round.value=opt.dataset.round+'회차';load();});round.addEventListener('change',load);refresh.addEventListener('click',load);includeLegacy.addEventListener('change',loadDefinitions);hideReviewed.addEventListener('change',function(){load();});loadDefinitions();
+    version.addEventListener('change',function(){pairPage=1;var opt=version.options[version.selectedIndex];if(opt&&opt.dataset.round)round.value=opt.dataset.round+'회차';load();});round.addEventListener('change',function(){pairPage=1;load();});refresh.addEventListener('click',function(){pairPage=1;load();});includeLegacy.addEventListener('change',function(){pairPage=1;loadDefinitions();});hideReviewed.addEventListener('change',function(){load();});loadDefinitions();
   })();
 
   // ---- activity summary ----
@@ -1007,7 +1015,7 @@
       aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="8">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
         cBody.innerHTML=records.map(function(r){
-          var files=(r.filenames||[]).map(esc).join(', ')||'첨부 없음';
+          var files=(r.filenames||[]).map(function(name){return '<span class="file-name" title="'+esc(name)+'">'+esc(name)+'</span>';}).join('<br>')||'첨부 없음';
           var action=r.attachmentCount?'<button class="btn btn-ghost chat-file-download" data-id="'+esc(r.submissionId)+'" type="button">원본 받기</button>':'-';
           return '<tr><td><input class="chat-row-check" type="checkbox" value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc(r.schoolLevel||'-')+'</td><td>'+esc(r.grade||'-')+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+action+'</td></tr>';
         }).join('');

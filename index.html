@@ -1101,6 +1101,27 @@
     'web-ai-us-mu2jfq4sfccf2f38.sel3.cloudtype.app':'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app'
   }[window.location.hostname]||'https://port-0-ai-us-backend-mu2jfq4sfccf2f38.sel3.cloudtype.app';
   var AI_US_TEMPORARY_ISSUE_SHOWN=false;
+  function aiUsAnalyticsIdentity(){
+    var id=localStorage.getItem('ai_us:analytics-visitor');
+    if(!id){id=window.crypto&&crypto.randomUUID?crypto.randomUUID():'visitor_'+Date.now()+'_'+Math.random().toString(36).slice(2);localStorage.setItem('ai_us:analytics-visitor',id);}
+    return id.replace(/[^A-Za-z0-9_-]/g,'_');
+  }
+  function aiUsAnalyticsAttribution(){
+    var params=new URLSearchParams(window.location.search),stored={};
+    try{stored=JSON.parse(localStorage.getItem('ai_us:analytics-attribution')||'{}');}catch(error){}
+    var current={campaign:params.get('campaign')||params.get('utm_campaign'),utmSource:params.get('utm_source'),utmMedium:params.get('utm_medium')};
+    if(current.campaign||current.utmSource||current.utmMedium){stored=current;localStorage.setItem('ai_us:analytics-attribution',JSON.stringify(stored));}
+    return stored;
+  }
+  function aiUsTrack(event,onceDaily){
+    var attribution=aiUsAnalyticsAttribution(),visitorId=aiUsAnalyticsIdentity();
+    var day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
+    var key='ai_us:analytics:'+event+':'+day+':'+(attribution.campaign||'direct');
+    if(onceDaily&&localStorage.getItem(key)==='true')return;
+    fetch(AI_US_API_BASE+'/api/v1/analytics/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:event,visitorId:visitorId,campaign:attribution.campaign||null,utmSource:attribution.utmSource||null,utmMedium:attribution.utmMedium||null})})
+      .then(function(response){if(response.ok&&onceDaily)localStorage.setItem(key,'true');}).catch(function(){});
+  }
+  aiUsTrack('landing_visit',false);
   var AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=null;
   // 백엔드가 '승인 없이 가입 즉시 계정 생성'으로 바뀌면 이 값을 true 로만 바꾸면 됩니다.
   // (true: 즉시 로그인 안내 + 연구자 승인 UI 숨김 / false: 현재 승인 방식 유지)
@@ -1299,6 +1320,7 @@
     function stopSurveySession(){if(surveyHeartbeatTimer){clearInterval(surveyHeartbeatTimer);surveyHeartbeatTimer=null;}}
     function sendSurveyHeartbeat(){
       if(!surveySession||!sessionStorage.getItem('ai_us_access_token'))return;
+      aiUsTrack('survey_heartbeat',true);
       var nowMs=Date.now(),lastMs=Date.parse(surveySession.lastHeartbeatAt),delta=Math.max(0,Math.min(45000,nowMs-lastMs));
       if(document.visibilityState==='visible')surveySession.activeSeconds+=Math.round(delta/1000);
       surveySession.lastHeartbeatAt=new Date(nowMs).toISOString();
@@ -1699,6 +1721,7 @@
       lockSurvey();
       if(svNext){svNext.disabled=true;svNext.textContent='제출 완료';}
       dummySurveyStatus.textContent='최종 제출이 완료되었습니다. 임시 저장을 삭제했습니다.';
+      aiUsTrack('survey_submitted',true);
       updatePartButtons();
       setTimeout(function(){
         dummySurveyBackdrop.classList.remove('open');
@@ -1715,6 +1738,7 @@
       activePart=partIndex||0;
       beginSurveySession();
       if(SPEC().comingSoon){ showSurveyErr(''); alert('파트 2 설문은 준비 중이에요.'); return; }
+      aiUsTrack('survey_opened',true);
       var t=document.getElementById('dummySurveyTitle'); if(t) t.textContent='1회차 설문 · '+(getAudience()==='secondary'?'중고등':'초등')+' 파트 '+(activePart+1);
       surveyRendered=false; renderSurvey();
       dummySubmissionCompleted=localStorage.getItem(completedKey())==='true';
@@ -1775,6 +1799,7 @@
       aiUsRequest('/api/v1/auth/participant/login',{method:'POST',body:{phone:digits,password:pw,audience:getAudience()}})
         .then(function(data){
           submit.disabled=false;
+          aiUsTrack('login_success',true);
           window.aiUsStartParticipantSession(data,digits);
         })
         .catch(function(error){submit.disabled=false;showErr(error.message);});
@@ -1886,7 +1911,7 @@
       signup.querySelectorAll('.su-err').forEach(function(e){e.classList.remove('show');});
       var doc=document.getElementById('doc');if(doc)doc.classList.remove('open');
     }
-    function openSignup(){resetForm();signup.classList.add('open');signup.classList.add('intro');document.body.style.overflow='hidden';show(0);initIntro();}
+    function openSignup(){resetForm();signup.classList.add('open');signup.classList.add('intro');document.body.style.overflow='hidden';show(0);initIntro();aiUsTrack('signup_started',true);}
     function closeSignup(){signup.classList.remove('open');signup.classList.remove('intro');signup.classList.remove('screen');document.body.style.overflow='';}
 
     // ---- 카드뉴스 인트로 (대상별 8장) ----
@@ -2024,6 +2049,7 @@
       submit.disabled=true;
       AppStore.submitApplication(data).then(function(result){
         submit.disabled=false;
+        aiUsTrack('signup_submitted',true);
         if(result.status==='approved'&&result.accessToken){
           closeSignup();
           window.aiUsStartParticipantSession(result,phone);
@@ -2222,7 +2248,7 @@
       fd.append('tool',t.id); fd.append('submissionPoint',chatPoint);
       fd.append('sourceType', t.result==='image'?'image':'file'); fd.append('submissionId',(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()));
       aiUsRequest('/api/v1/chat-submissions/uploads',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:fd})
-        .then(function(){ document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block'; })
+        .then(function(){ aiUsTrack('chat_submission_created',true);document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block'; })
         .catch(function(e){ err.textContent=(e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'; })
         .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }

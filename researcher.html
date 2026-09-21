@@ -130,6 +130,14 @@
   .status-bar-legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:.76rem;margin-top:12px}
   .status-bar-legend span{display:inline-flex;align-items:center;gap:5px}.status-bar-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
   .status-bar-legend .elementary{background:#2f9e88}.status-bar-legend .middle{background:#e07a5f}.status-bar-legend .high{background:#4c78a8}
+  .trend-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:18px 0 12px}
+  .trend-toggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .trend-toggle button{border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);padding:7px 12px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}
+  .trend-toggle button:last-child{border-right:0}.trend-toggle button.on{background:var(--deep);color:#fff}
+  .trend-chart{height:210px;display:flex;align-items:flex-end;gap:5px;border-bottom:1px solid var(--line);padding:12px 2px 0}
+  .trend-day{height:100%;flex:1;min-width:6px;display:flex;align-items:flex-end;gap:2px;position:relative}
+  .trend-bar{flex:1;border-radius:3px 3px 0 0}.trend-bar.dau{background:#2f9e88}.trend-bar.wau{background:#e07a5f}.trend-bar.mau{background:#4c78a8}.trend-bar.visits{background:#3f2e8f}.trend-bar.unique{background:#ef9f27}
+  .trend-axis{display:flex;justify-content:space-between;color:var(--muted);font-size:.7rem;margin-top:6px}
 
   /* filters */
   .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
@@ -464,7 +472,9 @@
             <div class="stat"><div class="k">현재 진행 세션</div><div class="v" id="activityNow">-<small>명</small></div></div>
           </div>
           <div class="card"><h3>전체 누적</h3><p class="sub">누적 참여자 <b id="activityTotalParticipants">-</b>명 · 누적 세션 <b id="activityTotalSessions">-</b>개</p><p class="sub">집계 시작: <b id="activityFirstStartedAt">-</b></p><p class="sub">집계 종료: <b id="activityGeneratedAt">-</b></p><p class="sub">30초마다 자동 갱신 · 평균 활동시간 <b id="activityAverage">-</b>초</p></div>
-          <div class="card" id="activityCampaignSection" hidden><h3>캠페인별 유입</h3><div class="tbl-wrap"><table><thead><tr><th>캠페인</th><th>유입</th><th>고유 방문자</th><th>신청 완료</th><th>설문 완료</th></tr></thead><tbody id="activityCampaignBody"></tbody></table></div></div>
+          <div class="card"><h3>활성 참여자 추세</h3><div class="trend-toolbar"><p class="sub">일별 DAU와 해당 날짜 기준 WAU·MAU</p><div class="trend-toggle" data-trend="activity"><button class="on" data-days="7" type="button">7일</button><button data-days="30" type="button">30일</button></div></div><div class="trend-chart" id="activityTrendChart"></div><div class="trend-axis"><span id="activityTrendStart"></span><span id="activityTrendEnd"></span></div><div class="status-bar-legend"><span><i class="elementary"></i>DAU</span><span><i class="middle"></i>WAU</span><span><i class="high"></i>MAU</span></div></div>
+          <div class="card"><h3>유입 및 전환</h3><div class="stats" style="grid-template-columns:repeat(4,1fr);margin-top:14px"><div class="stat"><div class="k">오늘 유입</div><div class="v" id="trafficToday">-<small>회</small></div></div><div class="stat"><div class="k">오늘 고유 방문자</div><div class="v" id="trafficTodayUnique">-<small>명</small></div></div><div class="stat"><div class="k">최근 7일 유입</div><div class="v" id="trafficWeek">-<small>회</small></div></div><div class="stat total"><div class="k">최근 30일 유입</div><div class="v" id="trafficMonth">-<small>회</small></div></div></div><div class="trend-toolbar"><p class="sub">접속 수와 중복을 제외한 고유 방문자 수</p><div class="trend-toggle" data-trend="traffic"><button class="on" data-days="7" type="button">7일</button><button data-days="30" type="button">30일</button></div></div><div class="trend-chart" id="trafficTrendChart"></div><div class="trend-axis"><span id="trafficTrendStart"></span><span id="trafficTrendEnd"></span></div><div class="status-bar-legend"><span><i style="background:#3f2e8f"></i>접속</span><span><i style="background:#ef9f27"></i>고유 방문자</span></div><p class="sub" id="trafficFunnel"></p><p class="sub" id="trafficChanges"></p></div>
+          <div class="card" id="activityCampaignSection" hidden><h3>캠페인별 유입</h3><div class="tbl-wrap"><table><thead><tr><th>캠페인</th><th>소스</th><th>매체</th><th>유입</th><th>고유 방문자</th><th>신청 완료</th><th>설문 완료율</th></tr></thead><tbody id="activityCampaignBody"></tbody></table></div></div>
         </div>
 
       </div>
@@ -569,21 +579,39 @@
   (function(){
     var panel=document.getElementById('panel-activity');
     if(!panel)return;
+    var activityData=null,trendDays={activity:7,traffic:7};
     function setValue(id,value){var el=document.getElementById(id);if(el)el.innerHTML=String(value==null?0:value)+'<small>명</small>';}
+    function renderTrend(kind){
+      if(!activityData)return;
+      var source=kind==='activity'?(activityData.activityTrend||[]):(activityData.trafficTrend||[]),days=trendDays[kind],items=source.slice(-days);
+      var fields=kind==='activity'?[['dau','dau','DAU'],['wau','wau','WAU'],['mau','mau','MAU']]:[['visits','visits','접속'],['uniqueVisitors','unique','고유 방문자']];
+      var max=Math.max.apply(null,[1].concat(items.reduce(function(values,item){return values.concat(fields.map(function(field){return Number(item[field[0]])||0;}));},[])));
+      var chart=document.getElementById(kind+'TrendChart');
+      if(chart)chart.innerHTML=items.map(function(item){return '<div class="trend-day" title="'+esc(item.date)+' · '+fields.map(function(field){return field[2]+': '+(item[field[0]]||0);}).join(' · ')+'">'+fields.map(function(field){var value=Number(item[field[0]])||0,height=value?Math.max(2,Math.round(value/max*100)):0;return '<span class="trend-bar '+field[1]+'" style="height:'+height+'%"></span>';}).join('')+'</div>';}).join('');
+      var start=document.getElementById(kind+'TrendStart'),end=document.getElementById(kind+'TrendEnd');if(start)start.textContent=items.length?items[0].date:'';if(end)end.textContent=items.length?items[items.length-1].date:'';
+    }
     function load(){
       aiUsRequest('/api/v1/researcher/activity-summary').then(function(data){
+        activityData=data;
         setValue('activityDau',data.dau);setValue('activityWau',data.wau);setValue('activityMau',data.mau);setValue('activityNow',data.activeNow);
         var totalParticipants=document.getElementById('activityTotalParticipants'),totalSessions=document.getElementById('activityTotalSessions'),average=document.getElementById('activityAverage'),firstStarted=document.getElementById('activityFirstStartedAt'),generated=document.getElementById('activityGeneratedAt');
         if(totalParticipants)totalParticipants.textContent=data.totalParticipants||0;if(totalSessions)totalSessions.textContent=data.totalSessions||data.sessionCount||0;if(average)average.textContent=data.averageActiveSeconds||0;
         if(firstStarted)firstStarted.textContent=data.firstStartedAt?formatKstDateTime(data.firstStartedAt):'아직 없음';
         if(generated)generated.textContent=data.generatedAt?formatKstDateTime(data.generatedAt):'-';
+        var traffic=data.traffic||{},today=traffic.today||{},week=traffic.last7Days||{},month=traffic.last30Days||{};
+        [['trafficToday',today.visits,'회'],['trafficTodayUnique',today.uniqueVisitors,'명'],['trafficWeek',week.visits,'회'],['trafficMonth',month.visits,'회']].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>'+item[2]+'</small>';});
+        var funnel=document.getElementById('trafficFunnel');if(funnel)funnel.textContent='최근 30일 · 신청 시작 '+(month.signupStarted||0)+'명 · 신청 완료 '+(month.signupCompleted||0)+'명 ('+(traffic.signupConversionRate||0)+'%) · 로그인 '+(month.loginSuccess||0)+'명 · 설문 시작 '+(month.surveyStarted||0)+'명 · 설문 완료 '+(month.surveyCompleted||0)+'명 ('+(traffic.surveyCompletionRate||0)+'%) · 대화문 제출 '+(month.chatSubmissions||0)+'명';
+        function signed(value){return value>0?'+'+value:String(value||0);}
+        var changes=document.getElementById('trafficChanges');if(changes)changes.textContent='유입 증감 · 전일 대비 '+signed(traffic.visitChange1Day)+'회 · 직전 7일 대비 '+signed(traffic.visitChange7Days)+'회';
+        renderTrend('activity');renderTrend('traffic');
         var campaignSection=document.getElementById('activityCampaignSection'),body=document.getElementById('activityCampaignBody');
         if(campaignSection)campaignSection.hidden=!data.hasCampaignData;
-        if(body&&data.hasCampaignData)body.innerHTML=(data.campaigns||[]).map(function(item){return '<tr><td>'+esc(item.campaign)+'</td><td>'+esc(item.visits)+'</td><td>'+esc(item.uniqueVisitors)+'</td><td>'+esc(item.signupCompleted)+'</td><td>'+esc(item.surveyCompleted)+'</td></tr>';}).join('');
+        if(body&&data.hasCampaignData)body.innerHTML=(data.campaigns||[]).map(function(item){return '<tr><td>'+esc(item.campaign)+'</td><td>'+esc(item.source||'-')+'</td><td>'+esc(item.medium||'-')+'</td><td>'+esc(item.visits)+'</td><td>'+esc(item.uniqueVisitors)+'</td><td>'+esc(item.signupCompleted)+'</td><td>'+esc(item.completionRate)+'%</td></tr>';}).join('');
       }).catch(function(error){var generated=document.getElementById('activityGeneratedAt');if(generated)generated.textContent=error.message;});
     }
     load();
     window.setInterval(load,30000);
+    document.querySelectorAll('.trend-toggle button').forEach(function(button){button.addEventListener('click',function(){var toggle=button.closest('.trend-toggle'),kind=toggle.dataset.trend;toggle.querySelectorAll('button').forEach(function(item){item.classList.toggle('on',item===button);});trendDays[kind]=Number(button.dataset.days);renderTrend(kind);});});
   })();
 
   // ---- helpers ----

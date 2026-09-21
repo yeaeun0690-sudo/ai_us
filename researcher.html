@@ -258,7 +258,7 @@
         <!-- 0. 회원 신청 관리 -->
         <div class="panel on" id="panel-apply">
           <h2>회원 신청 관리</h2>
-          <p class="note" id="applyNote">신청서를 확인하고 승인하세요. 승인 시 계정이 발급됩니다 — 아이디는 본인 휴대폰 번호, 초기 비밀번호는 <b>1234</b>. (아래는 예시 데이터)</p>
+          <p class="note" id="applyNote">신청서를 확인하고 승인하세요. 승인 시 계정이 발급됩니다 — 아이디는 본인 휴대폰 번호, 초기 비밀번호는 <b>1234</b>.</p>
 
           <div class="approval-setting" id="approvalSetting">
             <div><b>자동 승인</b><p id="approvalSettingNote">현재 상태를 확인하고 있어요.</p></div>
@@ -307,24 +307,30 @@
         <!-- 1. 참여 현황 -->
         <div class="panel" id="panel-status">
           <h2>참여 현황</h2>
-          <p class="note">※ 아래는 예시 데이터예요. 실제 값은 데이터 연결 후 표시됩니다.</p>
+          <p class="note">등록 참여자와 설문·대화문 제출 현황을 실제 저장 데이터 기준으로 집계합니다.</p>
 
           <div class="stats">
-            <div class="stat"><div class="k">초등</div><div class="v">120<small>명</small></div></div>
-            <div class="stat"><div class="k">중등</div><div class="v">95<small>명</small></div></div>
-            <div class="stat"><div class="k">고등</div><div class="v">85<small>명</small></div></div>
-            <div class="stat total"><div class="k">전체 참여자</div><div class="v">300<small>명</small></div></div>
+            <div class="stat"><div class="k">초등</div><div class="v">-<small>명</small></div></div>
+            <div class="stat"><div class="k">중등</div><div class="v">-<small>명</small></div></div>
+            <div class="stat"><div class="k">고등</div><div class="v">-<small>명</small></div></div>
+            <div class="stat total"><div class="k">전체 참여자</div><div class="v">-<small>명</small></div></div>
           </div>
 
           <div class="chart-card">
-            <h3>회차별 참여 인원</h3>
-            <p class="sub">설문 버전과 관계없이 회차별로 집계한 참여 인원이에요.</p>
-            <div class="chart">
-              <div class="col"><div class="barwrap"><div class="bar" style="height:100%"><span class="n">300</span></div></div><div class="lbl">1회차<small>완료</small></div></div>
-              <div class="col"><div class="barwrap"><div class="bar" style="height:80%"><span class="n">240</span></div></div><div class="lbl">2회차<small>진행중</small></div></div>
-              <div class="col"><div class="barwrap"><div class="bar" style="height:60%"><span class="n">180</span></div></div><div class="lbl">3회차<small>진행중</small></div></div>
-              <div class="col"><div class="barwrap"><div class="bar" style="height:30%"><span class="n">90</span></div></div><div class="lbl">4회차<small>진행중</small></div></div>
+            <h3>설문 회차별 완료 현황</h3>
+            <p class="sub">설문 버전이 여러 개여도 같은 참여자는 회차별 한 명으로 집계합니다.</p>
+            <div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>회차</th><th>초등 완료/등록</th><th>중등 완료/등록</th><th>고등 완료/등록</th><th>전체 완료/등록</th></tr></thead><tbody id="statusSurveyBody"><tr><td colspan="5">참여 현황을 불러오는 중이에요.</td></tr></tbody></table></div>
+          </div>
+
+          <div class="card">
+            <h3>대화문 참여 현황</h3>
+            <p class="sub">대화문 제출에 동의한 인원과 실제 제출 이력을 비교합니다. 삭제 요청된 제출도 이력으로 표시합니다.</p>
+            <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
+              <div class="stat"><div class="k">제출 동의자</div><div class="v" id="statusChatConsented">-<small>명</small></div></div>
+              <div class="stat"><div class="k">1차 후 제출자</div><div class="v" id="statusChatRound1">-<small>명</small></div></div>
+              <div class="stat"><div class="k">4차 후 제출자</div><div class="v" id="statusChatRound4">-<small>명</small></div></div>
             </div>
+            <div class="tbl-wrap"><table><thead><tr><th>이름</th><th>학교급</th><th>학년</th><th>휴대폰번호</th><th>제출 동의</th><th>1차 후</th><th>4차 후</th></tr></thead><tbody id="statusChatBody"><tr><td colspan="7">대화문 참여 현황을 불러오는 중이에요.</td></tr></tbody></table></div>
           </div>
         </div>
 
@@ -756,9 +762,17 @@
     aiUsRequest('/api/v1/researcher/participation-status').then(function(data){
       var values=statusPanel.querySelectorAll('.stats .stat .v');
       [data.participants.elementary,data.participants.middle,data.participants.high,data.participants.total].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
-      var bars=statusPanel.querySelectorAll('.chart .col');
-      bars.forEach(function(bar,index){var round=data.completedByRound.filter(function(item){return item.surveyRound===index+1;})[0],count=round?round.completedCount:0;bar.querySelector('.n').textContent=count;bar.querySelector('.bar').style.height=(data.participants.total?Math.max(3,count/data.participants.total*100):3)+'%';});
-    });
+      var surveyBody=document.getElementById('statusSurveyBody');
+      if(surveyBody){
+        function completionCell(completed,total){var rate=total?Math.round(completed/total*100):0;return esc(completed)+' / '+esc(total)+'명 ('+rate+'%)';}
+        surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
+      }
+      var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round4=chat.submittedAfterRound4||{};
+      [['statusChatConsented',consented.total],['statusChatRound1',round1.total],['statusChatRound4',round4.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
+      var chatBody=document.getElementById('statusChatBody');
+      function submissionBadge(value){if(value==='active')return '<span class="badge-st approved">제출</span>';if(value==='deletion_requested')return '<span class="badge-st pending">삭제 요청</span>';return '<span class="sub">미제출</span>';}
+      if(chatBody){chatBody.innerHTML=(chat.participants||[]).length?chat.participants.map(function(item){return '<tr><td>'+esc(item.name||'-')+'</td><td>'+esc(item.schoolLevel||'-')+'</td><td>'+esc(item.grade||'-')+'</td><td>'+esc(formatPhone(item.phone))+'</td><td>'+(item.chatConsent?'<span class="badge-st approved">동의</span>':'<span class="sub">미동의</span>')+'</td><td>'+submissionBadge(item.afterRound1)+'</td><td>'+submissionBadge(item.afterRound4)+'</td></tr>';}).join(''):'<tr><td colspan="7">대화문 제출 동의자나 제출 이력이 없어요.</td></tr>';}
+    }).catch(function(error){var surveyBody=document.getElementById('statusSurveyBody');if(surveyBody)surveyBody.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     function definitionLabel(definition){
       var audience=definition.audience==='secondary'?'중고등':definition.audience==='elementary'?'초등':'대상 미지정';
       return (definition.title||audience+(definition.part?' · 파트'+definition.part:''))+' · '+definition.surveyVersion;

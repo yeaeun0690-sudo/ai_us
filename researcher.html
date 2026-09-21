@@ -1029,6 +1029,13 @@
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
     var cBulkBtn=document.getElementById('cBulkBtn'), selectAllFiltered=false, bulkDownloadBusy=false;
     if(!cRound) return;
+    cBody.addEventListener('click',function(event){
+      var button=event.target.closest('.transcript-retry,.transcript-json,.transcript-csv');
+      if(!button||!cBody.contains(button))return;
+      if(button.classList.contains('transcript-retry')){var parseButton=cBody.querySelector('.transcript-parse[data-id="'+button.dataset.id+'"]');if(parseButton)parseButton.click();return;}
+      var format=button.classList.contains('transcript-json')?'json':'csv';
+      fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcript-'+button.dataset.id+'.'+format);}).catch(function(error){alert(error.message);});
+    });
     function pointLabel(p){return p==='afterRound1'?'대화문 1 (1차 후)':p==='afterRound4'?'대화문 2 (4차 후)':(p||'-');}
     function sourceTag(s){return s==='image'?'🖼 이미지':s==='file'?'📦 ZIP 파일':(s||'-');}
     function filterParams(){
@@ -1083,8 +1090,6 @@
           }).catch(function(error){var network=/failed to fetch|networkerror/i.test(error.message||'');if(network&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){requestParse(1);},800);return;}button.disabled=false;if(statusEl)statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. backend 컨테이너를 재배포한 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
           requestParse(0);
         });});
-        cBody.querySelectorAll('.transcript-json,.transcript-csv').forEach(function(button){button.addEventListener('click',function(){var format=button.classList.contains('transcript-json')?'json':'csv';fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcript-'+button.dataset.id+'.'+format);}).catch(function(error){alert(error.message);});});});
-        cBody.querySelectorAll('.transcript-retry').forEach(function(button){button.addEventListener('click',function(){var parseButton=cBody.querySelector('.transcript-parse[data-id="'+button.dataset.id+'"]');if(parseButton)parseButton.click();});});
         updateSelectionSummary();
       }).catch(function(error){cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();});
     }

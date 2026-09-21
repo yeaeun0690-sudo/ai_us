@@ -251,7 +251,7 @@
       <nav class="side" id="side">
         <button class="on" data-panel="apply" type="button"><span class="dot"></span>회원 신청</button>
         <button data-panel="status" type="button"><span class="dot"></span>참여 현황</button>
-        <button data-panel="absent" type="button"><span class="dot"></span>미참여자</button>
+        <button data-panel="absent" type="button"><span class="dot"></span>미완료자 관리</button>
         <button data-panel="files" type="button"><span class="dot"></span>파일 관리</button>
         <button data-panel="download" type="button"><span class="dot"></span>결과 다운로드</button>
         <button data-panel="activity" type="button"><span class="dot"></span>활성/유입 분석</button>
@@ -343,30 +343,40 @@
           </div>
         </div>
 
-        <!-- 2. 미참여자 -->
+        <!-- 2. 미완료자 관리 -->
         <div class="panel" id="panel-absent">
-          <h2>미참여자</h2>
-          <p class="note">선택한 설문 기준으로 아직 참여하지 않은 참여자예요.</p>
+          <h2>미완료자 관리</h2>
+          <p class="note">설문 회차 또는 대화문 제출 시점별로 후속 확인이 필요한 참여자를 조회합니다.</p>
 
-          <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-            <div class="stat"><div class="k">이번 회차 미참여</div><div class="v">0<small>명</small></div></div>
-            <div class="stat"><div class="k">초등 미참여</div><div class="v">0<small>명</small></div></div>
-            <div class="stat"><div class="k">중등·고등 미참여</div><div class="v">0<small>명</small></div></div>
+          <div class="apfilter" id="incompleteModes">
+            <button class="fbtn on" data-category="survey" type="button">설문 미완료</button>
+            <button class="fbtn" data-category="chat" type="button">대화문 미제출</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat total"><div class="k">조회 결과</div><div class="v">0<small>명</small></div></div>
+            <div class="stat"><div class="k">초등</div><div class="v">0<small>명</small></div></div>
+            <div class="stat"><div class="k">중등</div><div class="v">0<small>명</small></div></div>
+            <div class="stat"><div class="k">고등</div><div class="v">0<small>명</small></div></div>
           </div>
 
           <div class="filters">
-            <div class="fgroup">
-              <label for="absentDefinition">기준 설문</label>
-              <select class="absent-version-select" id="absentDefinition"><option value="">설문 버전을 불러오는 중...</option></select>
+            <div class="fgroup" id="incompleteSurveyFilter">
+              <label for="incompleteSurveyRound">설문 회차</label>
+              <select id="incompleteSurveyRound"><option value="">회차를 불러오는 중...</option></select>
             </div>
-            <label class="fgroup"><span>조회 옵션</span><span><input id="absentIncludeLegacy" type="checkbox"> 과거 v1 포함</span></label>
-            <button class="btn btn-ghost" id="absentDownload" type="button" disabled>⬇ 미참여자 CSV 다운로드</button>
+            <div class="fgroup" id="incompleteChatFilter" hidden>
+              <label for="incompleteChatPoint">대화문 제출 시점</label>
+              <select id="incompleteChatPoint"><option value="afterRound1">1차 후</option><option value="afterRound4">4차 후</option></select>
+            </div>
+            <div class="fgroup"><label for="incompleteSchoolLevel">학교급</label><select id="incompleteSchoolLevel"><option value="">전체</option><option>초등</option><option>중등</option><option>고등</option></select></div>
+            <button class="btn btn-ghost" id="absentDownload" type="button" disabled>⬇ 미완료자 CSV 다운로드</button>
           </div>
 
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>이름</th><th>학교급</th><th>학년</th><th>휴대폰번호</th><th>참여 여부</th></tr></thead>
-              <tbody>
+              <tbody id="incompleteBody">
                 <tr><td colspan="5">설문 버전을 불러오는 중이에요.</td></tr>
               </tbody>
             </table>
@@ -764,9 +774,12 @@
     var statusPanel=document.getElementById('panel-status');
     var absentPanel=document.getElementById('panel-absent');
     var absentDownload=document.getElementById('absentDownload');
-    var absentDefinition=document.getElementById('absentDefinition');
-    var absentIncludeLegacy=document.getElementById('absentIncludeLegacy');
-    var nonparticipantReport=null;
+    var incompleteSurveyRound=document.getElementById('incompleteSurveyRound');
+    var incompleteChatPoint=document.getElementById('incompleteChatPoint');
+    var incompleteSchoolLevel=document.getElementById('incompleteSchoolLevel');
+    var incompleteSurveyFilter=document.getElementById('incompleteSurveyFilter');
+    var incompleteChatFilter=document.getElementById('incompleteChatFilter');
+    var incompleteMode='survey',incompleteReport=null;
     if(!AI_US_ACCESS_TOKEN||!statusPanel||!absentPanel)return;
     aiUsRequest('/api/v1/researcher/participation-status').then(function(data){
       var values=statusPanel.querySelectorAll('.stats .stat .v');
@@ -775,62 +788,72 @@
       var surveyChart=document.getElementById('statusSurveyChart');
       function completionCell(completed,total){var rate=total?Math.round(completed/total*100):0;return esc(completed)+' / '+esc(total)+'명 ('+rate+'%)';}
       function schoolBars(counts){return ['elementary','middle','high'].map(function(level){var labels={elementary:'초등',middle:'중등',high:'고등'},completed=counts[level]||0,total=data.participants[level]||0,rate=total?Math.round(completed/total*100):0;return '<div class="status-bar-row"><span class="status-bar-label">'+labels[level]+'</span><span class="status-bar-track"><span class="status-bar-fill '+level+'" style="width:'+rate+'%"></span></span><span class="status-bar-value">'+completionCell(completed,total)+'</span></div>';}).join('');}
-      if(surveyChart){surveyChart.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){return '<div class="status-round"><div class="status-round-label">'+esc(item.surveyRound)+'회차</div><div class="status-bar-list">'+schoolBars(item.counts||{})+'</div></div>';}).join(''):'<p class="sub">아직 완료된 설문이 없어요.</p>';}
+      if(surveyChart){surveyChart.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){return '<div class="status-round"><button class="linkbtn status-round-label" data-incomplete-category="survey" data-incomplete-criterion="'+esc(item.surveyRound)+'" type="button">'+esc(item.surveyRound)+'회차</button><div class="status-bar-list">'+schoolBars(item.counts||{})+'</div></div>';}).join(''):'<p class="sub">아직 완료된 설문이 없어요.</p>';}
       if(surveyBody){
         surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
       }
       var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round4=chat.submittedAfterRound4||{};
       var chatChart=document.getElementById('statusChatChart');
-      if(chatChart){chatChart.innerHTML=[['제출 동의',consented],['1차 후 제출',round1],['4차 후 제출',round4]].map(function(item){return '<div class="status-round"><div class="status-round-label">'+item[0]+'</div><div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
+      if(chatChart){chatChart.innerHTML=[['제출 동의',consented,''],['1차 후 제출',round1,'afterRound1'],['4차 후 제출',round4,'afterRound4']].map(function(item){var label=item[2]?'<button class="linkbtn status-round-label" data-incomplete-category="chat" data-incomplete-criterion="'+item[2]+'" type="button">'+item[0]+'</button>':'<div class="status-round-label">'+item[0]+'</div>';return '<div class="status-round">'+label+'<div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
       [['statusChatConsented',consented.total],['statusChatRound1',round1.total],['statusChatRound4',round4.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
       var chatBody=document.getElementById('statusChatBody');
       function submissionBadge(value){if(value==='active')return '<span class="badge-st approved">제출</span>';if(value==='deletion_requested')return '<span class="badge-st pending">삭제 요청</span>';return '<span class="sub">미제출</span>';}
       if(chatBody){chatBody.innerHTML=(chat.participants||[]).length?chat.participants.map(function(item){return '<tr><td>'+esc(item.name||'-')+'</td><td>'+esc(item.schoolLevel||'-')+'</td><td>'+esc(item.grade||'-')+'</td><td>'+esc(formatPhone(item.phone))+'</td><td>'+(item.chatConsent?'<span class="badge-st approved">동의</span>':'<span class="sub">미동의</span>')+'</td><td>'+submissionBadge(item.afterRound1)+'</td><td>'+submissionBadge(item.afterRound4)+'</td></tr>';}).join(''):'<tr><td colspan="7">대화문 제출 동의자나 제출 이력이 없어요.</td></tr>';}
     }).catch(function(error){var surveyBody=document.getElementById('statusSurveyBody');if(surveyBody)surveyBody.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
-    function definitionLabel(definition){
-      var audience=definition.audience==='secondary'?'중고등':definition.audience==='elementary'?'초등':'대상 미지정';
-      return (definition.title||audience+(definition.part?' · 파트'+definition.part:''))+' · '+definition.surveyVersion;
-    }
     function formatPhone(phone){
       var digits=String(phone||'').replace(/\D/g,'');
       return digits.length===11?digits.slice(0,3)+'-'+digits.slice(3,7)+'-'+digits.slice(7):phone;
     }
-    function loadNonparticipants(){
-      var option=absentDefinition.options[absentDefinition.selectedIndex];
-      if(!option||!option.value)return;
-      var body=absentPanel.querySelector('tbody');
-      nonparticipantReport=null;absentDownload.disabled=true;
-      body.innerHTML='<tr><td colspan="5">미참여자 목록을 불러오는 중이에요.</td></tr>';
-      aiUsRequest('/api/v1/researcher/nonparticipants?survey_round='+option.dataset.round+'&survey_version='+encodeURIComponent(option.value)).then(function(data){
-        nonparticipantReport=data;
+    function loadIncompleteParticipants(){
+      var criterion=incompleteMode==='survey'?incompleteSurveyRound.value:incompleteChatPoint.value;
+      if(!criterion)return;
+      var body=document.getElementById('incompleteBody');
+      incompleteReport=null;absentDownload.disabled=true;
+      body.innerHTML='<tr><td colspan="5">미완료자 목록을 불러오는 중이에요.</td></tr>';
+      var query='?category='+incompleteMode+'&criterion='+encodeURIComponent(criterion);
+      if(incompleteSchoolLevel.value)query+='&school_level='+encodeURIComponent(incompleteSchoolLevel.value);
+      aiUsRequest('/api/v1/researcher/incomplete-participants'+query).then(function(data){
+        incompleteReport=data;
         var values=absentPanel.querySelectorAll('.stats .stat .v');
-        [data.counts.total,data.counts.elementary,data.counts.middle+data.counts.high].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
-        body.innerHTML=data.participants.length?data.participants.map(function(participant){return '<tr><td>'+esc(participant.name||'-')+'</td><td>'+esc(participant.schoolLevel||'-')+'</td><td>'+esc(participant.grade||'-')+'</td><td>'+esc(formatPhone(participant.phone))+'</td><td>미참여</td></tr>';}).join(''):'<tr><td colspan="5">미참여자가 없습니다.</td></tr>';
+        [data.counts.total,data.counts.elementary,data.counts.middle,data.counts.high].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
+        var statusLabel=incompleteMode==='survey'?'설문 미완료':'대화문 미제출';
+        body.innerHTML=data.participants.length?data.participants.map(function(participant){return '<tr><td>'+esc(participant.name||'-')+'</td><td>'+esc(participant.schoolLevel||'-')+'</td><td>'+esc(participant.grade||'-')+'</td><td>'+esc(formatPhone(participant.phone))+'</td><td>'+statusLabel+'</td></tr>';}).join(''):'<tr><td colspan="5">해당 조건의 미완료자가 없습니다.</td></tr>';
         absentDownload.disabled=false;
       }).catch(function(error){body.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     }
-    function loadAbsentDefinitions(){
+    function loadSurveyRounds(){
       aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){
-      if(!definitions.length){absentDefinition.innerHTML='<option value="">등록된 설문 정의가 없습니다</option>';return;}
-      var visibleDefinitions=absentIncludeLegacy&&absentIncludeLegacy.checked?definitions:definitions.filter(function(definition){return !/-v1-draft$/.test(definition.surveyVersion);});
-      absentDefinition.innerHTML=visibleDefinitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(definitionLabel(definition))+'</option>';}).join('');
-      loadNonparticipants();
-      }).catch(function(error){absentDefinition.innerHTML='<option value="">설문 버전 조회 실패</option>';absentPanel.querySelector('tbody').innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
+        var rounds=definitions.map(function(definition){return definition.surveyRound;}).filter(function(round,index,items){return items.indexOf(round)===index;}).sort(function(a,b){return a-b;});
+        if(!rounds.length){incompleteSurveyRound.innerHTML='<option value="">등록된 설문 회차가 없습니다</option>';return;}
+        incompleteSurveyRound.innerHTML=rounds.map(function(round){return '<option value="'+esc(round)+'">'+esc(round)+'회차</option>';}).join('');
+        loadIncompleteParticipants();
+      }).catch(function(error){incompleteSurveyRound.innerHTML='<option value="">설문 회차 조회 실패</option>';document.getElementById('incompleteBody').innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     }
-    loadAbsentDefinitions();
-    if(absentIncludeLegacy)absentIncludeLegacy.addEventListener('change',loadAbsentDefinitions);
-    absentDefinition.addEventListener('change',loadNonparticipants);
+    function setIncompleteMode(category,criterion){
+      incompleteMode=category;
+      document.querySelectorAll('#incompleteModes .fbtn').forEach(function(button){button.classList.toggle('on',button.dataset.category===category);});
+      incompleteSurveyFilter.hidden=category!=='survey';incompleteChatFilter.hidden=category!=='chat';
+      if(criterion){if(category==='survey')incompleteSurveyRound.value=criterion;else incompleteChatPoint.value=criterion;}
+      loadIncompleteParticipants();
+    }
+    loadSurveyRounds();
+    document.querySelectorAll('#incompleteModes .fbtn').forEach(function(button){button.addEventListener('click',function(){setIncompleteMode(button.dataset.category);});});
+    incompleteSurveyRound.addEventListener('change',loadIncompleteParticipants);
+    incompleteChatPoint.addEventListener('change',loadIncompleteParticipants);
+    incompleteSchoolLevel.addEventListener('change',loadIncompleteParticipants);
+    statusPanel.addEventListener('click',function(event){var target=event.target.closest('[data-incomplete-category]');if(!target)return;document.querySelector('#side [data-panel="absent"]').click();setIncompleteMode(target.dataset.incompleteCategory,target.dataset.incompleteCriterion);});
     if(absentDownload)absentDownload.addEventListener('click',function(){
-      if(!nonparticipantReport)return;
-      var head=['이름','학교급','학년','휴대폰번호','설문회차','설문버전','참여여부'];
-      var rows=nonparticipantReport.participants.map(function(participant){
-        return [participant.name||'',participant.schoolLevel||'',participant.grade||'',formatPhone(participant.phone),nonparticipantReport.surveyRound,nonparticipantReport.surveyVersion,'미참여'];
+      if(!incompleteReport)return;
+      var head=['이름','학교급','학년','휴대폰번호','구분','기준','상태'];
+      var statusLabel=incompleteReport.category==='survey'?'설문 미완료':'대화문 미제출';
+      var criterionLabel=incompleteReport.category==='survey'?incompleteReport.criterion+'회차':(incompleteReport.criterion==='afterRound1'?'1차 후':'4차 후');
+      var rows=incompleteReport.participants.map(function(participant){
+        return [participant.name||'',participant.schoolLevel||'',participant.grade||'',formatPhone(participant.phone),incompleteReport.category,criterionLabel,statusLabel];
       });
       var csv=head.join(',')+'\n'+rows.map(function(row){
         return row.map(function(value){var text=String(value==null?'':value);return /[",\n]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;}).join(',');
       }).join('\n');
-      var version=String(nonparticipantReport.surveyVersion).replace(/[^0-9A-Za-z._-]/g,'_');
-      downloadBlob(csv,'미참여자_목록_'+nonparticipantReport.surveyRound+'회차_'+version+'.csv','text/csv;charset=utf-8;');
+      downloadBlob(csv,'미완료자_목록_'+incompleteReport.category+'_'+incompleteReport.criterion+'.csv','text/csv;charset=utf-8;');
     });
   })();
 

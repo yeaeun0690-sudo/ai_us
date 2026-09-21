@@ -74,7 +74,7 @@
   .server-modal .btn{width:100%;justify-content:center;margin-top:18px}
   .loading-modal .ic{font-size:1.35rem}
   .loading-modal .spinner{width:22px;height:22px;border:3px solid #ded7f7;border-top-color:var(--violet);border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite}
-  .loading-modal:not(.error) #abuseLoadingClose{display:none!important}
+  .loading-modal:not(.error) #abuseLoadingClose,.loading-modal:not(.error) #transcriptDownloadClose{display:none!important}
   .loading-modal.error .spinner{display:none}
   @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -512,7 +512,7 @@
                 <label for="cGrade">학교급</label>
                 <select id="cGrade"><option>전체</option><option>초등</option><option>중등</option><option>고등</option></select>
               </div>
-              <button class="btn" id="cDlBtn" type="button">⬇ 선택 대화문 CSV 내려받기</button>
+              <button class="btn" id="cDlBtn" type="button">⬇ 선택 대화문 CSV ZIP 내려받기</button>
               <button class="btn btn-ghost" id="cBulkBtn" type="button">⬇ 선택 원본 ZIP 내려받기</button>
             </div>
             <p class="sub">선택: <b id="cSummary">전체 · 전체 학교급</b> · <button class="linkbtn" id="cSelectAll" type="button">현재 조건 전체 선택</button> <button class="linkbtn" id="cClearSelection" type="button">선택 해제</button> · <span id="cSelectionSummary">0건 선택</span></p>
@@ -580,6 +580,14 @@
     <h2 id="abuseLoadingTitle">검토 내용을 계산하고 있어요</h2>
     <p id="abuseLoadingMessage">잠시만 기다려 주세요. 중복 요청은 처리하지 않아요.</p>
     <button class="btn" id="abuseLoadingClose" type="button" hidden>확인</button>
+  </div>
+</div>
+<div class="server-backdrop" id="transcriptDownloadDialog" role="alert" aria-live="polite" aria-labelledby="transcriptDownloadTitle">
+  <div class="server-modal loading-modal">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2 id="transcriptDownloadTitle">대화문 CSV를 준비하고 있어요</h2>
+    <p id="transcriptDownloadMessage">미파싱 파일을 자동으로 분석한 뒤 개별 CSV 파일을 ZIP으로 묶습니다.</p>
+    <button class="btn" id="transcriptDownloadClose" type="button" hidden>확인</button>
   </div>
 </div>
 
@@ -1029,7 +1037,8 @@
     var cBody=document.getElementById('chatPreviewBody');
     var cAll=document.getElementById('cAll'), cSelectAll=document.getElementById('cSelectAll');
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
-    var cBulkBtn=document.getElementById('cBulkBtn'), selectAllFiltered=false, bulkDownloadBusy=false;
+    var cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false,bulkDownloadBusy=false,transcriptDownloadBusy=false;
+    var transcriptDialog=document.getElementById('transcriptDownloadDialog'),transcriptTitle=document.getElementById('transcriptDownloadTitle'),transcriptMessage=document.getElementById('transcriptDownloadMessage'),transcriptClose=document.getElementById('transcriptDownloadClose');
     if(!cRound) return;
     cBody.addEventListener('click',function(event){
       var button=event.target.closest('.transcript-retry,.transcript-json,.transcript-csv');
@@ -1047,6 +1056,17 @@
       if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
       return params;
     }
+    function selectedPayload(ids){
+      var payload={submissionIds:selectAllFiltered?[]:ids};
+      if(cRound.value==='대화문 1 (1차 후)')payload.submissionPoint='afterRound1';
+      if(cRound.value==='대화문 2 (4차 후)')payload.submissionPoint='afterRound4';
+      if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
+      return payload;
+    }
+    function setTranscriptBusy(title,message){transcriptDownloadBusy=true;cTranscriptBtn.disabled=true;if(transcriptTitle)transcriptTitle.textContent=title;if(transcriptMessage)transcriptMessage.textContent=message;if(transcriptDialog){transcriptDialog.classList.add('open');transcriptDialog.classList.remove('error');}if(transcriptClose)transcriptClose.hidden=true;}
+    function finishTranscriptDownload(){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptDialog)transcriptDialog.classList.remove('open','error');}
+    function showTranscriptError(message){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptTitle)transcriptTitle.textContent='대화문 CSV를 준비하지 못했어요';if(transcriptMessage)transcriptMessage.textContent=message||'잠시 후 다시 시도해 주세요.';if(transcriptDialog)transcriptDialog.classList.add('open','error');if(transcriptClose)transcriptClose.hidden=false;}
+    if(transcriptClose)transcriptClose.addEventListener('click',function(){if(transcriptDialog)transcriptDialog.classList.remove('open','error');transcriptClose.hidden=true;});
     function selectedIds(){return Array.prototype.slice.call(cBody.querySelectorAll('.chat-row-check:checked')).map(function(input){return input.value;});}
     function updateSelectionSummary(){
       var count=selectedIds().length;
@@ -1076,7 +1096,7 @@
       aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="9">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
         cBody.innerHTML=records.map(function(r){
-          var names=r.filenames||[],fileClass=names.length===1?'single':'multi',files=names.map(function(name){var display=names.length===1?compactFilename(name):name;return '<span class="file-name '+fileClass+'" title="'+esc(name)+'">'+esc(display)+'</span>';}).join('<br>')||'첨부 없음';
+          var names=r.filenames||[],fileClass=names.length===1?'single':'multi',files=names.map(function(name){var display=names.length===1?compactFilename(name):name;return '<span class="file-name '+fileClass+'" title="'+esc(name)+'">'+esc(display)+'</span>';}).join('')||'첨부 없음';
           var original=r.attachmentCount?'<button class="btn btn-ghost chat-file-download" data-id="'+esc(r.submissionId)+'" type="button">원본 받기</button>':'';
           var csv=r.parseStatus==='parsed'?'<button class="btn transcript-csv" data-id="'+esc(r.submissionId)+'" type="button">CSV 받기</button>':'';
           var downloads='<div class="download-actions" data-id="'+esc(r.submissionId)+'">'+original+csv+'</div>';
@@ -1114,27 +1134,28 @@
     if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});
     if(cAll)cAll.addEventListener('change',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=cAll.checked;});updateSelectionSummary();});
     loadPreview();
-    document.getElementById('cDlBtn').addEventListener('click',function(){
-      var params=new URLSearchParams();
+    cTranscriptBtn.addEventListener('click',function(){
+      if(transcriptDownloadBusy)return;
       var ids=selectedIds();
       if(!selectAllFiltered&&!ids.length){alert('CSV로 내려받을 대화문을 선택해 주세요.');return;}
-      if(cRound.value==='대화문 1 (1차 후)')params.set('submission_point','afterRound1');
-      if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
-      if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
-      if(!selectAllFiltered)ids.forEach(function(id){params.append('submission_id',id);});
-      fetch(AI_US_API_BASE+'/api/v1/researcher/exports/chat-submissions?'+params.toString(),{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-        .then(function(response){return downloadBlobResponse(response,'대화문자료_'+cRound.value.replace(/\s/g,'')+'_'+cGrade.value+'_'+formatKstFilenameTimestamp()+'.csv');})
-        .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
+      setTranscriptBusy('대화문 CSV를 준비하고 있어요','미파싱 파일을 자동으로 분석한 뒤 개별 CSV 파일을 ZIP으로 묶습니다.');
+      aiUsRequest('/api/v1/researcher/chat-submissions/transcript-download-jobs',{method:'POST',body:selectedPayload(ids)}).then(function(job){
+        function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/transcript-download-jobs/'+job.jobId).then(function(state){
+          if(state.status==='queued'&&transcriptMessage)transcriptMessage.textContent='다운로드 작업이 대기열에 등록되었습니다.';
+          if(state.status==='processing'&&transcriptMessage)transcriptMessage.textContent='대화문을 분석하고 개별 CSV 파일을 압축하는 중입니다.';
+          if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcripts_'+formatKstFilenameTimestamp()+'.zip');}).then(function(){finishTranscriptDownload();loadPreview();});}
+          if(state.status==='failed')return showTranscriptError(state.error||'대화문 CSV 작업에 실패했습니다.');
+          setTimeout(poll,1000);
+        }).catch(function(error){showTranscriptError(error.message);});}
+        poll();
+      }).catch(function(error){showTranscriptError(error.message);});
     });
     cBulkBtn.addEventListener('click',function(){
       if(bulkDownloadBusy)return;
       var ids=selectedIds();
       if(!selectAllFiltered&&!ids.length){alert('다운로드할 제출 파일을 선택해 주세요.');return;}
       bulkDownloadBusy=true;cBulkBtn.disabled=true;cBulkBtn.textContent='ZIP 준비 중…';
-      var payload={submissionIds:selectAllFiltered?[]:ids};
-      if(cRound.value==='대화문 1 (1차 후)')payload.submissionPoint='afterRound1';
-      if(cRound.value==='대화문 2 (4차 후)')payload.submissionPoint='afterRound4';
-      if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
+      var payload=selectedPayload(ids);
       aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs',{method:'POST',body:payload}).then(function(job){
         function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs/'+job.jobId).then(function(state){
           if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions_'+formatKstFilenameTimestamp()+'.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';});}

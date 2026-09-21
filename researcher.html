@@ -115,17 +115,21 @@
   .stat .v{font-family:var(--fd);font-weight:400;color:var(--deep);font-size:1.9rem;line-height:1.2}
   .stat .v small{font-size:.9rem;color:var(--muted);margin-left:3px}
 
-  /* bar chart */
-  .chart-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:var(--shadow)}
-  .chart-card h3{font-family:var(--fd);font-weight:400;color:var(--deep);font-size:1.1rem;margin-bottom:4px}
-  .chart-card .sub{margin-bottom:20px}
-  .chart{display:flex;align-items:flex-end;gap:18px;height:200px}
-  .col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%}
-  .col .barwrap{flex:1;width:100%;max-width:74px;display:flex;align-items:flex-end}
-  .col .bar{width:100%;background:var(--grad);border-radius:8px 8px 0 0;position:relative;min-height:4px;transition:height .5s ease}
-  .col .bar .n{position:absolute;top:-24px;left:0;right:0;text-align:center;font-weight:700;color:var(--deep);font-size:.9rem}
-  .col .lbl{margin-top:10px;color:var(--ink-2);font-size:.86rem;font-weight:700}
-  .col .lbl small{display:block;color:var(--muted);font-weight:400;font-size:.72rem}
+  /* participation charts */
+  .status-section{margin-top:18px}
+  .status-bars{display:grid;gap:18px;margin-top:16px}
+  .status-round{display:grid;grid-template-columns:58px 1fr;gap:14px;align-items:start}
+  .status-round-label{padding-top:2px;color:var(--deep);font-family:var(--fd);font-size:1rem}
+  .status-bar-list{display:grid;gap:8px}
+  .status-bar-row{display:grid;grid-template-columns:46px minmax(90px,1fr) 100px;gap:9px;align-items:center;font-size:.8rem}
+  .status-bar-label{color:var(--ink-2);font-weight:700}
+  .status-bar-track{height:11px;border-radius:99px;background:#eeeaf6;overflow:hidden}
+  .status-bar-fill{height:100%;min-width:2px;border-radius:inherit;transition:width .45s ease}
+  .status-bar-fill.elementary{background:#2f9e88}.status-bar-fill.middle{background:#e07a5f}.status-bar-fill.high{background:#4c78a8}
+  .status-bar-value{color:var(--muted);font-size:.76rem;text-align:right;white-space:nowrap}
+  .status-bar-legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:.76rem;margin-top:12px}
+  .status-bar-legend span{display:inline-flex;align-items:center;gap:5px}.status-bar-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .status-bar-legend .elementary{background:#2f9e88}.status-bar-legend .middle{background:#e07a5f}.status-bar-legend .high{background:#4c78a8}
 
   /* filters */
   .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
@@ -170,6 +174,7 @@
     .side button{white-space:nowrap}
     .stats{grid-template-columns:1fr 1fr}
     .absent-version-select{width:520px;max-width:100%}
+    .status-bar-row{grid-template-columns:42px minmax(70px,1fr) 90px}
   }
   @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.tabs-in{gap:18px}.absent-version-select{min-width:0;width:100%}}
 </style>
@@ -316,15 +321,19 @@
             <div class="stat total"><div class="k">전체 참여자</div><div class="v">-<small>명</small></div></div>
           </div>
 
-          <div class="chart-card">
+          <div class="card">
             <h3>설문 회차별 완료 현황</h3>
             <p class="sub">설문 버전이 여러 개여도 같은 참여자는 회차별 한 명으로 집계합니다.</p>
+            <div class="status-bars" id="statusSurveyChart"><p class="sub">참여 현황을 불러오는 중이에요.</p></div>
+            <div class="status-bar-legend"><span><i class="elementary"></i>초등</span><span><i class="middle"></i>중등</span><span><i class="high"></i>고등</span></div>
             <div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>회차</th><th>초등 완료/등록</th><th>중등 완료/등록</th><th>고등 완료/등록</th><th>전체 완료/등록</th></tr></thead><tbody id="statusSurveyBody"><tr><td colspan="5">참여 현황을 불러오는 중이에요.</td></tr></tbody></table></div>
           </div>
 
-          <div class="card">
+          <div class="card status-section">
             <h3>대화문 참여 현황</h3>
             <p class="sub">대화문 제출에 동의한 인원과 실제 제출 이력을 비교합니다. 삭제 요청된 제출도 이력으로 표시합니다.</p>
+            <div class="status-bars" id="statusChatChart"><p class="sub">대화문 참여 현황을 불러오는 중이에요.</p></div>
+            <div class="status-bar-legend"><span><i class="elementary"></i>초등</span><span><i class="middle"></i>중등</span><span><i class="high"></i>고등</span></div>
             <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
               <div class="stat"><div class="k">제출 동의자</div><div class="v" id="statusChatConsented">-<small>명</small></div></div>
               <div class="stat"><div class="k">1차 후 제출자</div><div class="v" id="statusChatRound1">-<small>명</small></div></div>
@@ -763,11 +772,16 @@
       var values=statusPanel.querySelectorAll('.stats .stat .v');
       [data.participants.elementary,data.participants.middle,data.participants.high,data.participants.total].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
       var surveyBody=document.getElementById('statusSurveyBody');
+      var surveyChart=document.getElementById('statusSurveyChart');
+      function completionCell(completed,total){var rate=total?Math.round(completed/total*100):0;return esc(completed)+' / '+esc(total)+'명 ('+rate+'%)';}
+      function schoolBars(counts){return ['elementary','middle','high'].map(function(level){var labels={elementary:'초등',middle:'중등',high:'고등'},completed=counts[level]||0,total=data.participants[level]||0,rate=total?Math.round(completed/total*100):0;return '<div class="status-bar-row"><span class="status-bar-label">'+labels[level]+'</span><span class="status-bar-track"><span class="status-bar-fill '+level+'" style="width:'+rate+'%"></span></span><span class="status-bar-value">'+completionCell(completed,total)+'</span></div>';}).join('');}
+      if(surveyChart){surveyChart.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){return '<div class="status-round"><div class="status-round-label">'+esc(item.surveyRound)+'회차</div><div class="status-bar-list">'+schoolBars(item.counts||{})+'</div></div>';}).join(''):'<p class="sub">아직 완료된 설문이 없어요.</p>';}
       if(surveyBody){
-        function completionCell(completed,total){var rate=total?Math.round(completed/total*100):0;return esc(completed)+' / '+esc(total)+'명 ('+rate+'%)';}
         surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
       }
       var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round4=chat.submittedAfterRound4||{};
+      var chatChart=document.getElementById('statusChatChart');
+      if(chatChart){chatChart.innerHTML=[['제출 동의',consented],['1차 후 제출',round1],['4차 후 제출',round4]].map(function(item){return '<div class="status-round"><div class="status-round-label">'+item[0]+'</div><div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
       [['statusChatConsented',consented.total],['statusChatRound1',round1.total],['statusChatRound4',round4.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
       var chatBody=document.getElementById('statusChatBody');
       function submissionBadge(value){if(value==='active')return '<span class="badge-st approved">제출</span>';if(value==='deletion_requested')return '<span class="badge-st pending">삭제 요청</span>';return '<span class="sub">미제출</span>';}

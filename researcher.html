@@ -213,13 +213,13 @@
   /* filters */
   .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
   .fgroup{display:flex;flex-direction:column;gap:6px}
-  .fgroup label{font-size:.78rem;font-weight:700;color:var(--ink-2)}
+  .fgroup label,.fgroup>span:first-child{font-size:.78rem;font-weight:700;color:var(--ink-2)}
   .fgroup select,.fgroup input:not([type="checkbox"]){padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
     font-family:var(--fb);font-size:.9rem;color:var(--ink);min-width:130px}
   .fgroup select{cursor:pointer}
   .fgroup select:focus,.fgroup input:not([type="checkbox"]):focus{outline:none;border-color:var(--violet)}
   .fgroup input[type="checkbox"]{width:16px;height:16px;min-width:0;margin:0;padding:0;accent-color:var(--violet);cursor:pointer;vertical-align:middle}
-  .fgroup>span:last-child{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .fgroup>span:last-child{display:inline-flex;align-items:center;gap:6px;min-height:45px;white-space:nowrap;font-family:var(--fb);font-size:.9rem;color:var(--ink)}
   .absent-version-select{width:680px;max-width:100%}
   .linkbtn{background:none;border:0;padding:0;color:var(--violet);font:inherit;cursor:pointer;text-decoration:underline}
 

@@ -74,8 +74,8 @@
   .server-modal .btn{width:100%;justify-content:center;margin-top:18px}
   .loading-modal .ic{font-size:1.35rem}
   .loading-modal .spinner{width:22px;height:22px;border:3px solid #ded7f7;border-top-color:var(--violet);border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite}
-  .loading-modal:not(.error) #abuseLoadingClose,.loading-modal:not(.error) #transcriptDownloadClose{display:none!important}
-  .loading-modal.error .spinner{display:none}
+  .server-backdrop:not(.error) #abuseLoadingClose,.server-backdrop:not(.error) #transcriptDownloadClose,.server-backdrop:not(.error) #reviewSaveClose{display:none!important}
+  .server-backdrop.error .spinner{display:none}
   @keyframes spin{to{transform:rotate(360deg)}}
 
   /* upload */
@@ -612,6 +612,14 @@
     <button class="btn" id="transcriptDownloadClose" type="button" hidden>확인</button>
   </div>
 </div>
+<div class="server-backdrop" id="reviewSaveDialog" role="alertdialog" aria-modal="true" aria-live="polite" aria-labelledby="reviewSaveTitle" aria-describedby="reviewSaveMessage">
+  <div class="server-modal loading-modal">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2 id="reviewSaveTitle">관리 상태를 저장하고 있어요</h2>
+    <p id="reviewSaveMessage">저장한 내용을 반영해 대화문 목록을 다시 불러오는 중입니다.</p>
+    <button class="btn" id="reviewSaveClose" type="button" hidden>확인</button>
+  </div>
+</div>
 
 <script>
   var AI_US_API_BASE={
@@ -1061,6 +1069,7 @@
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
     var cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false,bulkDownloadBusy=false,transcriptDownloadBusy=false;
     var transcriptDialog=document.getElementById('transcriptDownloadDialog'),transcriptTitle=document.getElementById('transcriptDownloadTitle'),transcriptMessage=document.getElementById('transcriptDownloadMessage'),transcriptClose=document.getElementById('transcriptDownloadClose');
+    var reviewDialog=document.getElementById('reviewSaveDialog'),reviewTitle=document.getElementById('reviewSaveTitle'),reviewMessage=document.getElementById('reviewSaveMessage'),reviewClose=document.getElementById('reviewSaveClose'),reviewFocusTarget=null;
     if(!cRound) return;
     cBody.addEventListener('click',function(event){
       var button=event.target.closest('.transcript-retry,.transcript-json,.transcript-csv');
@@ -1091,6 +1100,10 @@
     function finishTranscriptDownload(){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptDialog)transcriptDialog.classList.remove('open','error');}
     function showTranscriptError(message){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptTitle)transcriptTitle.textContent='대화문 CSV를 준비하지 못했어요';if(transcriptMessage)transcriptMessage.textContent=message||'잠시 후 다시 시도해 주세요.';if(transcriptDialog)transcriptDialog.classList.add('open','error');if(transcriptClose)transcriptClose.hidden=false;}
     if(transcriptClose)transcriptClose.addEventListener('click',function(){if(transcriptDialog)transcriptDialog.classList.remove('open','error');transcriptClose.hidden=true;});
+    function setReviewBusy(){if(reviewTitle)reviewTitle.textContent='관리 상태를 저장하고 있어요';if(reviewMessage)reviewMessage.textContent='저장한 내용을 반영해 대화문 목록을 다시 불러오는 중입니다.';if(reviewDialog){reviewDialog.classList.add('open');reviewDialog.classList.remove('error');}if(reviewClose)reviewClose.hidden=true;}
+    function finishReviewBusy(){if(reviewDialog)reviewDialog.classList.remove('open','error');if(reviewClose)reviewClose.hidden=true;reviewFocusTarget=null;}
+    function showReviewMessage(title,message,focusTarget){reviewFocusTarget=focusTarget||null;if(reviewTitle)reviewTitle.textContent=title;if(reviewMessage)reviewMessage.textContent=message;if(reviewDialog)reviewDialog.classList.add('open','error');if(reviewClose){reviewClose.hidden=false;reviewClose.focus();}}
+    if(reviewClose)reviewClose.addEventListener('click',function(){if(reviewDialog)reviewDialog.classList.remove('open','error');reviewClose.hidden=true;if(reviewFocusTarget&&document.body.contains(reviewFocusTarget))reviewFocusTarget.focus();reviewFocusTarget=null;});
     function selectedIds(){return Array.prototype.slice.call(cBody.querySelectorAll('.chat-row-check:checked')).map(function(input){return input.value;});}
     function updateSelectionSummary(){
       var count=selectedIds().length;
@@ -1122,14 +1135,16 @@
     }
     function saveReview(select,note){
       var submissionId=select.dataset.id,status=select.value,request=status?{method:'PATCH',body:{status:status,note:note&&note.value.trim()?note.value.trim():null}}:{method:'DELETE'};
+      var saved=false;
       select.disabled=true;if(note)note.disabled=true;
-      aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(submissionId)+'/review',request).then(loadPreview).catch(function(error){alert(error.message);loadPreview();});
+      setReviewBusy();
+      aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(submissionId)+'/review',request).then(function(){saved=true;return loadPreview(true);}).then(finishReviewBusy).catch(function(error){finishReviewBusy();if(!saved)loadPreview();if(error.status&&error.status<500)showReviewMessage('관리 상태를 저장하지 못했어요',error.message||'입력 내용을 확인해 주세요.');});
     }
-    function loadPreview(){
+    function loadPreview(propagateError){
       if(!cBody) return;
       var params=filterParams();
       cBody.innerHTML='<tr><td colspan="9">대화문 제출 내역을 불러오는 중입니다.</td></tr>';
-      aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
+      return aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="9">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
         cBody.innerHTML=records.map(function(r){
           var names=r.filenames||[],fileClass=names.length===1?'single':'multi',files=names.map(function(name){var display=names.length===1?compactFilename(name):name;return '<span class="file-name '+fileClass+'" title="'+esc(name)+'">'+esc(display)+'</span>';}).join('')||'첨부 없음';
@@ -1141,7 +1156,7 @@
         }).join('');
         cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.addEventListener('change',function(){selectAllFiltered=false;updateSelectionSummary();});});
         cBody.querySelectorAll('.review-select').forEach(function(select){select.addEventListener('change',function(){var wrap=select.parentElement.querySelector('.review-note-wrap'),note=wrap.querySelector('.review-note'),save=wrap.querySelector('.review-save'),hasStatus=!!select.value;note.hidden=!hasStatus;note.disabled=!hasStatus;note.placeholder=select.value==='other'?'기타 사유 입력 (필수)':'메모 입력 (선택)';if(hasStatus)note.focus();else save.focus();});});
-        cBody.querySelectorAll('.review-save').forEach(function(button){button.addEventListener('click',function(){var select=button.parentElement.parentElement.querySelector('.review-select'),note=button.parentElement.querySelector('.review-note');if(select.value==='other'&&!note.value.trim()){alert('기타 사유를 입력해 주세요.');note.focus();return;}button.disabled=true;saveReview(select,note);});});
+        cBody.querySelectorAll('.review-save').forEach(function(button){button.addEventListener('click',function(){var select=button.parentElement.parentElement.querySelector('.review-select'),note=button.parentElement.querySelector('.review-note');if(select.value==='other'&&!note.value.trim()){showReviewMessage('기타 사유를 입력해 주세요','기타 사유를 선택한 경우 검토 메모를 반드시 입력해야 합니다.',note);return;}button.disabled=true;saveReview(select,note);});});
         cBody.querySelectorAll('.chat-file-download').forEach(function(button){button.addEventListener('click',function(){
           button.disabled=true;
           fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download',{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
@@ -1164,7 +1179,7 @@
           requestParse(0);
         });});
         updateSelectionSummary();
-      }).catch(function(error){cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();});
+      }).catch(function(error){cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();if(propagateError)throw error;});
     }
     function upd(){selectAllFiltered=false;cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value)+' · '+cReview.options[cReview.selectedIndex].text;loadPreview();}
     cRound.addEventListener('change',upd); cGrade.addEventListener('change',upd); cReview.addEventListener('change',upd);

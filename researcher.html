@@ -222,6 +222,8 @@
   .fgroup>span:last-child{display:inline-flex;align-items:center;gap:6px;min-height:45px;white-space:nowrap;font-family:var(--fb);font-size:.9rem;color:var(--ink)}
   .absent-version-select{width:680px;max-width:100%}
   .linkbtn{background:none;border:0;padding:0;color:var(--violet);font:inherit;cursor:pointer;text-decoration:underline}
+  .chat-selection-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .chat-selection-actions{display:inline-flex;align-items:center;gap:10px;margin-left:auto;white-space:nowrap}
 
   /* signup management */
   .apfilter{display:flex;gap:8px;margin:18px 0 16px;flex-wrap:wrap}
@@ -257,7 +259,7 @@
     .absent-version-select{width:520px;max-width:100%}
     .status-bar-row{grid-template-columns:42px minmax(70px,1fr) 90px}
   }
-  @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.tabs-in{gap:18px}.absent-version-select{min-width:0;width:100%}}
+  @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.tabs-in{gap:18px}.absent-version-select{min-width:0;width:100%}.chat-selection-actions{width:100%;justify-content:flex-end}}
 </style>
 </head>
 <body>
@@ -537,7 +539,7 @@
               <button class="btn" id="cDlBtn" type="button">⬇ 선택 대화문 CSV ZIP 내려받기</button>
               <button class="btn btn-ghost" id="cBulkBtn" type="button">⬇ 선택 원본 ZIP 내려받기</button>
             </div>
-            <p class="sub">선택: <b id="cSummary">전체 · 전체 학교급 · 미검토만 보기</b> · <button class="linkbtn" id="cSelectAll" type="button">현재 조건 전체 선택</button> <button class="linkbtn" id="cClearSelection" type="button">선택 해제</button> · <span id="cSelectionSummary">0건 선택</span></p>
+            <p class="sub chat-selection-bar"><span>선택: <b id="cSummary">전체 · 전체 학교급 · 미검토만 보기</b></span><span class="chat-selection-actions"><button class="linkbtn" id="cSelectAll" type="button" aria-label="현재 조회 조건 전체 선택">전체 선택</button><button class="linkbtn" id="cClearSelection" type="button">선택 해제</button><span id="cSelectionSummary">0건 선택됨</span></span></p>
 
             <div class="tbl-wrap chat-preview-wrap" style="margin-top:14px">
               <table class="chat-preview-table">
@@ -1107,7 +1109,7 @@
     function selectedIds(){return Array.prototype.slice.call(cBody.querySelectorAll('.chat-row-check:checked')).map(function(input){return input.value;});}
     function updateSelectionSummary(){
       var count=selectedIds().length;
-      cSelectionSummary.textContent=selectAllFiltered?'현재 조건 전체 선택':count+'건 선택';
+      cSelectionSummary.textContent=selectAllFiltered?(count?'전체 선택됨':'0건 선택됨'):count+'건 선택됨';
       if(cAll)cAll.checked=!!(count&&count===cBody.querySelectorAll('.chat-row-check').length);
     }
     function downloadBlobResponse(response, fallback){

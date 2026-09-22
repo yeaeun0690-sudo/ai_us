@@ -2200,6 +2200,7 @@
       if(t.result==='zip'||t.result==='image'){
         var isImg=(t.result==='image');
         g+='<button class="chat-file" id="chatFileButton" type="button"><b>'+(isImg?'이미지 선택':'ZIP 파일 선택')+'</b><br><span id="chatFileName" style="font-size:.85rem;color:#9a93b8">'+(isImg?'저장한 캡처 이미지를 선택하세요 (여러 장 가능)':'여기를 눌러 다운로드한 ZIP을 선택하세요')+'</span></button>'
+          +'<p class="chat-hint">'+(isImg?'최대 20장 · 한 장에 25MB · 모두 합쳐 100MB까지':'ZIP 파일 1개 · 25MB까지')+'</p>'
           +'<input class="chat-file-input" type="file" id="chatFileInput" accept="'+(isImg?'image/*':'.zip')+'"'+(isImg?' multiple':'')+'>'
           +'<button class="btn-primary" id="chatSubmit" type="button" style="width:100%;margin-top:14px">제출하기</button>';
       }else{
@@ -2228,7 +2229,8 @@
     }
     function submitFile(t){
       if(chatSubmitting) return;
-      var err=document.getElementById('chatErr'); err.textContent='';
+      var err=document.getElementById('chatErr'); err.textContent=''; err.classList.remove('show');
+      function showChatErr(message){err.textContent=message;err.classList.add('show');}
       var files = chatFile ? (chatFile.length!==undefined ? chatFile : [chatFile]) : [];
       if(!files.length){
         aiUsAudienceDialog({
@@ -2238,9 +2240,16 @@
         });
         return;
       }
-      if(t.result==='zip' && !/\.zip$/i.test(files[0].name)){ err.textContent='ZIP 파일만 제출할 수 있어요.'; return; }
-      if(t.result==='image'){ for(var i=0;i<files.length;i++){ if(!/^image\//.test(files[i].type)){ err.textContent='이미지 파일만 제출할 수 있어요.'; return; } } }
-      if(!CHAT_UPLOAD_READY){ err.textContent='파일 업로드 기능은 준비 중이에요(백엔드 연결 예정). 선택한 파일: '+(files.length>1?files.length+'개':files[0].name); return; }
+      if(t.result==='zip' && !/\.zip$/i.test(files[0].name)){ showChatErr('ZIP 파일만 제출할 수 있어요.'); return; }
+      if(t.result==='image' && files.length>20){ showChatErr('이미지는 최대 20장까지 제출할 수 있어요.'); return; }
+      var totalBytes=0;
+      for(var i=0;i<files.length;i++){
+        if(t.result==='image' && !/^image\//.test(files[i].type)){ showChatErr('이미지 파일만 제출할 수 있어요.'); return; }
+        if(files[i].size>25*1024*1024){ showChatErr('파일 한 개는 25MB까지 제출할 수 있어요.'); return; }
+        totalBytes+=files[i].size;
+      }
+      if(totalBytes>100*1024*1024){ showChatErr('파일을 모두 합쳐 100MB까지 제출할 수 있어요.'); return; }
+      if(!CHAT_UPLOAD_READY){ showChatErr('파일 업로드 기능은 준비 중이에요(백엔드 연결 예정). 선택한 파일: '+(files.length>1?files.length+'개':files[0].name)); return; }
       chatSubmitting=true;
       var btn=document.getElementById('chatSubmit'); btn.disabled=true; btn.textContent='제출 중…';
       var fd=new FormData();
@@ -2249,7 +2258,7 @@
       fd.append('sourceType', t.result==='image'?'image':'file'); fd.append('submissionId',(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()));
       aiUsRequest('/api/v1/chat-submissions/uploads',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:fd})
         .then(function(){ aiUsTrack('chat_submission_created',true);document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block'; })
-        .catch(function(e){ err.textContent=(e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'; })
+        .catch(function(e){ showChatErr(e&&e.status===413?'파일 용량이 너무 커요. 안내된 용량을 확인해 주세요.':((e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.')); })
         .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }
     function historyDate(value){

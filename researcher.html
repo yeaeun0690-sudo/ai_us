@@ -118,7 +118,7 @@
   .chat-preview-table .review-select:focus,.chat-preview-table .review-note:focus{outline:none;border-color:var(--violet)}
   .chat-preview-table .review-note-wrap{display:grid;gap:4px;margin-top:5px}
   .chat-preview-table .review-note[hidden]{display:none}
-  .chat-preview-table .review-save{padding:5px 7px;font-size:.68rem;text-align:center;box-shadow:none}
+  .chat-preview-table .review-save{padding:5px 7px;font-size:.68rem;text-align:center;justify-content:space-evenly;box-shadow:none}
   #abuseCandidateGroups table{width:100%;min-width:0;table-layout:fixed;font-size:.76rem}
   #abuseCandidateGroups th,#abuseCandidateGroups td{white-space:normal;overflow-wrap:anywhere;vertical-align:top;padding:8px 6px}
   #abuseCandidateGroups .abuse-paired-table th:nth-child(1),#abuseCandidateGroups .abuse-paired-table td:nth-child(1),#abuseCandidateGroups .abuse-paired-table th:nth-child(2),#abuseCandidateGroups .abuse-paired-table td:nth-child(2){width:13%}
@@ -278,15 +278,15 @@
 <!-- TABS -->
 <div class="tabs">
   <div class="tabs-in">
-    <button class="tab on" data-tab="register" type="button">등록하기</button>
-    <button class="tab" data-tab="manage" type="button">관리하기</button>
+    <button class="tab on" data-tab="manage" type="button">관리하기</button>
+    <button class="tab" data-tab="register" type="button">일괄 등록하기</button>
   </div>
 </div>
 
 <div class="content">
 
   <!-- ================= REGISTER ================= -->
-  <section class="section on" id="section-register">
+  <section class="section" id="section-register">
     <div class="page-title">연구참여자 등록</div>
     <div class="page-desc">엑셀(CSV) 파일을 올리면 참여자를 한 번에 등록할 수 있어요.</div>
 
@@ -321,7 +321,7 @@
   </section>
 
   <!-- ================= MANAGE ================= -->
-  <section class="section" id="section-manage">
+  <section class="section on" id="section-manage">
     <div class="page-title">연구참여자 관리</div>
     <div class="page-desc">참여 현황을 확인하고, 미참여자를 챙기고, 결과를 내려받을 수 있어요.</div>
 

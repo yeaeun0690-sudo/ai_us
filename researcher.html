@@ -76,6 +76,16 @@
   .loading-modal .spinner{width:22px;height:22px;border:3px solid #ded7f7;border-top-color:var(--violet);border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite}
   .server-backdrop:not(.error) #abuseLoadingClose,.server-backdrop:not(.error) #transcriptDownloadClose,.server-backdrop:not(.error) #reviewSaveClose{display:none!important}
   .server-backdrop.error .spinner{display:none}
+  #chatImportDialog.confirm .spinner{display:none}
+  #chatImportDialog.busy .chat-import-actions{display:none}
+  #chatImportDialog.error #chatImportConfirm{display:none}
+  #chatImportDialog.error .chat-import-actions{grid-template-columns:1fr}
+  .chat-import-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+  .chat-import-actions .btn{margin-top:0}
+  .chat-import-modal-progress{display:none;margin-top:16px;text-align:left}
+  #chatImportDialog.busy .chat-import-modal-progress{display:block}
+  .chat-import-summary{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#faf9fe;text-align:left;white-space:pre-line}
+  #chatImportDialog.busy .chat-import-summary,#chatImportDialog.error .chat-import-summary{display:none}
   @keyframes spin{to{transform:rotate(360deg)}}
 
   /* upload */
@@ -224,6 +234,15 @@
   .linkbtn{background:none;border:0;padding:0;color:var(--violet);font:inherit;cursor:pointer;text-decoration:underline}
   .chat-selection-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .chat-selection-actions{display:inline-flex;align-items:center;gap:10px;margin-left:auto;white-space:nowrap}
+  .takeout-import{margin-bottom:18px;padding:18px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .takeout-import h3{font-family:var(--fd);font-weight:400;color:var(--deep);font-size:1.08rem;margin-bottom:12px}
+  .takeout-import .filters{margin-bottom:0}
+  .takeout-import input[type="file"]{max-width:280px;font-family:var(--fb);font-size:.84rem;color:var(--ink-2)}
+  .takeout-progress{display:none;margin-top:14px}
+  .takeout-progress.show{display:block}
+  .takeout-progress-track{height:10px;border-radius:99px;background:#e4e0eb;overflow:hidden}
+  .takeout-progress-fill{display:block;width:0;height:100%;background:#2f9e88;transition:width .18s ease}
+  .takeout-progress-text{margin-top:6px;color:var(--ink-2);font-size:.82rem}
 
   /* signup management */
   .apfilter{display:flex;gap:8px;margin:18px 0 16px;flex-wrap:wrap}
@@ -468,7 +487,21 @@
 
         <div class="panel" id="panel-files">
           <h2>대화문 파일 관리</h2>
-          <p class="note">삭제 요청된 원본 파일을 확인하고 실제로 삭제합니다.</p>
+          <p class="note">참여자 대신 대화문 파일을 등록하거나 삭제 요청된 원본 파일을 관리합니다.</p>
+          <form class="takeout-import" id="takeoutImportForm">
+            <h3>대화문 강제 등록</h3>
+            <div class="filters">
+              <div class="fgroup"><label for="takeoutPhone">참여자 휴대폰</label><input id="takeoutPhone" type="tel" inputmode="numeric" placeholder="01012345678" required></div>
+              <div class="fgroup"><label for="takeoutPoint">제출 시점</label><select id="takeoutPoint"><option value="afterRound1">1차 후</option><option value="afterRound4">4차 후</option></select></div>
+              <div class="fgroup"><label for="takeoutTool">서비스</label><select id="takeoutTool"><option value="chatgpt">ChatGPT</option><option value="gemini">Gemini</option><option value="claude" disabled>Claude (준비 중)</option><option value="grok">Grok</option><option value="zeta">제타</option><option value="crack">크랙</option><option value="other">기타 캐릭터AI 챗봇</option></select></div>
+              <div class="fgroup"><label for="takeoutFile" id="takeoutFileLabel">내보내기 ZIP</label><input id="takeoutFile" type="file" accept=".zip,application/zip" required></div>
+              <button class="btn" id="takeoutSubmit" type="submit">등록 처리</button>
+            </div>
+            <div class="takeout-progress" id="takeoutProgress" aria-live="polite">
+              <div class="takeout-progress-track"><span class="takeout-progress-fill" id="takeoutProgressFill"></span></div>
+              <p class="takeout-progress-text" id="takeoutProgressText"></p>
+            </div>
+          </form>
           <div class="filters"><div class="fgroup"><label for="fileStatus">표시</label><select id="fileStatus"><option value="deletion_requested">삭제 요청됨</option><option value="active">전체 제출 파일</option></select></div><button class="btn btn-ghost" id="fileRefresh" type="button">새로고침</button></div>
           <div class="tbl-wrap"><table><thead><tr><th>제출 시각</th><th>참여자</th><th>도구</th><th>파일</th><th>상태</th><th>조치</th></tr></thead><tbody id="fileBody"><tr><td colspan="6">불러오는 중이에요.</td></tr></tbody></table></div>
         </div>
@@ -622,6 +655,22 @@
     <button class="btn" id="reviewSaveClose" type="button" hidden>확인</button>
   </div>
 </div>
+<div class="server-backdrop" id="chatImportDialog" role="alertdialog" aria-modal="true" aria-live="polite" aria-labelledby="chatImportTitle" aria-describedby="chatImportMessage">
+  <div class="server-modal loading-modal">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2 id="chatImportTitle">대화문을 강제 등록할까요?</h2>
+    <p id="chatImportMessage">등록 대상을 확인해 주세요.</p>
+    <p class="chat-import-summary" id="chatImportSummary"></p>
+    <div class="chat-import-modal-progress" id="chatImportModalProgress">
+      <div class="takeout-progress-track"><span class="takeout-progress-fill" id="chatImportModalFill"></span></div>
+      <p class="takeout-progress-text" id="chatImportModalText"></p>
+    </div>
+    <div class="chat-import-actions">
+      <button class="btn btn-ghost" id="chatImportCancel" type="button">취소</button>
+      <button class="btn" id="chatImportConfirm" type="button">등록 처리</button>
+    </div>
+  </div>
+</div>
 
 <script>
   var AI_US_API_BASE={
@@ -655,7 +704,7 @@
         return data;
       });
     }).catch(function(error){
-      if(!error.status) aiUsShowTemporaryIssue();
+      if(!error.status&&error.name!=='AbortError') aiUsShowTemporaryIssue();
       throw error;
     });
   }
@@ -821,10 +870,158 @@
     var body=document.getElementById('fileBody');
     var status=document.getElementById('fileStatus');
     var refresh=document.getElementById('fileRefresh');
+    var importForm=document.getElementById('takeoutImportForm');
+    var importButton=document.getElementById('takeoutSubmit');
+    var importProgress=document.getElementById('takeoutProgress');
+    var importFill=document.getElementById('takeoutProgressFill');
+    var importText=document.getElementById('takeoutProgressText');
+    var importTool=document.getElementById('takeoutTool');
+    var importFile=document.getElementById('takeoutFile');
+    var importFileLabel=document.getElementById('takeoutFileLabel');
+    var importDialog=document.getElementById('chatImportDialog');
+    var importDialogTitle=document.getElementById('chatImportTitle');
+    var importDialogMessage=document.getElementById('chatImportMessage');
+    var importDialogSummary=document.getElementById('chatImportSummary');
+    var importModalFill=document.getElementById('chatImportModalFill');
+    var importModalText=document.getElementById('chatImportModalText');
+    var importConfirm=document.getElementById('chatImportConfirm');
+    var importCancel=document.getElementById('chatImportCancel');
     if(!body||!status||!refresh)return;
+    var imageTools=new Set(['zeta','crack','other']);
+    var importBusy=false,pendingImport=null;
+    var chunkTimeoutMs=3*60*1000;
+    var validationTimeoutMs=15*60*1000;
+    function updateImportFileType(){
+      var isImage=imageTools.has(importTool.value);
+      importFile.accept=isImage?'.jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif':'.zip,application/zip';
+      importFile.multiple=isImage;
+      importFileLabel.textContent=isImage?'대화 이미지 (최대 20장)':'내보내기 ZIP';
+      importFile.value='';
+    }
+    function fileContentType(file){
+      if(file.type)return file.type;
+      var suffix=file.name.toLowerCase().split('.').pop();
+      return {zip:'application/zip',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',heic:'image/heic',heif:'image/heif'}[suffix]||'application/octet-stream';
+    }
+    function setImportProgress(percent,message){
+      importProgress.classList.add('show');
+      importFill.style.width=Math.max(0,Math.min(100,percent))+'%';
+      importText.textContent=message;
+      importModalFill.style.width=Math.max(0,Math.min(100,percent))+'%';
+      importModalText.textContent=message;
+    }
+    function requestWithTimeout(path,options,timeout,message){
+      var controller=new AbortController();
+      var timer=setTimeout(function(){controller.abort();},timeout);
+      options=Object.assign({},options,{signal:controller.signal});
+      return aiUsRequest(path,options).catch(function(error){
+        if(error.name==='AbortError'){
+          var timeoutError=new Error(message);
+          timeoutError.status=408;
+          throw timeoutError;
+        }
+        throw error;
+      }).finally(function(){clearTimeout(timer);});
+    }
+    function uploadChunk(uploadId,number,content,attempt){
+      var controller=new AbortController();
+      var timer=setTimeout(function(){controller.abort();},chunkTimeoutMs);
+      return fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submission-imports/'+encodeURIComponent(uploadId)+'/chunks/'+number,{
+        method:'PUT',headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN,'Content-Type':'application/octet-stream'},body:content,signal:controller.signal
+      }).then(function(response){
+        if(response.ok)return;
+        return response.json().catch(function(){return {};}).then(function(data){throw new Error(data.detail||'파일 조각을 전송하지 못했습니다.');});
+      }).finally(function(){
+        clearTimeout(timer);
+      }).catch(function(error){
+        if(attempt<3)return uploadChunk(uploadId,number,content,attempt+1);
+        if(error.name==='AbortError')throw new Error('일정 시간 서버 응답이 없어 파일 전송을 다시 시도했지만 완료하지 못했습니다. 네트워크 연결을 확인한 뒤 다시 등록해 주세요.');
+        throw error;
+      });
+    }
+    if(importForm)importForm.addEventListener('submit',function(event){
+      event.preventDefault();
+      if(importBusy||pendingImport)return;
+      var files=Array.from(importFile.files||[]);
+      var phone=document.getElementById('takeoutPhone').value;
+      var point=document.getElementById('takeoutPoint').value;
+      var tool=importTool.value;
+      if(!files.length)return;
+      if(!imageTools.has(tool)&&files.length!==1){setImportProgress(0,'내보내기 ZIP은 한 개만 선택해 주세요.');return;}
+      if(imageTools.has(tool)&&files.length>20){setImportProgress(0,'이미지는 최대 20장까지 선택할 수 있습니다.');return;}
+      pendingImport={files:files,phone:phone,point:point,tool:tool};
+      importButton.disabled=true;
+      importDialog.classList.add('open','confirm');
+      importDialog.classList.remove('busy','error');
+      importDialogTitle.textContent='대화문을 강제 등록할까요?';
+      importDialogMessage.textContent='참여자와 제출 정보를 확인한 뒤 등록 처리를 눌러 주세요.';
+      importDialogSummary.textContent='참여자: '+phone+'\n제출 시점: '+document.getElementById('takeoutPoint').selectedOptions[0].textContent+'\n서비스: '+importTool.selectedOptions[0].textContent+'\n파일: '+files.length+'개';
+      importConfirm.disabled=false;
+      importCancel.textContent='취소';
+    });
+    importCancel.addEventListener('click',function(){
+      if(importBusy)return;
+      importDialog.classList.remove('open','confirm','busy','error');
+      pendingImport=null;
+      importButton.disabled=false;
+    });
+    importConfirm.addEventListener('click',function(){
+      if(importBusy||!pendingImport)return;
+      var files=pendingImport.files,phone=pendingImport.phone,point=pendingImport.point,tool=pendingImport.tool;
+      importBusy=true;
+      importConfirm.disabled=true;
+      importDialog.classList.remove('confirm','error');
+      importDialog.classList.add('busy');
+      importDialogTitle.textContent='대화문을 등록하고 있어요';
+      importDialogMessage.textContent='파일 크기와 네트워크 상태에 따라 오래 걸릴 수 있습니다. 업로드와 검증이 끝날 때까지 창을 닫지 마세요.';
+      setImportProgress(0,'업로드를 준비하고 있어요.');
+      (async function(){
+        var sessions=[];
+        var totalChunks=0,completedChunks=0;
+        for(var fileIndex=0;fileIndex<files.length;fileIndex+=1){
+          var file=files[fileIndex];
+          var session=await aiUsRequest('/api/v1/researcher/chat-submission-imports',{method:'POST',body:{phone:phone,submissionPoint:point,tool:tool,filename:file.name,contentType:fileContentType(file),size:file.size}});
+          sessions.push(session);
+          totalChunks+=session.totalChunks;
+        }
+        for(var fileIndex=0;fileIndex<files.length;fileIndex+=1){
+          var file=files[fileIndex],session=sessions[fileIndex];
+          var uploaded=new Set(session.uploadedChunks||[]);
+          for(var number=0;number<session.totalChunks;number+=1){
+            if(!uploaded.has(number)){
+              var start=number*session.chunkSize;
+              await uploadChunk(session.uploadId,number,file.slice(start,Math.min(start+session.chunkSize,file.size)),1);
+            }
+            completedChunks+=1;
+            var percent=Math.round((completedChunks/totalChunks)*90);
+            setImportProgress(percent,'파일 업로드 중 '+(fileIndex+1)+' / '+files.length+' · '+(number+1)+' / '+session.totalChunks);
+          }
+        }
+        setImportProgress(95,'파일을 확인하고 제출 내역을 등록하고 있어요.');
+        return requestWithTimeout('/api/v1/researcher/chat-submission-imports/'+encodeURIComponent(sessions[0].uploadId)+'/complete',{method:'POST',body:{uploadIds:sessions.map(function(session){return session.uploadId;})}},validationTimeoutMs,'서버 검증 응답이 오래 없어 확인이 중단되었습니다. 파일 목록에서 등록 여부를 확인한 뒤 다시 시도해 주세요.');
+      })().then(function(){
+        setImportProgress(100,'강제 등록이 완료되었습니다.');
+        importForm.reset();
+        updateImportFileType();
+        status.value='active';
+        return load();
+      }).then(function(){
+        importDialog.classList.remove('open','confirm','busy','error');
+        pendingImport=null;
+      }).catch(function(error){
+        setImportProgress(0,error.message);
+        importDialog.classList.remove('confirm','busy');
+        importDialog.classList.add('error');
+        importDialogTitle.textContent='대화문을 등록하지 못했어요';
+        importDialogMessage.textContent=error.message||'입력 내용과 파일을 확인한 뒤 다시 시도해 주세요.';
+        importCancel.textContent='확인';
+      }).finally(function(){importBusy=false;importButton.disabled=false;});
+    });
+    importTool.addEventListener('change',updateImportFileType);
+    updateImportFileType();
     function load(){
       body.innerHTML='<tr><td colspan="6">불러오는 중이에요.</td></tr>';
-      aiUsRequest('/api/v1/researcher/chat-submissions/files?status_filter='+encodeURIComponent(status.value)).then(function(items){
+      return aiUsRequest('/api/v1/researcher/chat-submissions/files?status_filter='+encodeURIComponent(status.value)).then(function(items){
         if(!items.length){body.innerHTML='<tr><td colspan="6">해당 파일 제출 내역이 없어요.</td></tr>';return;}
         body.innerHTML=items.map(function(item){
           var files=(item.filenames||[]).map(function(name){return '<span class="file-name" title="'+esc(name)+'">'+esc(name)+'</span>';}).join(', ')||'첨부 파일 없음';

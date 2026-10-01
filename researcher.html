@@ -426,7 +426,7 @@
 
           <div class="card">
             <h3>설문 회차별 완료 현황</h3>
-            <p class="sub">설문 버전이 여러 개여도 같은 참여자는 회차별 한 명으로 집계합니다.</p>
+            <p class="sub">파트 2 제출을 완료한 참여자만 회차 완료로 집계합니다. 설문 버전이 여러 개여도 같은 참여자는 회차별 한 명으로 집계합니다.</p>
             <div class="status-bars" id="statusSurveyChart"><p class="sub">참여 현황을 불러오는 중이에요.</p></div>
             <div class="status-bar-legend"><span><i class="elementary"></i>초등 완료</span><span><i class="middle"></i>중등 완료</span><span><i class="high"></i>고등 완료</span><span>회색: 등록 인원 중 미완료</span></div>
             <div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>회차</th><th>초등 완료/등록</th><th>중등 완료/등록</th><th>고등 완료/등록</th><th>전체 완료/등록</th></tr></thead><tbody id="statusSurveyBody"><tr><td colspan="5">참여 현황을 불러오는 중이에요.</td></tr></tbody></table></div>
@@ -448,7 +448,7 @@
         <!-- 2. 미완료자 관리 -->
         <div class="panel" id="panel-absent">
           <h2>미완료자 관리</h2>
-          <p class="note">설문 회차 또는 대화문 제출 시점별로 후속 확인이 필요한 참여자를 조회합니다.</p>
+          <p class="note">설문은 파트 2 미제출자를 회차별 미완료자로 조회합니다. 대화문은 제출 시점별로 후속 확인이 필요한 참여자를 조회합니다.</p>
 
           <div class="apfilter" id="incompleteModes">
             <button class="fbtn on" data-category="survey" type="button">설문 미완료</button>

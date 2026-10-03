@@ -584,9 +584,11 @@
                   <option value="other">기타 사유</option>
                 </select>
               </div>
+              <button class="btn" id="cRosterBtn" type="button">⬇ 대화문 제출 현황 CSV</button>
               <button class="btn" id="cDlBtn" type="button">⬇ 선택 대화문 CSV ZIP 내려받기</button>
               <button class="btn btn-ghost" id="cBulkBtn" type="button">⬇ 선택 원본 ZIP 내려받기</button>
             </div>
+            <p class="sub">대화문 제출 현황 CSV에는 현재 제출 회차·학교급의 제출·파싱·관리 상태와 검토 메모가 포함되며 대화문 본문은 제외됩니다.</p>
             <p class="sub chat-selection-bar"><span>선택: <b id="cSummary">전체 · 전체 학교급 · 미검토만 보기</b></span><span class="chat-selection-actions"><button class="linkbtn" id="cSelectAll" type="button" aria-label="현재 조회 조건 전체 선택">전체 선택</button><button class="linkbtn" id="cClearSelection" type="button">선택 해제</button><span id="cSelectionSummary">0건 선택됨</span></span></p>
 
             <div class="tbl-wrap chat-preview-wrap" style="margin-top:14px">
@@ -1319,7 +1321,7 @@
     var cBody=document.getElementById('chatPreviewBody');
     var cAll=document.getElementById('cAll'), cSelectAll=document.getElementById('cSelectAll');
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
-    var cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false,bulkDownloadBusy=false,transcriptDownloadBusy=false;
+    var cRosterBtn=document.getElementById('cRosterBtn'),cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false,bulkDownloadBusy=false,transcriptDownloadBusy=false;
     var transcriptDialog=document.getElementById('transcriptDownloadDialog'),transcriptTitle=document.getElementById('transcriptDownloadTitle'),transcriptMessage=document.getElementById('transcriptDownloadMessage'),transcriptClose=document.getElementById('transcriptDownloadClose');
     var reviewDialog=document.getElementById('reviewSaveDialog'),reviewTitle=document.getElementById('reviewSaveTitle'),reviewMessage=document.getElementById('reviewSaveMessage'),reviewClose=document.getElementById('reviewSaveClose'),reviewFocusTarget=null;
     if(!cRound) return;
@@ -1347,6 +1349,13 @@
       if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
       payload.reviewFilter=cReview.value;
       return payload;
+    }
+    function rosterParams(){
+      var params=new URLSearchParams();
+      if(cRound.value==='대화문 1 (1차 후)')params.set('submission_point','afterRound1');
+      if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
+      if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
+      return params;
     }
     function setTranscriptBusy(title,message){transcriptDownloadBusy=true;cTranscriptBtn.disabled=true;if(transcriptTitle)transcriptTitle.textContent=title;if(transcriptMessage)transcriptMessage.textContent=message;if(transcriptDialog){transcriptDialog.classList.add('open');transcriptDialog.classList.remove('error');}if(transcriptClose)transcriptClose.hidden=true;}
     function finishTranscriptDownload(){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptDialog)transcriptDialog.classList.remove('open','error');}
@@ -1439,6 +1448,14 @@
     if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});
     if(cAll)cAll.addEventListener('change',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=cAll.checked;});updateSelectionSummary();});
     loadPreview();
+    if(cRosterBtn)cRosterBtn.addEventListener('click',function(){
+      cRosterBtn.disabled=true;
+      var params=rosterParams(),url=AI_US_API_BASE+'/api/v1/researcher/exports/chat-submissions'+(params.toString()?'?'+params.toString():'');
+      fetch(url,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+        .then(function(response){return downloadBlobResponse(response,'C_all_all_status_'+formatKstFilenameTimestamp()+'.csv');})
+        .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert('대화문 제출 현황을 내려받지 못했습니다.');})
+        .then(function(){cRosterBtn.disabled=false;});
+    });
     cTranscriptBtn.addEventListener('click',function(){
       if(transcriptDownloadBusy)return;
       var ids=selectedIds();

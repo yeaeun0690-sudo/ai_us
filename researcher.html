@@ -22,17 +22,22 @@
 
   /* top bar */
   .topbar{background:#fff;border-bottom:1px solid var(--line)}
-  .topbar-in{max-width:1140px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .topbar-in{max-width:1140px;margin:0 auto;padding:14px 24px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px}
   .brand-r{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   .brand-r b{font-family:var(--fd);font-weight:400;color:var(--violet);font-size:1.35rem}
   .brand-r .lab{color:var(--muted);font-size:.82rem}
   .pill{display:inline-block;padding:4px 12px;border-radius:20px;background:var(--soft);
     color:var(--indigo);font-size:.72rem;font-weight:700;letter-spacing:.5px}
-  .user{display:flex;align-items:center;gap:14px;color:var(--ink-2);font-size:.9rem}
+  .user{display:flex;align-items:center;justify-self:end;gap:14px;color:var(--ink-2);font-size:.9rem}
   .user b{font-family:var(--fd);font-weight:400;color:var(--deep)}
   .logout{background:none;border:1px solid var(--line);border-radius:10px;padding:8px 14px;
     cursor:pointer;color:var(--ink-2);font-size:.85rem}
   .logout:hover{border-color:var(--violet);color:var(--violet)}
+  .system-health{justify-self:center;display:flex;align-items:center;gap:12px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:#faf9fe;color:var(--ink-2);font-size:.74rem;font-weight:700;white-space:nowrap}
+  .health-item{display:inline-flex;align-items:center;gap:6px}
+  .health-lamp{width:9px;height:9px;border-radius:50%;background:#aaa4b8;box-shadow:0 0 0 3px rgba(170,164,184,.14)}
+  .health-item.ok .health-lamp{background:#16835e;box-shadow:0 0 0 3px rgba(22,131,94,.14)}
+  .health-item.error .health-lamp{background:#c53d46;box-shadow:0 0 0 3px rgba(197,61,70,.14)}
 
   /* tabs */
   .tabs{background:#fff;border-bottom:1px solid var(--line)}
@@ -271,6 +276,8 @@
   .consent-toggle:hover{background:var(--soft)}
 
   @media(max-width:820px){
+    .topbar-in{grid-template-columns:minmax(0,1fr) auto}
+    .system-health{grid-column:1/-1;grid-row:2}
     .manage{grid-template-columns:1fr}
     .side{position:static;display:flex;gap:6px;overflow-x:auto}
     .side button{white-space:nowrap}
@@ -290,6 +297,14 @@
       <b>AI 마음 탐사대</b>
       <span class="pill">연구자 콘솔</span>
       <span class="lab">계명대학교 디지털상담 연구실</span>
+    </div>
+    <div class="system-health" id="systemHealth" aria-label="시스템 상태" aria-live="polite">
+      <span class="health-item" id="apiHealth" title="API 상태 확인 중">
+        <i class="health-lamp" aria-hidden="true"></i><span>API</span>
+      </span>
+      <span class="health-item" id="workerHealth" title="Worker 상태 확인 중">
+        <i class="health-lamp" aria-hidden="true"></i><span>Worker</span>
+      </span>
     </div>
     <div class="user">
       <span><b id="researcherDisplayName">연구자</b> <span id="researcherDisplayRole">연구원</span>님</span>
@@ -721,6 +736,44 @@
   })();
   function aiUsCheckHealth(){fetch(AI_US_API_BASE+'/health',{cache:'no-store'}).then(function(response){if(response.status>=500)aiUsShowTemporaryIssue();}).catch(aiUsShowTemporaryIssue);}
   setTimeout(aiUsCheckHealth,500);
+  function setSystemHealthItem(element,status,title){
+    if(!element)return;
+    element.classList.remove('ok','error');
+    if(status==='ok')element.classList.add('ok');
+    else if(status==='error')element.classList.add('error');
+    element.title=title;
+    element.setAttribute('aria-label',title);
+  }
+  function formatHealthTime(value){
+    if(!value)return '기록 없음';
+    var parsed=new Date(value);
+    return Number.isNaN(parsed.getTime())?value:parsed.toLocaleString('ko-KR',{timeZone:'Asia/Seoul'});
+  }
+  function refreshSystemHealth(){
+    var apiItem=document.getElementById('apiHealth'),workerItem=document.getElementById('workerHealth');
+    fetch(AI_US_API_BASE+'/api/v1/researcher/system-health',{cache:'no-store',headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
+      .then(function(response){
+        if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';throw new Error('unauthorized');}
+        if(!response.ok)throw new Error('health request failed');
+        return response.json();
+      })
+      .then(function(data){
+        setSystemHealthItem(apiItem,data.api&&data.api.status==='ok'?'ok':'error','API 정상 · '+formatHealthTime(data.checkedAt));
+        var worker=data.worker||{},workerOk=worker.status==='ok';
+        var detail=workerOk?'Worker 정상':'Worker 확인 필요 ('+(worker.status||'unknown')+')';
+        if(worker.lastHeartbeatAt)detail+=' · 마지막 신호 '+formatHealthTime(worker.lastHeartbeatAt);
+        if(typeof worker.ageSeconds==='number')detail+=' · '+worker.ageSeconds+'초 전';
+        setSystemHealthItem(workerItem,workerOk?'ok':'error',detail);
+      })
+      .catch(function(error){
+        if(error.message==='unauthorized')return;
+        setSystemHealthItem(apiItem,'error','API 상태를 확인할 수 없습니다.');
+        setSystemHealthItem(workerItem,'error','Worker 상태를 확인할 수 없습니다.');
+      });
+  }
+  setTimeout(refreshSystemHealth,500);
+  setInterval(refreshSystemHealth,30000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshSystemHealth();});
 
   document.getElementById('researcherLogout').addEventListener('click',function(){
     sessionStorage.removeItem('ai_us_access_token');

@@ -179,7 +179,7 @@
     box-shadow:var(--shadow);position:sticky;top:20px}
   .side button{width:100%;text-align:left;background:none;border:none;border-radius:10px;
     padding:12px 14px;color:var(--ink-2);font-weight:700;font-size:.92rem;cursor:pointer;
-    display:flex;align-items:center;gap:9px;transition:background .18s,color .18s}
+    display:flex;align-items:center;gap:9px;transition:background .18s,color .18s,border-color .18s}
   .side button:hover{background:var(--soft)}
   .side button.on{background:var(--soft);color:var(--deep)}
   .side button .dot{width:7px;height:7px;border-radius:50%;background:#cfc6ec}
@@ -656,7 +656,7 @@
     <button class="btn" id="abuseLoadingClose" type="button" hidden>확인</button>
   </div>
 </div>
-<div class="server-backdrop" id="transcriptDownloadDialog" role="alert" aria-live="polite" aria-labelledby="transcriptDownloadTitle">
+<div class="server-backdrop" id="transcriptDownloadDialog" role="dialog" aria-modal="true" aria-live="polite" aria-labelledby="transcriptDownloadTitle" aria-describedby="transcriptDownloadMessage" tabindex="-1">
   <div class="server-modal loading-modal">
     <div class="spinner" aria-hidden="true"></div>
     <h2 id="transcriptDownloadTitle">대화문 CSV를 준비하고 있어요</h2>
@@ -901,6 +901,92 @@
     var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();
     document.body.removeChild(a);URL.revokeObjectURL(url);
   }
+  var adminDownloadBusy=false,adminDownloadErrorOpen=false,adminDownloadFocus=null,adminDownloadBackground=[];
+  function updateAdminDownload(message){
+    document.getElementById('transcriptDownloadMessage').textContent=message;
+  }
+  function closeAdminDownload(){
+    var dialog=document.getElementById('transcriptDownloadDialog');
+    dialog.classList.remove('open','error');
+    adminDownloadErrorOpen=false;
+    adminDownloadBackground.forEach(function(item){item.element.inert=item.inert;});
+    adminDownloadBackground=[];
+    if(adminDownloadFocus&&adminDownloadFocus.isConnected)adminDownloadFocus.focus();
+    adminDownloadFocus=null;
+  }
+  function runAdminDownload(button,title,task){
+    if(adminDownloadBusy||adminDownloadErrorOpen)return Promise.resolve(false);
+    adminDownloadBusy=true;
+    var wasDisabled=button.disabled,dialog=document.getElementById('transcriptDownloadDialog');
+    var close=document.getElementById('transcriptDownloadClose');
+    adminDownloadFocus=button;
+    button.disabled=true;
+    document.getElementById('transcriptDownloadTitle').textContent=title;
+    updateAdminDownload('파일을 준비하고 있어요. 잠시만 기다려 주세요.');
+    close.hidden=true;
+    dialog.classList.remove('error');
+    dialog.classList.add('open');
+    adminDownloadBackground=Array.from(document.body.children).filter(function(element){return element!==dialog&&element.tagName!=='SCRIPT';}).map(function(element){var item={element:element,inert:element.inert};element.inert=true;return item;});
+    dialog.focus();
+    return new Promise(function(resolve){requestAnimationFrame(function(){setTimeout(resolve,0);});})
+      .then(task)
+      .then(function(){closeAdminDownload();return true;})
+      .catch(function(error){
+        adminDownloadErrorOpen=true;
+        document.getElementById('transcriptDownloadTitle').textContent='다운로드를 준비하지 못했어요';
+        updateAdminDownload(error.message||'잠시 후 다시 시도해 주세요.');
+        dialog.classList.add('error');
+        close.hidden=false;
+        close.focus();
+        return false;
+      })
+      .finally(function(){adminDownloadBusy=false;button.disabled=wasDisabled;if(!adminDownloadErrorOpen&&button.isConnected)button.focus();});
+  }
+  document.getElementById('transcriptDownloadClose').addEventListener('click',function(){if(!adminDownloadBusy)closeAdminDownload();});
+  document.getElementById('transcriptDownloadDialog').addEventListener('keydown',function(event){
+    if(event.key==='Tab'){event.preventDefault();if(adminDownloadErrorOpen)document.getElementById('transcriptDownloadClose').focus();else this.focus();}
+    if(event.key==='Escape'){event.preventDefault();if(adminDownloadErrorOpen&&!adminDownloadBusy)closeAdminDownload();}
+  });
+  function adminDownloadRequest(path,options,asJson){
+    var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},asJson?60000:180000);
+    options=Object.assign({},options||{});
+    options.signal=controller.signal;
+    options.headers=Object.assign({},options.headers||{},{Authorization:'Bearer '+AI_US_ACCESS_TOKEN});
+    if(options.body){options.headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
+    var url=/^https?:\/\//i.test(path)?path:AI_US_API_BASE+path;
+    return fetch(url,options).then(function(response){
+      if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';throw new Error('인증이 만료되었습니다. 다시 로그인해 주세요.');}
+      if(!response.ok)return response.json().catch(function(){return {};}).then(function(data){throw new Error(typeof data.detail==='string'?data.detail:'파일 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');});
+      if(asJson)return response.json();
+      updateAdminDownload('파일을 받고 있어요.');
+      return response.blob().then(function(blob){return {blob:blob,disposition:response.headers.get('Content-Disposition')||''};});
+    }).catch(function(error){if(error.name==='AbortError')throw new Error('서버 응답 대기 시간이 초과되었습니다. 연결 상태를 확인해 주세요.');throw error;})
+      .finally(function(){clearTimeout(timer);});
+  }
+  function downloadAdminFile(path,fallback){
+    return adminDownloadRequest(path).then(function(result){
+      var match=result.disposition.match(/filename="?([^";]+)"?/i),url=URL.createObjectURL(result.blob),link=document.createElement('a');
+      link.href=url;link.download=match?match[1]:fallback;
+      document.body.appendChild(link);
+      try{link.click();}finally{link.remove();URL.revokeObjectURL(url);}
+    });
+  }
+  var adminDownloadJobs=new Map();
+  function downloadAdminArchive(path,payload,fallback){
+    var key=path+'|'+JSON.stringify(payload),started=Date.now();
+    function poll(job){
+      if(Date.now()-started>30*60*1000)throw new Error('작업이 오래 걸리고 있습니다. 다시 다운로드하면 기존 작업의 상태를 확인합니다.');
+      return adminDownloadRequest(path+'/'+encodeURIComponent(job.jobId),null,true).then(function(state){
+        if(state.status==='failed'){adminDownloadJobs.delete(key);throw new Error(state.error||'파일 생성에 실패했습니다.');}
+        if(state.status==='completed'&&state.downloadUrl)return downloadAdminFile(state.downloadUrl,fallback).then(function(){adminDownloadJobs.delete(key);});
+        updateAdminDownload(state.status==='queued'?'다운로드 작업이 대기열에 등록되었습니다.':'파일을 준비하고 있어요.');
+        return new Promise(function(resolve){setTimeout(resolve,1000);}).then(function(){return poll(job);});
+      });
+    }
+    var existing=adminDownloadJobs.get(key);
+    var job=existing?Promise.resolve(existing):adminDownloadRequest(path,{method:'POST',body:payload},true).then(function(created){adminDownloadJobs.set(key,created);return created;});
+    return job.then(poll);
+  }
   function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
   function formatKstDate(value){
     var normalized=typeof value==='string'&&!/(Z|[+-]\d\d:?\d\d)$/i.test(value)?value+'Z':value;
@@ -1085,12 +1171,8 @@
           return '<tr><td>'+esc(formatKstDateTime(item.submittedAt))+'</td><td>'+esc(item.participantId||'')+'</td><td>'+esc(item.tool||'미지정')+'</td><td>'+files+'</td><td>'+(item.status==='deletion_requested'?'삭제 요청됨':'보관 중')+'</td><td>'+action+'</td></tr>';
         }).join('');
         body.querySelectorAll('.file-original-download').forEach(function(button){button.addEventListener('click',function(){
-          button.disabled=true;
-          fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download',{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-            .then(function(response){if(!response.ok)throw new Error('원본 파일을 내려받을 수 없습니다.');return response.blob();})
-            .then(function(blob){var url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='chat-submission-'+button.dataset.id+'.zip';document.body.appendChild(link);link.click();document.body.removeChild(link);URL.revokeObjectURL(url);})
-            .catch(function(error){alert(error.message);})
-            .finally(function(){button.disabled=false;});
+          var path='/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download';
+          runAdminDownload(button,'원본 파일을 준비하고 있어요',function(){return downloadAdminFile(path,'chat-submission-'+button.dataset.id+'.zip');});
         });});
         body.querySelectorAll('.file-delete').forEach(function(button){button.addEventListener('click',function(){
           if(!confirm('이 제출 내역과 첨부 파일을 실제로 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;
@@ -1107,8 +1189,10 @@
 
   // ---- template download ----
   document.getElementById('tplBtn').addEventListener('click',function(){
+    runAdminDownload(this,'등록 양식을 준비하고 있어요',function(){
     var csv='이름,휴대폰번호,보호자휴대폰,학교급,학년,이메일,SNS\n홍길동,010-1234-5678,010-9876-5432,초등,4,participant@example.com,인스타그램 @insta_user\n';
     downloadBlob(csv,'참여자_등록_양식.csv','text/csv;charset=utf-8;');
+    });
   });
 
   // ---- file upload + preview ----
@@ -1223,10 +1307,8 @@
       var match=round.value.match(/\d+/), selectedVersion=version.value.trim();
       if(!match||!selectedVersion){alert('회차와 설문 버전을 선택해 주세요.');return;}
       var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
-      fetch(AI_US_API_BASE+'/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-        .then(function(response){if(!response.ok){if(response.status>=500)aiUsShowTemporaryIssue();var error=new Error('결과를 내려받을 수 없습니다.');error.status=response.status;throw error;}var disposition=response.headers.get('Content-Disposition')||'',name=disposition.match(/filename="?([^";]+)"?/i);return response.blob().then(function(blob){return {blob:blob,filename:name?name[1]:'설문결과_'+round.value+'_'+selectedVersion+'.csv'};});})
-        .then(function(result){var url=URL.createObjectURL(result.blob),a=document.createElement('a');a.href=url;a.download=result.filename;a.click();URL.revokeObjectURL(url);})
-        .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else if(error.status<500)alert(error.message);});
+      var path='/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter;
+      runAdminDownload(this,'설문 결과를 준비하고 있어요',function(){return downloadAdminFile(path,'설문결과_'+match[0]+'_'+selectedVersion+'.csv');});
     });
   })();
   // ---- live participation status and nonparticipants ----
@@ -1273,7 +1355,7 @@
         incompleteReport=data;
         var values=absentPanel.querySelectorAll('.stats .stat .v');
         [data.counts.total,data.counts.elementary,data.counts.middle,data.counts.high].forEach(function(value,index){if(values[index])values[index].innerHTML=value+'<small>명</small>';});
-        var statusLabel=incompleteMode==='survey'?'설문 미완료':'대화문 미제출';
+        var statusLabel=incompleteReport.category==='survey'?'설문 미완료':'대화문 미제출';
         body.innerHTML=data.participants.length?data.participants.map(function(participant){return '<tr><td>'+esc(participant.name||'-')+'</td><td>'+esc(participant.schoolLevel||'-')+'</td><td>'+esc(participant.grade||'-')+'</td><td>'+esc(formatPhone(participant.phone))+'</td><td>'+statusLabel+'</td></tr>';}).join(''):'<tr><td colspan="5">해당 조건의 미완료자가 없습니다.</td></tr>';
         absentDownload.disabled=false;
       }).catch(function(error){body.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
@@ -1301,6 +1383,7 @@
     statusPanel.addEventListener('click',function(event){var target=event.target.closest('[data-incomplete-category]');if(!target)return;document.querySelector('#side [data-panel="absent"]').click();setIncompleteMode(target.dataset.incompleteCategory,target.dataset.incompleteCriterion);});
     if(absentDownload)absentDownload.addEventListener('click',function(){
       if(!incompleteReport)return;
+      runAdminDownload(this,'미완료자 목록을 준비하고 있어요',function(){
       var head=['이름','학교급','학년','휴대폰번호','구분','기준','상태'];
       var statusLabel=incompleteReport.category==='survey'?'설문 미완료':'대화문 미제출';
       var criterionLabel=incompleteReport.category==='survey'?incompleteReport.criterion+'회차':(incompleteReport.criterion==='afterRound1'?'1차 후':'4차 후');
@@ -1311,6 +1394,7 @@
         return row.map(function(value){var text=String(value==null?'':value);return /[",\n]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;}).join(',');
       }).join('\n');
       downloadBlob(csv,'미완료자_목록_'+incompleteReport.category+'_'+incompleteReport.criterion+'_'+formatKstFilenameTimestamp()+'.csv','text/csv;charset=utf-8;');
+      });
     });
   })();
 
@@ -1321,8 +1405,7 @@
     var cBody=document.getElementById('chatPreviewBody');
     var cAll=document.getElementById('cAll'), cSelectAll=document.getElementById('cSelectAll');
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
-    var cRosterBtn=document.getElementById('cRosterBtn'),cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false,bulkDownloadBusy=false,transcriptDownloadBusy=false;
-    var transcriptDialog=document.getElementById('transcriptDownloadDialog'),transcriptTitle=document.getElementById('transcriptDownloadTitle'),transcriptMessage=document.getElementById('transcriptDownloadMessage'),transcriptClose=document.getElementById('transcriptDownloadClose');
+    var cRosterBtn=document.getElementById('cRosterBtn'),cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false;
     var reviewDialog=document.getElementById('reviewSaveDialog'),reviewTitle=document.getElementById('reviewSaveTitle'),reviewMessage=document.getElementById('reviewSaveMessage'),reviewClose=document.getElementById('reviewSaveClose'),reviewFocusTarget=null;
     if(!cRound) return;
     cBody.addEventListener('click',function(event){
@@ -1330,7 +1413,8 @@
       if(!button||!cBody.contains(button))return;
       if(button.classList.contains('transcript-retry')){var parseButton=cBody.querySelector('.transcript-parse[data-id="'+button.dataset.id+'"]');if(parseButton)parseButton.click();return;}
       var format=button.classList.contains('transcript-json')?'json':'csv';
-      fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcript-'+button.dataset.id+'_'+formatKstFilenameTimestamp()+'.'+format);}).catch(function(error){alert(error.message);});
+      var path='/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format;
+      runAdminDownload(button,'대화문 파일을 준비하고 있어요',function(){return downloadAdminFile(path,'transcript-'+button.dataset.id+'_'+formatKstFilenameTimestamp()+'.'+format);});
     });
     function pointLabel(p){return p==='afterRound1'?'대화문 1 (1차 후)':p==='afterRound4'?'대화문 2 (4차 후)':(p||'-');}
     function sourceTag(s){return s==='image'?'🖼 이미지':s==='file'?'📦 ZIP 파일':(s||'-');}
@@ -1357,10 +1441,6 @@
       if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
       return params;
     }
-    function setTranscriptBusy(title,message){transcriptDownloadBusy=true;cTranscriptBtn.disabled=true;if(transcriptTitle)transcriptTitle.textContent=title;if(transcriptMessage)transcriptMessage.textContent=message;if(transcriptDialog){transcriptDialog.classList.add('open');transcriptDialog.classList.remove('error');}if(transcriptClose)transcriptClose.hidden=true;}
-    function finishTranscriptDownload(){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptDialog)transcriptDialog.classList.remove('open','error');}
-    function showTranscriptError(message){transcriptDownloadBusy=false;cTranscriptBtn.disabled=false;if(transcriptTitle)transcriptTitle.textContent='대화문 CSV를 준비하지 못했어요';if(transcriptMessage)transcriptMessage.textContent=message||'잠시 후 다시 시도해 주세요.';if(transcriptDialog)transcriptDialog.classList.add('open','error');if(transcriptClose)transcriptClose.hidden=false;}
-    if(transcriptClose)transcriptClose.addEventListener('click',function(){if(transcriptDialog)transcriptDialog.classList.remove('open','error');transcriptClose.hidden=true;});
     function setReviewBusy(){if(reviewTitle)reviewTitle.textContent='관리 상태를 저장하고 있어요';if(reviewMessage)reviewMessage.textContent='저장한 내용을 반영해 대화문 목록을 다시 불러오는 중입니다.';if(reviewDialog){reviewDialog.classList.add('open');reviewDialog.classList.remove('error');}if(reviewClose)reviewClose.hidden=true;}
     function finishReviewBusy(){if(reviewDialog)reviewDialog.classList.remove('open','error');if(reviewClose)reviewClose.hidden=true;reviewFocusTarget=null;}
     function showReviewMessage(title,message,focusTarget){reviewFocusTarget=focusTarget||null;if(reviewTitle)reviewTitle.textContent=title;if(reviewMessage)reviewMessage.textContent=message;if(reviewDialog)reviewDialog.classList.add('open','error');if(reviewClose){reviewClose.hidden=false;reviewClose.focus();}}
@@ -1370,11 +1450,6 @@
       var count=selectedIds().length;
       cSelectionSummary.textContent=selectAllFiltered?(count?'전체 선택됨':'0건 선택됨'):count+'건 선택됨';
       if(cAll)cAll.checked=!!(count&&count===cBody.querySelectorAll('.chat-row-check').length);
-    }
-    function downloadBlobResponse(response, fallback){
-      if(!response.ok){var error=new Error(fallback);error.status=response.status;throw error;}
-      var disposition=response.headers.get('Content-Disposition')||'',match=disposition.match(/filename="?([^";]+)"?/i),filename=match?match[1]:fallback;
-      return response.blob().then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);});
     }
     function showCompletedParse(submissionId){
       var actions=cBody.querySelector('.download-actions[data-id="'+submissionId+'"]'),statusEl=cBody.querySelector('.transcript-status[data-id="'+submissionId+'"]'),button=cBody.querySelector('.transcript-parse[data-id="'+submissionId+'"]');
@@ -1419,11 +1494,8 @@
         cBody.querySelectorAll('.review-select').forEach(function(select){select.addEventListener('change',function(){var wrap=select.parentElement.querySelector('.review-note-wrap'),note=wrap.querySelector('.review-note'),save=wrap.querySelector('.review-save'),hasStatus=!!select.value;note.hidden=!hasStatus;note.disabled=!hasStatus;note.placeholder=select.value==='other'?'기타 사유 입력 (필수)':'메모 입력 (선택)';if(hasStatus)note.focus();else save.focus();});});
         cBody.querySelectorAll('.review-save').forEach(function(button){button.addEventListener('click',function(){var select=button.parentElement.parentElement.querySelector('.review-select'),note=button.parentElement.querySelector('.review-note');if(select.value==='other'&&!note.value.trim()){showReviewMessage('기타 사유를 입력해 주세요','기타 사유를 선택한 경우 검토 메모를 반드시 입력해야 합니다.',note);return;}button.disabled=true;saveReview(select,note);});});
         cBody.querySelectorAll('.chat-file-download').forEach(function(button){button.addEventListener('click',function(){
-          button.disabled=true;
-          fetch(AI_US_API_BASE+'/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download',{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-            .then(function(response){return downloadBlobResponse(response,'chat-submission-'+button.dataset.id+'_'+formatKstFilenameTimestamp()+'.zip');})
-            .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);})
-            .then(function(){button.disabled=false;});
+          var path='/api/v1/researcher/chat-submissions/files/'+encodeURIComponent(button.dataset.id)+'/download';
+          runAdminDownload(button,'원본 파일을 준비하고 있어요',function(){return downloadAdminFile(path,'chat-submission-'+button.dataset.id+'_'+formatKstFilenameTimestamp()+'.zip');});
         });});
         cBody.querySelectorAll('.transcript-parse').forEach(function(button){button.addEventListener('click',function(){
           var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;hideParseDownloads(button.dataset.id);if(statusEl)statusEl.textContent=' 파싱 요청 중…';
@@ -1449,43 +1521,24 @@
     if(cAll)cAll.addEventListener('change',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=cAll.checked;});updateSelectionSummary();});
     loadPreview();
     if(cRosterBtn)cRosterBtn.addEventListener('click',function(){
-      cRosterBtn.disabled=true;
       var params=rosterParams(),url=AI_US_API_BASE+'/api/v1/researcher/exports/chat-submissions'+(params.toString()?'?'+params.toString():'');
-      fetch(url,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
-        .then(function(response){return downloadBlobResponse(response,'C_all_all_status_'+formatKstFilenameTimestamp()+'.csv');})
-        .catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert('대화문 제출 현황을 내려받지 못했습니다.');})
-        .then(function(){cRosterBtn.disabled=false;});
+      runAdminDownload(cRosterBtn,'대화문 제출 현황을 준비하고 있어요',function(){return downloadAdminFile(url,'C_all_all_status_'+formatKstFilenameTimestamp()+'.csv');});
     });
     cTranscriptBtn.addEventListener('click',function(){
-      if(transcriptDownloadBusy)return;
       var ids=selectedIds();
       if(!selectAllFiltered&&!ids.length){alert('CSV로 내려받을 대화문을 선택해 주세요.');return;}
-      setTranscriptBusy('대화문 CSV를 준비하고 있어요','미파싱 파일을 자동으로 분석한 뒤 개별 CSV 파일을 ZIP으로 묶습니다.');
-      aiUsRequest('/api/v1/researcher/chat-submissions/transcript-download-jobs',{method:'POST',body:selectedPayload(ids)}).then(function(job){
-        function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/transcript-download-jobs/'+job.jobId).then(function(state){
-          if(state.status==='queued'&&transcriptMessage)transcriptMessage.textContent='다운로드 작업이 대기열에 등록되었습니다.';
-          if(state.status==='processing'&&transcriptMessage)transcriptMessage.textContent='대화문을 분석하고 개별 CSV 파일을 압축하는 중입니다.';
-          if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'transcripts_'+formatKstFilenameTimestamp()+'.zip');}).then(function(){finishTranscriptDownload();loadPreview();});}
-          if(state.status==='failed')return showTranscriptError(state.error||'대화문 CSV 작업에 실패했습니다.');
-          setTimeout(poll,1000);
-        }).catch(function(error){showTranscriptError(error.message);});}
-        poll();
-      }).catch(function(error){showTranscriptError(error.message);});
+      var payload=selectedPayload(ids);
+      runAdminDownload(this,'대화문 CSV ZIP을 준비하고 있어요',function(){
+        return downloadAdminArchive('/api/v1/researcher/chat-submissions/transcript-download-jobs',payload,'transcripts_'+formatKstFilenameTimestamp()+'.zip');
+      }).then(function(success){if(success)loadPreview();});
     });
     cBulkBtn.addEventListener('click',function(){
-      if(bulkDownloadBusy)return;
       var ids=selectedIds();
       if(!selectAllFiltered&&!ids.length){alert('다운로드할 제출 파일을 선택해 주세요.');return;}
-      bulkDownloadBusy=true;cBulkBtn.disabled=true;cBulkBtn.textContent='ZIP 준비 중…';
       var payload=selectedPayload(ids);
-      aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs',{method:'POST',body:payload}).then(function(job){
-        function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/download-jobs/'+job.jobId).then(function(state){
-          if(state.status==='completed'&&state.downloadUrl){var downloadUrl=/^https?:\/\//i.test(state.downloadUrl)?state.downloadUrl:AI_US_API_BASE+state.downloadUrl;return fetch(downloadUrl,{headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}}).then(function(response){return downloadBlobResponse(response,'chat-submissions_'+formatKstFilenameTimestamp()+'.zip');}).then(function(){bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';});}
-          if(state.status==='failed'){var failed=new Error(state.error||'일괄 다운로드를 준비하지 못했습니다.');failed.status=422;throw failed;}
-          setTimeout(poll,1000);
-        }).catch(function(error){if(!error.status)aiUsShowTemporaryIssue();else alert(error.message);bulkDownloadBusy=false;cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';});}
-        poll();
-      }).catch(function(error){cBulkBtn.disabled=false;cBulkBtn.textContent='⬇ 선택 원본 ZIP 내려받기';alert(error.message);});
+      runAdminDownload(this,'원본 ZIP을 준비하고 있어요',function(){
+        return downloadAdminArchive('/api/v1/researcher/chat-submissions/download-jobs',payload,'chat-submissions_'+formatKstFilenameTimestamp()+'.zip');
+      });
     });
   })();
   // ---- 회원 신청 관리 ----
@@ -1617,6 +1670,7 @@
 
     // 엑셀(CSV) 다운로드
     document.getElementById('apDownload').addEventListener('click',function(){
+      runAdminDownload(this,'회원신청 목록을 준비하고 있어요',function(){
       var head=['신청일','성별','학교급·학년','본인휴대폰(아이디)','보호자휴대폰','이메일','SNS','참여형태','상태'];
       var rows=applications.map(function(a){
         return [a.date,a.gender,a.grade,a.phone,a.guardianPhone,a.email,
@@ -1626,6 +1680,7 @@
         return r.map(function(v){var s=String(v==null?'':v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');
       }).join('\n');
       downloadBlob(csv,'회원신청_목록.csv','text/csv;charset=utf-8;');
+      });
     });
 
     if(!AI_US_ACCESS_TOKEN||!['admin','researcher'].includes(sessionStorage.getItem('ai_us_role'))){window.location.href='index.html';return;}

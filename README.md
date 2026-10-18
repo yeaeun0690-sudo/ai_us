@@ -16,7 +16,8 @@
 - 인증 정보는 `sessionStorage`의 `ai_us_access_token`, `ai_us_role`, `ai_us_username`에 저장합니다.
 - 설문 임시 답변과 완료 marker는 `localStorage`를 사용하지만, 서버의 제출 완료 상태가 최종 기준입니다.
 - `AI_US_API_BASE`는 frontend hostname으로 개발·운영 backend를 선택합니다. 알 수 없는 hostname은 운영 backend를 사용하므로 로컬 테스트에서는 API를 mock하거나 개발 backend URL을 명시적으로 검토해야 합니다.
-- 네트워크 오류와 5xx는 공통 full-modal로 안내하고, 401/403은 세션을 정리한 뒤 로그인 화면으로 이동합니다.
+- 일반 요청의 네트워크 오류와 5xx는 공통 full-modal로 안내합니다. 설문 heartbeat는 실패해도 작성 화면을 차단하지 않으며 기존 30초 주기로 다음 전송을 시도합니다. 인증 오류 처리는 이 예외로 변경하지 않습니다.
+- 설문 입력은 DOM 요소 위치만 렌더링 단위로 캐시하고 값은 매번 새로 읽습니다. 입력 즉시 임시저장과 30초 주기 저장은 유지하며, 파트 전환·재렌더링 시 요소 캐시를 비웁니다.
 
 ## 확정된 참여자 흐름
 
@@ -78,3 +79,12 @@ node -e "const fs=require('fs'),vm=require('vm'); for (const file of ['index.htm
 ```
 
 UI 변경은 데스크톱과 모바일 viewport에서 직접 확인합니다. API 연동 화면은 성공, 4xx, 네트워크 실패, 지연 응답을 각각 검증합니다.
+
+의존성 설치 없이 실행하는 회귀 검사:
+
+```bash
+node tests/participant-survey.test.cjs
+node tests/admin-download.test.cjs
+```
+
+참여자 검사는 기준 커밋 `a76a641`과 네 설문의 답변·검증·임시저장 결과를 비교하고, heartbeat 오류 알림 분리·인증 갱신·연결 복구 후 누적 활동 전송을 확인합니다. 브라우저 통합 검사는 운영 API가 아니라 모의 API로 수행하며, 실제 참여자 계정이나 운영 응답을 만들지 않습니다.

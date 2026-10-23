@@ -220,6 +220,7 @@ for (const specs of Object.values(definitions)) for (const spec of specs) {
       for (const node of [beforeDom.controls[index], afterDom.controls[index]]) {
         node.checked = !node.checked;
         if (node.value) node.value = node.value === '__other__' ? 'KNOWN' : '2';
+        if (node['data-slot']) node.value = 'TEST-' + node['data-slot'];
         if (node.style.display !== undefined) node.style.display = 'none';
       }
     }
@@ -233,6 +234,100 @@ for (const specs of Object.values(definitions)) for (const spec of specs) {
 }
 
 const t2Definitions = vm.runInNewContext('(' + current.match(/var SURVEY_SETS_T2=([\s\S]*?);\n\s*var SURVEY_ROUND=/)[1] + ')').common;
+
+test('AI ranks reject duplicate names but allow repeated none and distinct other names', () => {
+  const spec = t2Definitions[0], dom = fixture(spec);
+  const { context } = surveyContext(current, spec, dom);
+  const question = spec.scales.flatMap(scale => scale.questions).find(item => item.key === 'usage.q13');
+  const answered = values => context.isAnswered(question, { [question.key]: values });
+  assert.equal(answered([question.source[0], question.source[0], question.source[1]]), false);
+  assert.equal(answered([question.source[0], ' chatgpt ', question.source[1]]), false);
+  assert.equal(answered(['Custom AI', ' custom ai ', question.source[1]]), false);
+  assert.equal(answered([question.source[0], question.noneOption, question.noneOption]), true);
+  assert.equal(answered(['Custom AI 1', 'Custom AI 2', question.source[0]]), true);
+  assert.equal(answered([question.source[0], question.source[1]]), false);
+});
+
+test('rank choices unlock on change, keep none repeatable and flag duplicate restored or other answers', () => {
+  const spec = t2Definitions[0], dom = fixture(spec);
+  const { context } = surveyContext(current, spec, dom);
+  const question = spec.scales.flatMap(scale => scale.questions).find(item => item.key === 'usage.q13');
+  const controls = dom.selectors.get('[data-rank="' + question.key + '"]');
+  const errors = controls.map((control, index) => {
+    control.options = ['', ...question.source, question.noneOption, '__other__'].map(value => ({ value, disabled: false, textContent: value }));
+    control.value = index ? question.noneOption : question.source[0];
+    const error = { textContent: '', hidden: true };
+    dom.selectors.set('[data-rank-error="' + question.key + '"][data-slot="' + (index + 1) + '"]', [error]);
+    return error;
+  });
+  dom.controls.forEach(control => { control.setAttribute = function(name, value) { this[name] = value; }; });
+  vm.runInContext(slice(current, '    function updateRankQuestion(', '    function bindConditionals('), context);
+  const option = (slot, value) => controls[slot].options.find(item => item.value === value);
+  context.updateRankQuestion(question);
+  assert.equal(option(1, question.source[0]).disabled, true);
+  assert.match(option(1, question.source[0]).textContent, /1순위에서 선택됨/);
+  assert.equal(option(2, question.noneOption).disabled, false);
+  assert.equal(option(1, '__other__').disabled, false);
+  assert.ok(errors.every(error => error.hidden));
+  controls[0].value = question.source[1];
+  context.updateRankQuestion(question);
+  assert.equal(option(1, question.source[0]).disabled, false);
+  assert.equal(option(1, question.source[0]).textContent, question.source[0]);
+  controls[1].value = question.source[1];
+  context.updateRankQuestion(question);
+  assert.equal(controls[1].value, question.source[1], 'do not silently erase a duplicate draft');
+  assert.equal(controls[0]['aria-invalid'], 'true');
+  assert.equal(errors[0].hidden, false);
+  for (const index of [0, 1]) {
+    controls[index].value = '__other__';
+    dom.selectors.get('[data-rank-other="' + question.key + '"][data-slot="' + (index + 1) + '"]')[0].value = index ? ' custom ai ' : 'Custom AI';
+  }
+  context.updateRankQuestion(question);
+  assert.equal(errors[1].hidden, false);
+  dom.selectors.get('[data-rank-other="' + question.key + '"][data-slot="2"]')[0].value = 'Different AI';
+  context.updateRankQuestion(question);
+  assert.ok(errors.every(error => error.hidden));
+  assert.equal(controls[0]['aria-invalid'], 'false');
+});
+
+test('max-selection feedback stays next to the rejected choice and clears after deselection', () => {
+  const spec = t2Definitions[0], dom = fixture(spec);
+  const { context } = surveyContext(current, spec, dom);
+  const key = 'usetype.C1', inputs = dom.selectors.get('input[data-multi="' + key + '"]');
+  const notes = inputs.map(() => ({ textContent: '', hidden: true }));
+  const counter = { textContent: '' }, removed = [];
+  const card = {
+    querySelectorAll: () => notes,
+    querySelector: selector => notes[inputs.findIndex(input => selector === '[data-multi-feedback-for="' + input.value + '"]')],
+  };
+  dom.selectors.set('[data-multi-count="' + key + '"]', [counter]);
+  inputs.forEach((input, index) => {
+    input.checked = index < 4;
+    input['data-multi'] = key;
+    input['data-multi-max'] = '3';
+    input.matches = () => true;
+    input.closest = selector => selector === '.q-card' ? card : { classList: { remove: value => removed.push(value) } };
+  });
+  context.showSurveyErr = () => { throw new Error('max-selection feedback must not use the page footer'); };
+  vm.runInContext(slice(current, '    function updateMultiCount(', '    function renderSurvey('), context);
+  context.enforceMultiMax({ target: inputs[3] });
+  assert.equal(inputs[3].checked, false);
+  assert.equal(inputs.filter(input => input.checked).length, 3);
+  assert.match(notes[3].textContent, /먼저 하나를 해제/);
+  assert.equal(notes[3].hidden, false);
+  assert.match(counter.textContent, /현재 3개 선택/);
+  context.enforceMultiMax({ target: inputs[3] });
+  assert.equal(notes[3].hidden, false, 'subsequent change must preserve the rejected input feedback');
+  inputs[0].checked = false;
+  context.enforceMultiMax({ target: inputs[0] });
+  assert.ok(notes.every(note => note.hidden && !note.textContent));
+  assert.match(counter.textContent, /현재 2개 선택/);
+  inputs[3].checked = true;
+  context.enforceMultiMax({ target: inputs[3] });
+  assert.equal(inputs[3].checked, true);
+  assert.match(counter.textContent, /현재 3개 선택/);
+  assert.deepEqual(removed, ['selected']);
+});
 
 test('T2 required reasons, integer amounts and max selections are enforced', () => {
   const spec = t2Definitions[0], dom = fixture(spec);

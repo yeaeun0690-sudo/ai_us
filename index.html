@@ -450,6 +450,8 @@
   .q-text{font-size:1.02rem;color:var(--ink);line-height:1.55;margin-bottom:14px}
   .q-optional{font-size:.8rem;color:var(--muted);font-weight:400;margin-left:6px}
   .q-note{font-size:.85rem;color:var(--muted);line-height:1.5;margin:-6px 0 12px;white-space:pre-line}
+  .q-inline-feedback{font-size:.85rem;color:#a12e3b;line-height:1.5;margin:6px 0 0;overflow-wrap:anywhere}
+  .sq-input[aria-invalid="true"]{border-color:#a12e3b}
   .opt-circles{display:grid;grid-template-columns:repeat(var(--option-count),minmax(0,1fr));gap:8px;justify-content:center;padding-bottom:2px}
   .opt-circles.small{gap:5px}
   .opt-circles.tiny{gap:4px}
@@ -480,8 +482,9 @@
   .grid-lbl{flex:1;font-size:.92rem;color:var(--ink);min-width:88px}
   .grid-row .opt-circles{justify-content:flex-end;flex:1 1 0;min-width:0}
   .rank-rows{display:flex;flex-direction:column;gap:8px}
-  .rank-row{display:flex;align-items:center;gap:10px}
-  .rank-no{width:46px;font-size:.85rem;color:var(--ink-2);white-space:nowrap}
+  .rank-row{display:flex;align-items:flex-start;gap:10px}
+  .rank-no{flex:0 0 46px;padding-top:12px;font-size:.85rem;color:var(--ink-2);white-space:nowrap}
+  .rank-entry{flex:1;min-width:0}
   .sq-input{width:100%;padding:12px 13px;border:2px solid #e7e2f3;border-radius:10px;font-size:16px;font-family:inherit;color:var(--ink);background:#fff}
   .sq-select{cursor:pointer}
   .sq-input:focus{outline:none;border-color:var(--sky);box-shadow:0 0 0 3px rgba(17,153,142,.15)}
@@ -1495,6 +1498,12 @@
       surveyBody.querySelectorAll('.sq-cond[data-cond]').forEach(function(container){var key=container.getAttribute('data-cond'),when=Number(container.getAttribute('data-when')),value=answers[key];var visible=Array.isArray(value)?value.indexOf(when)>=0:value===when;container.style.display=visible?'block':'none';if(!visible)clearHidden(container);});
     }
     function enforceMultiExclusive(event){var target=event&&event.target;if(!target||!target.checked||!target.getAttribute)return;var key=target.getAttribute('data-multi');if(!key)return;var question=allQuestionsRaw().find(function(item){return item.key===key;});if(!question||!question.exclusive)return;var exclusive=question.exclusive.indexOf(Number(target.value))>=0;surveyElements('input[data-multi="'+key+'"]').forEach(function(input){if(input!==target&&(exclusive||question.exclusive.indexOf(Number(input.value))>=0)){input.checked=false;var label=input.closest('.choice');if(label)label.classList.remove('selected');}});}
+    function rankValueKey(question,value){
+      var normalized=String(value||'').trim().toLowerCase();
+      if(!normalized||normalized===String(question.noneOption||'').trim().toLowerCase())return '';
+      var source=(question.source||[]).find(function(item){return item.toLowerCase()===normalized||item.split(' (')[0].toLowerCase()===normalized;});
+      return source?source.toLowerCase():normalized;
+    }
     function isAnswered(q,a){
       if(q.type==='grid'){return (q.rows||[]).every(function(row){return a[row.key]!=null;});}
       if(q.type==='multi'){var values=a[q.key];if(!Array.isArray(values)||!values.length)return false;if(q.maxSelect&&values.length>q.maxSelect)return false;if(q.exclusive&&values.length>1&&q.exclusive.some(function(value){return values.indexOf(value)>=0;}))return false;if(q.other&&values.indexOf(Number(q.other.when))>=0&&!String(a[q.other.field.key]||'').trim())return false;return true;}
@@ -1508,6 +1517,9 @@
           }
         });
         if(otherBlank)return false;
+        var ranked=new Set(),duplicate=false;
+        (a[q.key]||[]).forEach(function(value){var key=rankValueKey(q,value);if(key){if(ranked.has(key))duplicate=true;ranked.add(key);}});
+        if(duplicate)return false;
         if(q.requireAllSlots)return Array.isArray(a[q.key])&&a[q.key].length>=(q.slots||3);
         return Array.isArray(a[q.key])&&a[q.key].length>0;
       }
@@ -1545,7 +1557,7 @@
       if(numLabel) head+='<div class="q-num">'+sqEsc(numLabel)+'</div>';
       head+='<div class="q-text">'+sqEsc(q.text).replace(/&lt;u&gt;/g,'<u>').replace(/&lt;\/u&gt;/g,'</u>').replace(/\n/g,'<br>')+opt+'</div>';
       if(q.helper){(Array.isArray(q.helper)?q.helper:[q.helper]).forEach(function(h){head+='<div class="q-note">'+sqEsc(h).replace(/&lt;u&gt;/g,'<u>').replace(/&lt;\/u&gt;/g,'</u>')+'</div>';});}
-      if(q.maxSelect) head+='<div class="q-note">최대 '+q.maxSelect+'개까지 선택할 수 있어요.</div>';
+      if(q.maxSelect) head+='<div class="q-note" id="multi-count-'+sqEsc(q.key)+'" data-multi-count="'+sqEsc(q.key)+'">최대 '+q.maxSelect+'개 선택 · 현재 0개 선택</div>';
       var body='';
       function circles(name,scale){
         var out='';var cnt=scale.max-scale.min+1;var sz=(cnt>=9?' tiny':(cnt>=7?' small':''));out+='<div class="opt-circles'+sz+'">';
@@ -1572,7 +1584,12 @@
         if(q.other){var of=q.other.field;body+='<div class="sq-cond" data-cond="'+sqEsc(q.key)+'" data-when="'+sqEsc(q.other.when)+'" style="display:none"><input class="sq-input" type="text" data-field="'+sqEsc(of.key)+'" placeholder="'+sqEsc(of.label||'기타')+'"></div>';}
       }else if(q.type==='multi'){
         body+='<div class="choices">';
-        (q.options||[]).forEach(function(o){body+='<label class="choice square"><input type="checkbox" data-multi="'+sqEsc(q.key)+'"'+(q.maxSelect?' data-multi-max="'+q.maxSelect+'"':'')+' value="'+sqEsc(o.value)+'"><span class="mark"></span><span class="lbl">'+sqEsc(o.label)+'</span></label>';});
+        (q.options||[]).forEach(function(o){
+          var feedbackId='multi-limit-'+q.key+'-'+o.value;
+          if(q.maxSelect)body+='<div class="multi-choice">';
+          body+='<label class="choice square"><input type="checkbox" data-multi="'+sqEsc(q.key)+'"'+(q.maxSelect?' data-multi-max="'+q.maxSelect+'" aria-describedby="multi-count-'+sqEsc(q.key)+' '+sqEsc(feedbackId)+'"':'')+' value="'+sqEsc(o.value)+'"><span class="mark"></span><span class="lbl">'+sqEsc(o.label)+'</span></label>';
+          if(q.maxSelect)body+='<p class="q-inline-feedback" id="'+sqEsc(feedbackId)+'" data-multi-feedback="'+sqEsc(q.key)+'" data-multi-feedback-for="'+sqEsc(o.value)+'" role="alert" hidden></p></div>';
+        });
         body+='</div>';
         if(q.other)body+='<div class="sq-cond" data-cond="'+sqEsc(q.key)+'" data-when="'+sqEsc(q.other.when)+'" style="display:none"><input class="sq-input" type="text" data-field="'+sqEsc(q.other.field.key)+'" placeholder="'+sqEsc(q.other.field.label||'기타')+'"></div>';
       }else if(q.type==='grid'){
@@ -1583,15 +1600,16 @@
         body+='<div class="rank-rows">';
         var slots=q.slots||3;
         for(var si=1;si<=slots;si++){
-          body+='<div class="rank-row"><span class="rank-no">'+si+'순위</span>';
+          var rankErrorId='rank-error-'+q.key+'-'+si;
+          body+='<div class="rank-row"><span class="rank-no">'+si+'순위</span><div class="rank-entry">';
           if(q.source&&q.source.length){
-            body+='<select class="sq-input sq-select" data-rank="'+sqEsc(q.key)+'" data-slot="'+si+'"><option value="" selected>선택하세요</option>';
+            body+='<select class="sq-input sq-select" data-rank="'+sqEsc(q.key)+'" data-slot="'+si+'" aria-label="'+sqEsc(q.text)+' '+si+'순위" aria-describedby="'+sqEsc(rankErrorId)+'"><option value="" selected>선택하세요</option>';
             q.source.forEach(function(sv){body+='<option value="'+sqEsc(sv)+'">'+sqEsc(sv)+'</option>';});
             if(q.noneOption&&(!q.noneSlots||q.noneSlots.indexOf(si)>=0))body+='<option value="'+sqEsc(q.noneOption)+'">'+sqEsc(q.noneOption)+'</option>';
             body+='<option value="__other__">'+sqEsc(q.otherLabel||'기타 (직접 입력)')+'</option></select>';
-            body+='<input class="sq-input sq-cond" type="text" data-rank-other="'+sqEsc(q.key)+'" data-slot="'+si+'" placeholder="사용하는 AI 이름을 입력해 주세요" style="display:none">';
-          }else body+='<input class="sq-input" data-rank="'+sqEsc(q.key)+'" data-slot="'+si+'" placeholder="입력해 주세요">';
-          body+='</div>';
+            body+='<input class="sq-input sq-cond" type="text" data-rank-other="'+sqEsc(q.key)+'" data-slot="'+si+'" aria-label="'+si+'순위 기타 AI 이름" aria-describedby="'+sqEsc(rankErrorId)+'" placeholder="사용하는 AI 이름을 입력해 주세요" style="display:none">';
+          }else body+='<input class="sq-input" data-rank="'+sqEsc(q.key)+'" data-slot="'+si+'" aria-label="'+si+'순위 AI 이름" aria-describedby="'+sqEsc(rankErrorId)+'" placeholder="입력해 주세요">';
+          body+='<p class="q-inline-feedback" id="'+sqEsc(rankErrorId)+'" data-rank-error="'+sqEsc(q.key)+'" data-slot="'+si+'" role="alert" hidden></p></div></div>';
         }
         body+='</div>';
       }else if(q.type==='number'){
@@ -1609,6 +1627,27 @@
     function formatProfilePhone(value){var d=String(value||'').replace(/\D/g,'').slice(0,11);if(d.length>7)return d.length<=10?d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6):d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);if(d.length>3)return d.slice(0,3)+'-'+d.slice(3);return d;}
     function markProfileFilled(el){if(!el)return;el.disabled=true;var card=el.closest&&el.closest('.q-card');if(card&&!card.querySelector('.profile-note')){var note=document.createElement('div');note.className='q-note profile-note';note.textContent='신청 정보에서 자동 입력되었어요.';card.appendChild(note);}}
     function applyProfilePrefill(){var preview=window.AI_US_PREVIEW,phone=preview?'01000000000':sessionStorage.getItem('ai_us_participant_phone')||'',guardian=preview?'01000000001':sessionStorage.getItem('ai_us_profile_guardian_phone')||'',gradeValue=preview?'':profileGradeValue(sessionStorage.getItem('ai_us_profile_school_level'),sessionStorage.getItem('ai_us_profile_grade'));var gradeEl=surveyBody.querySelector('select[name="demo.grade"]');if(!isT2Survey()&&gradeEl&&gradeValue){gradeEl.value=gradeValue;markProfileFilled(gradeEl);}var phoneEl=surveyBody.querySelector('[data-comp="demo.contact"][data-cfield="demo.contact_phone"]');if(phoneEl&&phone){phoneEl.value=formatProfilePhone(phone);markProfileFilled(phoneEl);}var guardianEl=surveyBody.querySelector('[data-comp="demo.guardianContact"][data-cfield="demo.guardianContact_phone"]');if(guardianEl&&guardian){guardianEl.value=formatProfilePhone(guardian);markProfileFilled(guardianEl);}}
+    function updateRankQuestion(question){
+      var entries=surveyElements('[data-rank="'+question.key+'"]').map(function(control){
+        var slot=control.getAttribute('data-slot'),other=surveyElement('[data-rank-other="'+question.key+'"][data-slot="'+slot+'"]');
+        var value=control.value==='__other__'?(other?other.value:''):control.value;
+        if(other)other.style.display=control.value==='__other__'?'block':'none';
+        return {control:control,other:other,slot:slot,key:rankValueKey(question,value)};
+      });
+      entries.forEach(function(entry){
+        Array.prototype.forEach.call(entry.control.options||[],function(option){
+          if(!option.value||option.value==='__other__'||option.value===question.noneOption)return;
+          var key=rankValueKey(question,option.value),owner=entries.find(function(other){return other!==entry&&other.key===key;});
+          option.disabled=!!owner&&option.value!==entry.control.value;
+          option.textContent=option.value+(option.disabled?' ('+owner.slot+'순위에서 선택됨)':'');
+        });
+        var duplicate=!!entry.key&&entries.some(function(other){return other!==entry&&other.key===entry.key;});
+        var error=surveyElement('[data-rank-error="'+question.key+'"][data-slot="'+entry.slot+'"]');
+        entry.control.setAttribute('aria-invalid',duplicate?'true':'false');
+        if(entry.other)entry.other.setAttribute('aria-invalid',duplicate?'true':'false');
+        if(error){error.textContent=duplicate?'다른 순위와 같은 AI예요. 서로 다른 AI를 선택하거나 입력해 주세요.':'';error.hidden=!duplicate;}
+      });
+    }
     function bindConditionals(){
       surveyBody.querySelectorAll('.sq-cond').forEach(function(c){
         var key=c.getAttribute('data-cond'), when=String(c.getAttribute('data-when'));
@@ -1644,15 +1683,41 @@
         inp.setAttribute('inputmode','numeric');inp.setAttribute('maxlength','13');if(!inp.placeholder)inp.placeholder='숫자만 입력 (예: 01012345678)';
         inp.addEventListener('input',function(){var d=inp.value.replace(/\D/g,'').slice(0,11);var f=d;if(d.length>7)f=d.length<=10?d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6):d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);else if(d.length>3)f=d.slice(0,3)+'-'+d.slice(3);inp.value=f;});
       });
-      surveyBody.querySelectorAll('select[data-rank]').forEach(function(select){
-        var other=surveyBody.querySelector('[data-rank-other="'+select.getAttribute('data-rank')+'"][data-slot="'+select.getAttribute('data-slot')+'"]');
-        function upd(){if(other)other.style.display=select.value==='__other__'?'block':'none';}
-        select.addEventListener('change',upd);
-        upd();
+      allQuestionsRaw().filter(function(question){return question.type==='rank';}).forEach(function(question){
+        surveyElements('[data-rank="'+question.key+'"]').forEach(function(control){
+          if(control.dataset.rankBound)return;
+          control.dataset.rankBound='true';
+          function update(){updateRankQuestion(question);}
+          control.addEventListener('change',update);control.addEventListener('input',update);
+          var other=surveyElement('[data-rank-other="'+question.key+'"][data-slot="'+control.getAttribute('data-slot')+'"]');
+          if(other)other.addEventListener('input',update);
+        });
+        updateRankQuestion(question);
       });
+      allQuestionsRaw().forEach(function(question){if(question.maxSelect)updateMultiCount(question.key,question.maxSelect);});
     }
     function isQuestionActive(q,answers){if(isT2Survey()&&!logicActive(q.logic,answers||collectAnswers()))return false;var c=surveyElement('.q-card[data-key="'+q.key+'"]');return !c||c.style.display!=='none';}
-    function enforceMultiMax(e){var t=e&&e.target;if(!t||!t.matches||!t.matches('input[data-multi][data-multi-max]'))return;var max=Number(t.getAttribute('data-multi-max')),key=t.getAttribute('data-multi');var chk=surveyBody.querySelectorAll('input[data-multi="'+key+'"]:checked');if(chk.length>max){t.checked=false;var l=t.closest('.choice');if(l)l.classList.remove('selected');showSurveyErr('최대 '+max+'개까지 선택할 수 있어요.');}}
+    function updateMultiCount(key,max){
+      var count=surveyBody.querySelectorAll('input[data-multi="'+key+'"]:checked').length;
+      var note=surveyBody.querySelector('[data-multi-count="'+key+'"]');
+      if(note)note.textContent='최대 '+max+'개 선택 · 현재 '+count+'개 선택';
+      return count;
+    }
+    function enforceMultiMax(event){
+      var target=event&&event.target;
+      if(!target||!target.matches||!target.matches('input[data-multi][data-multi-max]'))return;
+      var max=Number(target.getAttribute('data-multi-max')),key=target.getAttribute('data-multi');
+      var checked=surveyBody.querySelectorAll('input[data-multi="'+key+'"]:checked'),card=target.closest('.q-card');
+      function clearFeedback(){if(card)card.querySelectorAll('[data-multi-feedback]').forEach(function(note){note.textContent='';note.hidden=true;});}
+      if(checked.length>max){
+        target.checked=false;
+        var label=target.closest('.choice');if(label)label.classList.remove('selected');
+        clearFeedback();
+        var feedback=card&&card.querySelector('[data-multi-feedback-for="'+target.value+'"]');
+        if(feedback){feedback.textContent='최대 '+max+'개까지 선택할 수 있어요. 다른 항목을 선택하려면 먼저 하나를 해제해 주세요.';feedback.hidden=false;}
+      }else if(checked.length<max||target.checked)clearFeedback();
+      updateMultiCount(key,max);
+    }
     function renderSurvey(){
       PAGES=isT2Survey()?buildPages(SPEC()):[];
       var demo=SPEC().scales[0],scr1=null,scr2=null;demo.questions.forEach(function(q){if(q.key==='demo.screening1')scr1=q;if(q.key==='demo.screening2')scr2=q;});

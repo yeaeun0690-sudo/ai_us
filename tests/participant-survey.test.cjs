@@ -265,6 +265,34 @@ test('T2 restores branch dependencies and multi other text from raw questions', 
   }
 });
 
+test('preview footer shares survey title labels and follows part changes', () => {
+  const elements = { dummySurveyTitle: {}, surveyPreviewFooter: {} };
+  const context = vm.createContext({
+    SURVEY_ROUND: 2, activePart: 0, window: { AI_US_PREVIEW: true },
+    document: { getElementById: key => elements[key] || null },
+    getAudience: () => 'elementary',
+  });
+  vm.runInContext(slice(current, '    function updateSurveyTitle()', '    function openSurvey('), context);
+  for (const [round, audience, part, label] of [
+    [2, 'elementary', 0, '공통 파트 1'],
+    [2, 'elementary', 1, '공통 파트 2'],
+    [2, 'secondary', 1, '공통 파트 2'],
+    [1, 'secondary', 1, '중고등 파트 2'],
+    [1, 'elementary', 0, '초등 파트 1'],
+  ]) {
+    context.SURVEY_ROUND = round;
+    context.activePart = part;
+    context.getAudience = () => audience;
+    context.updateSurveyTitle();
+    assert.equal(elements.dummySurveyTitle.textContent, round + '회차 설문 · ' + label);
+    assert.ok(elements.surveyPreviewFooter.textContent.endsWith('(' + label + ')'));
+  }
+  delete elements.surveyPreviewFooter;
+  context.updateSurveyTitle();
+  assert.match(slice(current, '    function openSurvey(', '    function checkSurveySubmission('), /updateSurveyTitle\(\);/);
+  assert.match(current, /document\.body\.appendChild\(bar\);\s+updateSurveyTitle\(\);/);
+});
+
 (async function runTests() {
   let failures = 0;
   for (const item of tests) {

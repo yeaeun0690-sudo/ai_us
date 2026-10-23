@@ -1891,6 +1891,11 @@
         }
       },300);
     }
+    function updateSurveyTitle(){
+      var partTitle=(SURVEY_ROUND===2?'공통':getAudience()==='secondary'?'중고등':'초등')+' 파트 '+(activePart+1);
+      var title=document.getElementById('dummySurveyTitle');if(title)title.textContent=SURVEY_ROUND+'회차 설문 · '+partTitle;
+      var footer=document.getElementById('surveyPreviewFooter');if(window.AI_US_PREVIEW&&footer)footer.textContent='미리보기 모드 — 로그인 없이 문항·로직만 확인합니다. 최종 제출은 저장되지 않습니다. ('+partTitle+')';
+    }
     function openSurvey(partIndex){
       SURVEY_PARTS=partsForRound(SURVEY_ROUND);
       activePart=partIndex||0;
@@ -1898,7 +1903,7 @@
       progressContext=isT2Survey()&&!window.AI_US_PREVIEW?{key:draftKey(),round:SURVEY_ROUND,version:SPEC().surveyVersion,revision:0,ready:false,loading:false,saving:false,blocked:false,pending:null}:null;
       if(SPEC().comingSoon){ showSurveyErr(''); alert('파트 2 설문은 준비 중이에요.'); return; }
       aiUsTrack('survey_opened',true);
-      var t=document.getElementById('dummySurveyTitle');if(t)t.textContent=SURVEY_ROUND+'회차 설문 · '+(SURVEY_ROUND===2?'공통':getAudience()==='secondary'?'중고등':'초등')+' 파트 '+(activePart+1);
+      updateSurveyTitle();
       dummySurveyBackdrop.querySelector('.survey-modal').classList.toggle('t2-survey',isT2Survey());dummySurveyBackdrop.progressClock=null;
       surveyRendered=false; renderSurvey();
       beginSurveySession();if(surveySession)surveySession.totalPageCount=surveyPageCount();
@@ -2033,8 +2038,9 @@
         if(aud==='secondary'&&window.aiUsSetAudience)window.aiUsSetAudience('teen');
         SURVEY_ROUND=2;openSurvey(part);
         setTimeout(function(){dismiss();
-          var bar=document.createElement('div');bar.textContent='미리보기 모드 — 로그인 없이 문항·로직만 확인합니다. 최종 제출은 저장되지 않습니다. ('+(aud==='secondary'?'중고등':'초등')+' 파트 '+(part+1)+')';
+          var bar=document.createElement('div');bar.id='surveyPreviewFooter';
           bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#3f2e8f;color:#fff;font-size:.85rem;text-align:center;padding:8px 12px';document.body.appendChild(bar);
+          updateSurveyTitle();
           setInterval(dismiss,500);
         },400);
       },300);

@@ -293,6 +293,113 @@ test('preview footer shares survey title labels and follows part changes', () =>
   assert.match(current, /document\.body\.appendChild\(bar\);\s+updateSurveyTitle\(\);/);
 });
 
+test('round admission locks both parts, preserves completed labels and enforces prerequisites', () => {
+  const buttons = new Map(), completed = new Set(['1:0']);
+  for (const round of [1, 2, 3, 4]) for (const part of [0, 1]) {
+    buttons.set(round + ':' + part, { classList: { toggle() {} }, parentNode: { querySelector: () => ({}) } });
+  }
+  const context = vm.createContext({
+    window: {}, SURVEY_ROUND: 2, SURVEY_PARTS: [], serverStatusReady: true,
+    surveyRoundsOpen: { '1': false, '2': false }, partsForRound: () => [], updateRoundProgress() {},
+    surveyRoundStates: { '1': 'closed', '2': 'closed' }, serverStatusFailed: false,
+    roundPartCompleted: (round, part) => completed.has(round + ':' + part),
+    document: { getElementById: () => null, querySelector(selector) { const match = selector.match(/data-round="(\d)"\]\[data-part="(\d)"/); return match ? buttons.get(match[1] + ':' + match[2]) : null; } },
+  });
+  vm.runInContext(slice(current, '    function surveyRoundOpen(', '    function updateRoundProgress('), context);
+  context.updatePartButtons();
+  assert.ok([...buttons.values()].every(button => button.disabled));
+  assert.equal(buttons.get('1:0').textContent, '제출 완료');
+  assert.equal(buttons.get('2:0').textContent, '참여 기간이 끝났어요');
+  assert.equal(buttons.get('3:0').textContent, '설문 준비 중');
+  assert.equal(buttons.get('4:1').textContent, '설문 준비 중');
+  context.surveyRoundsOpen['2'] = true; context.surveyRoundStates['2'] = 'open'; context.updatePartButtons();
+  assert.equal(buttons.get('2:0').disabled, false);
+  assert.equal(buttons.get('2:1').disabled, true);
+  completed.add('2:0'); context.updatePartButtons();
+  assert.equal(buttons.get('2:1').disabled, false);
+  context.surveyRoundsOpen['2'] = 'true'; context.updatePartButtons();
+  assert.equal(buttons.get('2:1').disabled, true);
+  context.serverStatusReady = false; context.updatePartButtons();
+  assert.equal(buttons.get('2:0').textContent, '확인 중');
+  context.serverStatusFailed = true; context.updatePartButtons();
+  assert.equal(buttons.get('2:0').textContent, '확인 실패');
+  context.window.AI_US_PREVIEW = true; context.updatePartButtons();
+  assert.equal(buttons.get('2:1').disabled, false);
+});
+
+test('participant status uses DB round map, supports old backend and fails closed on lookup error', async () => {
+  const context = vm.createContext({
+    window: {}, sessionStorage: { getItem: () => 'synthetic-token' },
+    serverCompletedVersions: {}, serverVersionsByRound: {}, serverCompletedRounds: [],
+    serverStatusReady: false, surveyRoundsOpen: {}, t1SubmissionsOpen: false,
+    serverStatusFailed: false, surveyRoundStates: {}, loadSurveyConfigurations: () => Promise.resolve(),
+    updatePartButtons() {},
+    aiUsRequest: () => Promise.resolve({ completedVersionsByRound: { '2': ['part1'] }, completedRounds: [], t1SubmissionsOpen: false, surveyRoundsOpen: { '1': false, '2': false, '3': true, '4': false } }),
+  });
+  vm.runInContext(slice(current, '    function loadServerSurveyProgress()', '    function openSurveys('), context);
+  context.loadServerSurveyProgress(); await new Promise(setImmediate);
+  assert.equal(context.serverStatusReady, true);
+  assert.equal(context.surveyRoundsOpen['2'], false);
+  assert.equal(context.surveyRoundsOpen['3'], true);
+  assert.equal(context.serverCompletedVersions.part1, true);
+  context.aiUsRequest = () => Promise.resolve({ t1SubmissionsOpen: false });
+  context.loadServerSurveyProgress(); await new Promise(setImmediate);
+  assert.equal(context.surveyRoundsOpen['1'], false);
+  assert.equal(context.surveyRoundsOpen['2'], true);
+  context.aiUsRequest = () => Promise.reject(new Error('unavailable'));
+  context.loadServerSurveyProgress(); await new Promise(setImmediate);
+  assert.equal(context.serverStatusReady, false);
+  context.window.AI_US_PREVIEW = true;
+  context.aiUsRequest = () => { throw new Error('preview must not request status'); };
+  context.loadServerSurveyProgress();
+});
+
+test('selected DB configurations load in part order, cache by versions and do not affect preview', async () => {
+  const versions = [1, 2].map(part => ({ surveyVersion: 'selected-part' + part, audience: 'all', part }));
+  const calls = [];
+  const definitions = versions.map(version => ({ ...version, surveyRound: 2, spec: { scales: [{ scaleId: 'selected', questions: [] }] } })).reverse();
+  const context = vm.createContext({
+    configuredSurveyParts: {}, configurationSignatures: {}, window: {}, getAudience: () => 'secondary',
+    SURVEY_SETS_T2: { common: [{ marker: 'embedded' }] }, SURVEY_SETS: { elementary: [] },
+    aiUsRequest: requestPath => { calls.push(requestPath); return Promise.resolve(definitions); },
+  });
+  vm.runInContext(slice(current, '    function loadSurveyConfigurations(', '    function loadServerSurveyProgress('), context);
+  vm.runInContext(slice(current, '    function partsForRound(', '    function roundPartCompleted('), context);
+  const data = { surveyConfigurations: { '2': versions, '3': [] } };
+  await context.loadSurveyConfigurations(data);
+  assert.deepEqual(Array.from(context.partsForRound(2), part => part.surveyVersion), ['selected-part1', 'selected-part2']);
+  assert.equal(calls[0], '/api/v1/participant/survey-configurations/2');
+  await context.loadSurveyConfigurations(data);
+  assert.equal(calls.length, 1);
+  context.window.AI_US_PREVIEW = true;
+  assert.equal(context.partsForRound(2)[0].marker, 'embedded');
+  context.window.AI_US_PREVIEW = false;
+  await assert.rejects(context.loadSurveyConfigurations({ surveyConfigurations: { '2': [{ surveyVersion: 'missing', audience: 'all', part: 1 }] } }));
+  await context.loadSurveyConfigurations({ surveyConfigurations: { '2': [] } });
+  assert.equal(context.configuredSurveyParts['2'], undefined);
+});
+
+test('direct survey opening cannot bypass round closure, status readiness or part-one completion', () => {
+  const context = vm.createContext({
+    window: {}, SURVEY_ROUND: 2, SURVEY_PARTS: [], activePart: 0,
+    surveyRoundsOpen: { '2': false }, serverStatusReady: true,
+    partsForRound: () => [], partCompleted: () => false,
+  });
+  vm.runInContext(slice(current, '    function surveyRoundOpen(', '    function updatePartButtons('), context);
+  vm.runInContext(slice(current, '    function openSurvey(partIndex){', '      progressContext=isT2Survey()') + 'return "opened";}', context);
+  assert.equal(context.openSurvey(0), undefined);
+  context.surveyRoundsOpen['2'] = true;
+  assert.equal(context.openSurvey(0), 'opened');
+  assert.equal(context.openSurvey(1), undefined);
+  context.partCompleted = () => true;
+  assert.equal(context.openSurvey(1), 'opened');
+  context.serverStatusReady = false;
+  assert.equal(context.openSurvey(0), undefined);
+  context.window.AI_US_PREVIEW = true;
+  context.surveyRoundsOpen['2'] = false;
+  assert.equal(context.openSurvey(0), 'opened');
+});
+
 (async function runTests() {
   let failures = 0;
   for (const item of tests) {

@@ -87,6 +87,7 @@
   #chatImportDialog.error .chat-import-actions{grid-template-columns:1fr}
   .chat-import-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
   .chat-import-actions .btn{margin-top:0}
+  #autoApprovalDialog [hidden]{display:none!important}
   .chat-import-modal-progress{display:none;margin-top:16px;text-align:left}
   #chatImportDialog.busy .chat-import-modal-progress{display:block}
   .chat-import-summary{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#faf9fe;text-align:left;white-space:pre-line}
@@ -229,10 +230,13 @@
   .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
   .fgroup{display:flex;flex-direction:column;gap:6px}
   .fgroup label,.fgroup>span:first-child{font-size:.78rem;font-weight:700;color:var(--ink-2)}
-  .fgroup select,.fgroup input:not([type="checkbox"]){padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  .fgroup select,.fgroup input:not([type="checkbox"]),.round-config-select{padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;
     font-family:var(--fb);font-size:.9rem;color:var(--ink);min-width:130px}
-  .fgroup select{cursor:pointer}
-  .fgroup select:focus,.fgroup input:not([type="checkbox"]):focus{outline:none;border-color:var(--violet)}
+  .fgroup select,.round-config-select{cursor:pointer}
+  .fgroup select:focus,.fgroup input:not([type="checkbox"]):focus,.round-config-select:focus{outline:none;border-color:var(--violet)}
+  .round-config-select{width:260px;max-width:100%;min-height:44px}
+  .round-config-select:hover:not(:disabled){border-color:var(--violet)}
+  .round-config-select:disabled{background:#f7f6fc;color:var(--muted);cursor:not-allowed;opacity:1}
   .fgroup input[type="checkbox"]{width:16px;height:16px;min-width:0;margin:0;padding:0;accent-color:var(--violet);cursor:pointer;vertical-align:middle}
   .fgroup>span:last-child{display:inline-flex;align-items:center;gap:6px;min-height:45px;white-space:nowrap;font-family:var(--fb);font-size:.9rem;color:var(--ink)}
   .absent-version-select{width:680px;max-width:100%}
@@ -286,6 +290,11 @@
     .status-bar-row{grid-template-columns:42px minmax(70px,1fr) 90px}
   }
   @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.tabs-in{gap:18px}.absent-version-select{min-width:0;width:100%}.chat-selection-actions{width:100%;justify-content:flex-end}}
+  .round-state{display:inline-block;padding:4px 8px;border-radius:6px;background:#edf0f3;color:#596174;font-size:.72rem;font-weight:700;white-space:nowrap;vertical-align:middle}
+  .round-state[data-state="open"]{background:#dcfce7;color:#166534}
+  .round-state[data-state="closed"]{background:#fee2e2;color:#991b1b}
+  #panel-admission table{min-width:0;table-layout:auto}
+  #panel-admission th,#panel-admission td{white-space:nowrap;overflow-wrap:normal;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -369,6 +378,7 @@
         <button class="on" data-panel="apply" type="button"><span class="dot"></span>회원 신청</button>
         <button data-panel="status" type="button"><span class="dot"></span>참여 현황</button>
         <button data-panel="absent" type="button"><span class="dot"></span>미완료자 관리</button>
+        <button data-panel="admission" type="button"><span class="dot"></span>설문 접수 관리</button>
         <button data-panel="files" type="button"><span class="dot"></span>파일 관리</button>
         <button data-panel="download" type="button"><span class="dot"></span>결과 다운로드</button>
         <button data-panel="abuse" type="button"><span class="dot"></span>어뷰징 검토</button>
@@ -496,6 +506,18 @@
               <tbody id="incompleteBody">
                 <tr><td colspan="5">설문 버전을 불러오는 중이에요.</td></tr>
               </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-admission">
+          <h2>설문 접수 관리</h2>
+          <div class="filters"><button class="btn btn-ghost" id="roundSettingsRefresh" type="button">새로고침</button></div>
+          <p class="note" id="roundSettingsMessage" role="status" aria-live="polite"></p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>설문 회차</th><th>회차 상태</th><th>설문 구성</th><th>제출 허용</th><th>설문기간 종료</th><th>최종 변경 시각</th><th>변경자</th></tr></thead>
+              <tbody id="roundSettingsBody"><tr><td colspan="7">접수 상태를 불러오는 중이에요.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -665,6 +687,18 @@
     <button class="btn" id="transcriptDownloadClose" type="button" hidden>확인</button>
   </div>
 </div>
+<div class="server-backdrop" id="autoApprovalDialog" role="alertdialog" aria-modal="true" aria-labelledby="autoApprovalTitle" aria-describedby="autoApprovalMessage" tabindex="-1">
+  <div class="server-modal loading-modal">
+    <div class="spinner" id="autoApprovalSpinner" aria-hidden="true" hidden></div>
+    <h2 id="autoApprovalTitle">자동 승인 설정을 변경할까요?</h2>
+    <p id="autoApprovalMessage" aria-live="polite"></p>
+    <div class="chat-import-actions">
+      <button class="btn" id="autoApprovalYes" type="button">예</button>
+      <button class="btn btn-ghost" id="autoApprovalNo" type="button">아니오</button>
+    </div>
+    <button class="btn" id="autoApprovalClose" type="button" hidden>확인</button>
+  </div>
+</div>
 <div class="server-backdrop" id="reviewSaveDialog" role="alertdialog" aria-modal="true" aria-live="polite" aria-labelledby="reviewSaveTitle" aria-describedby="reviewSaveMessage">
   <div class="server-modal loading-modal">
     <div class="spinner" aria-hidden="true"></div>
@@ -704,6 +738,7 @@
   if(researcherDisplayRole)researcherDisplayRole.textContent=researcherRole==='admin'?'관리자':'연구원';
   function aiUsRequest(path,options){
     options=options||{};
+    var localErrorDialog=options.localErrorDialog===true;delete options.localErrorDialog;
     options.headers=options.headers||{};
     if(AI_US_ACCESS_TOKEN) options.headers.Authorization='Bearer '+AI_US_ACCESS_TOKEN;
     if(options.body && !(options.body instanceof FormData)){
@@ -714,7 +749,7 @@
       if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';}
       return response.json().catch(function(){return {};}).then(function(data){
         if(!response.ok){
-          if(response.status>=500) aiUsShowTemporaryIssue();
+          if(response.status>=500&&!localErrorDialog) aiUsShowTemporaryIssue();
           var error=new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));
           error.status=response.status;
           throw error;
@@ -722,7 +757,7 @@
         return data;
       });
     }).catch(function(error){
-      if(!error.status&&error.name!=='AbortError') aiUsShowTemporaryIssue();
+      if(!error.status&&error.name!=='AbortError'&&!localErrorDialog) aiUsShowTemporaryIssue();
       throw error;
     });
   }
@@ -801,7 +836,7 @@
   // ---- manage sidebar ----
   (function(){
     var btns=document.querySelectorAll('#side button');
-    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),absent:document.getElementById('panel-absent'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),abuse:document.getElementById('panel-abuse'),activity:document.getElementById('panel-activity')};
+    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),absent:document.getElementById('panel-absent'),admission:document.getElementById('panel-admission'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),abuse:document.getElementById('panel-abuse'),activity:document.getElementById('panel-activity')};
     btns.forEach(function(b){
       b.addEventListener('click',function(){
         btns.forEach(function(x){x.classList.remove('on');});
@@ -1573,17 +1608,63 @@
     var researcherRole=sessionStorage.getItem('ai_us_role');
     var filter='all';
 
+    var autoApprovalEnabled=false,autoApprovalLoaded=false,autoApprovalSaving=false,autoApprovalPending=null,autoApprovalInert=[],approvalChange=null;
+    var approvalDialog=document.getElementById('autoApprovalDialog'),approvalTitle=document.getElementById('autoApprovalTitle'),approvalMessage=document.getElementById('autoApprovalMessage');
+    var approvalYes=document.getElementById('autoApprovalYes'),approvalNo=document.getElementById('autoApprovalNo'),approvalClose=document.getElementById('autoApprovalClose'),approvalSpinner=document.getElementById('autoApprovalSpinner');
     function renderAutoApproval(enabled){
-      if(autoApprovalToggle){autoApprovalToggle.checked=enabled;autoApprovalToggle.disabled=researcherRole!=='admin';}
+      autoApprovalEnabled=enabled;
+      if(autoApprovalToggle){autoApprovalToggle.checked=enabled;autoApprovalToggle.disabled=researcherRole!=='admin'||!autoApprovalLoaded||autoApprovalPending!==null;}
       if(autoApprovalStatus)autoApprovalStatus.textContent=enabled?'사용 중':'꺼짐';
       if(autoApprovalNote)autoApprovalNote.textContent=enabled
         ? '새 신청자는 동의 확인 후 즉시 승인되어 초기 비밀번호 변경 화면으로 이동합니다.'
         : '새 신청자는 연구자 승인 후 로그인할 수 있습니다.';
     }
     function loadAutoApproval(){
-      aiUsRequest('/api/v1/researcher/application-settings').then(function(data){renderAutoApproval(data.autoApproval===true);})
+      aiUsRequest('/api/v1/researcher/application-settings').then(function(data){autoApprovalLoaded=true;renderAutoApproval(data.autoApproval===true);})
         .catch(function(){if(autoApprovalStatus)autoApprovalStatus.textContent='확인 실패';if(autoApprovalNote)autoApprovalNote.textContent='자동 승인 상태를 불러오지 못했습니다.';});
     }
+    function closeAutoApprovalDialog(){
+      if(autoApprovalSaving)return;
+      if(!approvalChange)return;
+      var change=approvalChange;approvalChange=null;approvalDialog.classList.remove('open');
+      autoApprovalInert.forEach(function(item){item.element.inert=item.inert;});autoApprovalInert=[];
+      change.onClose();
+    }
+    function openAutoApprovalDialog(enabled){
+      if(researcherRole!=='admin'||!autoApprovalLoaded||autoApprovalPending!==null||approvalChange){renderAutoApproval(autoApprovalEnabled);return;}
+      autoApprovalPending=enabled;renderAutoApproval(autoApprovalEnabled);
+      openSettingChangeDialog({
+        title:'자동 승인을 '+(enabled?'사용':'해제')+'할까요?',
+        message:enabled?'새 신청자는 동의 확인 후 즉시 승인됩니다. 기존 승인 대기 신청은 변경되지 않습니다.':'새 신청자는 연구자의 승인을 받은 뒤 로그인할 수 있습니다. 기존 승인 계정은 변경되지 않습니다.',
+        savingTitle:'자동 승인 설정을 저장하고 있어요',errorTitle:'자동 승인 설정을 저장하지 못했어요',
+        save:function(){return aiUsRequest('/api/v1/admin/application-settings',{method:'PUT',body:{autoApproval:enabled},localErrorDialog:true}).then(function(data){renderAutoApproval(data.autoApproval===true);});},
+        onClose:function(){autoApprovalPending=null;renderAutoApproval(autoApprovalEnabled);if(autoApprovalToggle&&autoApprovalToggle.isConnected)autoApprovalToggle.focus();}
+      });
+    }
+    function openSettingChangeDialog(change){
+      if(researcherRole!=='admin'||approvalChange)return false;
+      approvalChange=change;approvalTitle.textContent=change.title;approvalMessage.textContent=change.message;
+      approvalYes.hidden=false;approvalNo.hidden=false;approvalClose.hidden=true;approvalSpinner.hidden=true;
+      Array.prototype.forEach.call(document.body.children,function(element){if(element!==approvalDialog){autoApprovalInert.push({element:element,inert:element.inert});element.inert=true;}});
+      approvalDialog.classList.add('open');approvalNo.focus();
+      return true;
+    }
+    window.aiUsConfirmSettingChange=openSettingChangeDialog;
+    function saveAutoApproval(){
+      if(autoApprovalSaving||!approvalChange||researcherRole!=='admin')return;
+      autoApprovalSaving=true;approvalYes.hidden=true;approvalNo.hidden=true;approvalSpinner.hidden=false;
+      approvalTitle.textContent=approvalChange.savingTitle;approvalMessage.textContent='잠시만 기다려 주세요.';approvalDialog.focus();
+      return approvalChange.save()
+        .then(function(){autoApprovalSaving=false;closeAutoApprovalDialog();})
+        .catch(function(error){autoApprovalSaving=false;approvalSpinner.hidden=true;approvalTitle.textContent=approvalChange.errorTitle;approvalMessage.textContent=error.message;approvalClose.hidden=false;approvalClose.focus();});
+    }
+    if(approvalYes)approvalYes.addEventListener('click',saveAutoApproval);
+    if(approvalNo)approvalNo.addEventListener('click',closeAutoApprovalDialog);
+    if(approvalClose)approvalClose.addEventListener('click',closeAutoApprovalDialog);
+    if(approvalDialog)approvalDialog.addEventListener('keydown',function(event){
+      if(event.key==='Escape'){event.preventDefault();closeAutoApprovalDialog();}
+      if(event.key==='Tab'){event.preventDefault();if(autoApprovalSaving){approvalDialog.focus();return;}if(!approvalClose.hidden){approvalClose.focus();return;}var target=document.activeElement===approvalYes?approvalNo:approvalYes;target.focus();}
+    });
 
     function levelOf(grade){
       var g=grade||'';
@@ -1664,12 +1745,7 @@
     document.getElementById('approveSel').addEventListener('click',function(){ approve(checkedIdx()); });
     if(autoApprovalToggle)autoApprovalToggle.addEventListener('change',function(){
       var enabled=autoApprovalToggle.checked;
-      if(researcherRole!=='admin'){autoApprovalToggle.checked=!enabled;return;}
-      if(!confirm('자동 승인을 '+(enabled?'사용':'해제')+'할까요?')){autoApprovalToggle.checked=!enabled;return;}
-      autoApprovalToggle.disabled=true;
-      aiUsRequest('/api/v1/admin/application-settings',{method:'PUT',body:{autoApproval:enabled}})
-        .then(function(data){renderAutoApproval(data.autoApproval===true);})
-        .catch(function(error){alert(error.message);renderAutoApproval(!enabled);});
+      openAutoApprovalDialog(enabled);
     });
     document.getElementById('approveAll').addEventListener('click',function(){
       var pend=applications.map(function(a,i){
@@ -1702,6 +1778,71 @@
     loadAutoApproval();
     loadApplications();
   })();
+
+  function initSurveyRoundSettings(){
+    var body=document.getElementById('roundSettingsBody'),refresh=document.getElementById('roundSettingsRefresh'),message=document.getElementById('roundSettingsMessage');
+    if(!body)return;
+    var role=sessionStorage.getItem('ai_us_role'),records=[],loaded=false,loading=false,busy=false;
+    function escapeValue(value){return String(value==null?'':value).replace(/[&<>"']/g,function(character){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character];});}
+    function render(){
+      refresh.disabled=loading||busy;
+      body.innerHTML=records.length?records.map(function(record){
+        var date=record.updatedAt?new Date(record.updatedAt):null;
+        var changed=date&&!isNaN(date.getTime())?date.toLocaleString('ko-KR'):'-';
+        var locked=role!=='admin'||!loaded||loading||busy,round=record.surveyRound;
+        var options=record.configurations||[],labels={preparing:'준비 중',open:'접수 중',closed:'접수 종료'};
+        return '<tr><td>'+round+'회차</td><td><span class="round-state" data-state="'+record.state+'">'+labels[record.state]+'</span></td>'
+          +'<td><select id="roundConfig'+round+'" class="round-config-select" data-round="'+round+'" data-round-setting="configurationId" aria-label="'+round+'회차 설문 구성"'+(locked||!options.length?' disabled':'')+'><option value=""'+(!record.configurationId?' selected':'')+'>설문 준비 중</option>'
+          +options.map(function(option){return '<option value="'+escapeValue(option.id)+'" title="'+escapeValue(option.versions.map(function(version){return version.surveyVersion;}).join(' / '))+'"'+(record.configurationId===option.id?' selected':'')+'>'+escapeValue(option.label)+'</option>';}).join('')+'</select></td>'
+          +'<td><label class="approval-switch"><input id="roundOpen'+round+'" data-round="'+round+'" data-round-setting="isOpen" aria-label="'+round+'회차 제출 허용" type="checkbox"'+(record.submissionAllowed?' checked':'')+(locked||!record.configurationId||record.periodEnded?' disabled':'')+'><span>'+(record.submissionAllowed?'켜짐':'꺼짐')+'</span></label></td>'
+          +'<td><label class="approval-switch"><input id="roundEnded'+round+'" data-round="'+round+'" data-round-setting="periodEnded" aria-label="'+round+'회차 설문기간 종료" type="checkbox"'+(record.periodEnded?' checked':'')+(locked||!record.configurationId?' disabled':'')+'><span>'+(record.periodEnded?'켜짐':'꺼짐')+'</span></label></td>'
+          +'<td>'+escapeValue(changed)+'</td><td>'+escapeValue(record.updatedBy||'-')+'</td></tr>';
+      }).join(''):'<tr><td colspan="7">'+(loading?'접수 상태를 불러오는 중이에요.':'접수 상태를 확인할 수 없습니다.')+'</td></tr>';
+      body.querySelectorAll('[data-round-setting]').forEach(function(control){control.addEventListener('change',function(){changeRound(Number(control.dataset.round),control);});});
+    }
+    function load(){
+      if(loading||busy||!['admin','researcher'].includes(role))return;
+      loading=true;loaded=false;message.textContent='';render();
+      return aiUsRequest('/api/v1/researcher/survey-round-settings').then(function(data){
+        if(!Array.isArray(data)||data.length!==4||[1,2,3,4].some(function(round){return data.filter(function(record){return record.surveyRound===round&&typeof record.isOpen==='boolean'&&typeof record.submissionAllowed==='boolean'&&typeof record.periodEnded==='boolean'&&Array.isArray(record.configurations)&&['preparing','open','closed'].includes(record.state);}).length!==1;}))throw new Error('접수 상태를 확인할 수 없습니다.');
+        records=data.slice().sort(function(left,right){return left.surveyRound-right.surveyRound;});loaded=true;
+        message.textContent=role==='admin'?'':'조회 전용';
+      }).catch(function(error){message.textContent=error.message;}).finally(function(){loading=false;render();});
+    }
+    function changeRound(round,control){
+      var record=records.find(function(item){return item.surveyRound===round;}),field=control.dataset.roundSetting;
+      var value=field==='configurationId'?(control.value||null):control.checked;
+      var previous=record&&(field==='isOpen'?record.submissionAllowed:record[field]);
+      if(record){if(field==='configurationId')control.value=previous||'';else control.checked=previous;}
+      if(!record||role!=='admin'||!loaded||loading||busy||value===previous||control.disabled)return;
+      var title,messageText;
+      if(field==='configurationId'){
+        title=round+'회차 설문 구성을 변경할까요?';
+        messageText=value?'선택한 문항 버전을 적용합니다.'+(record.submissionAllowed&&!record.periodEnded?' 접수도 재개됩니다.':''):'설문 준비 중으로 전환하여 진행 저장과 최종 제출을 차단합니다.';
+      }else if(field==='periodEnded'){
+        title=round+'회차 설문기간 종료를 '+(value?'처리':'해제')+'할까요?';
+        messageText=value?'설문기간을 종료하고 제출 허용도 함께 끕니다.':'종료 처리를 해제합니다. 제출은 자동 재개되지 않으며 제출 허용을 별도로 켜야 합니다.';
+      }else{
+        title=round+'회차 제출을 '+(value?'허용':'중지')+'할까요?';
+        messageText=value?'해당 회차의 진행 저장과 최종 제출을 허용합니다.':'진행 저장과 최종 제출을 중지합니다. 설문기간 종료로 처리하지는 않습니다.';
+      }
+      busy=true;render();
+      var opened=window.aiUsConfirmSettingChange({
+        title:title,message:messageText+' 기존 응답과 완료 기록은 유지됩니다.',
+        savingTitle:'설문 접수 설정을 저장하고 있어요',errorTitle:'설문 접수 설정을 저장하지 못했어요',
+        save:function(){var changes={};changes[field]=value;return aiUsRequest('/api/v1/admin/survey-round-settings/'+round,{method:'PUT',body:changes,localErrorDialog:true}).then(function(data){
+          if(!data||data.surveyRound!==round||typeof data.isOpen!=='boolean')throw new Error('저장 결과를 확인할 수 없습니다. 접수 상태를 새로고침해 주세요.');
+          records=records.map(function(item){return item.surveyRound===round?data:item;});render();
+        });},
+        onClose:function(){busy=false;render();var target=document.getElementById((field==='configurationId'?'roundConfig':field==='periodEnded'?'roundEnded':'roundOpen')+round);if(target&&!target.disabled)target.focus();else refresh.focus();}
+      });
+      if(!opened){busy=false;render();}
+    }
+    refresh.addEventListener('click',load);
+    var navigation=document.querySelector('#side [data-panel="admission"]');
+    if(navigation)navigation.addEventListener('click',load);
+  }
+  initSurveyRoundSettings();
 </script>
 </body>
 </html>

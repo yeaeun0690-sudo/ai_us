@@ -123,15 +123,16 @@ test('preview refresh never reads or changes a real participant session', async 
   assert.equal(await vm.runInNewContext(refresh + '\naiUsMaybeRefreshParticipantSession();', context), false);
 });
 
-test('only heartbeat and partial progress suppress network and server error dialogs', async () => {
-  for (const endpoint of ['/api/v1/participant/survey-sessions/heartbeat', '/api/v1/survey-progress', '/api/v1/survey-responses', '/api/v1/auth/participant/login', '/api/v1/chat-submissions/uploads']) {
+test('locally handled status, session and progress errors do not duplicate a global error dialog', async () => {
+  const quiet = ['/api/v1/participant/survey-sessions/heartbeat', '/api/v1/survey-progress', '/api/v1/participant/survey-status', '/api/v1/participant/survey-configurations/2', '/api/v1/auth/participant/refresh'];
+  for (const endpoint of [...quiet, '/api/v1/survey-responses', '/api/v1/auth/participant/login', '/api/v1/chat-submissions/uploads']) {
     for (const status of [0, 401, 403, 503]) {
       const { context, state } = requestContext();
       context.fetch = () => status
         ? Promise.resolve({ ok: false, status, json: async () => ({ detail: 'failure' }) })
         : Promise.reject(new TypeError('network'));
       await assert.rejects(context.aiUsRequest(endpoint));
-      assert.equal(state.alerts, endpoint.endsWith('/heartbeat') || endpoint.endsWith('/survey-progress') || status === 401 || status === 403 ? 0 : 1);
+      assert.equal(state.alerts, quiet.includes(endpoint) || status === 401 || status === 403 ? 0 : 1);
     }
   }
 });
@@ -148,16 +149,18 @@ test('heartbeat preserves request payload, authorization and refresh after recov
   assert.equal(state.alerts, 0);
 });
 
-test('pre-request token refresh and expired-session rejection are preserved', async () => {
-  for (const refreshed of [true, false]) {
+test('pre-request refresh distinguishes actual expiry from a connection failure', async () => {
+  for (const outcome of ['refreshed', 'expired', 'offline']) {
+    const refreshed = outcome === 'refreshed';
     const { context, state, values } = requestContext();
     values.set('ai_us_access_token', 'expired-test-token');
     values.set('ai_us_role', 'participant');
+    if (outcome === 'expired') values.set('ai_us_session_expired', 'true');
     context.aiUsParticipantTokenExpiresSoon = token => token === 'expired-test-token';
     context.aiUsMaybeRefreshParticipantSession = () => { state.refreshes++; if (refreshed) values.set('ai_us_access_token', 'new-test-token'); return Promise.resolve(refreshed); };
     const pending = context.aiUsRequest('/api/v1/participant/survey-sessions/heartbeat', { headers: { Authorization: 'Bearer expired-test-token' } });
     if (refreshed) { await pending; assert.equal(state.calls[0].options.headers.Authorization, 'Bearer new-test-token'); }
-    else { await assert.rejects(pending, error => error.status === 401); assert.equal(state.calls.length, 0); }
+    else { await assert.rejects(pending, error => error.status === (outcome === 'expired' ? 401 : 503)); assert.equal(state.calls.length, 0); }
   }
 });
 
@@ -235,6 +238,91 @@ for (const specs of Object.values(definitions)) for (const spec of specs) {
 
 const t2Definitions = vm.runInNewContext('(' + current.match(/var SURVEY_SETS_T2=([\s\S]*?);\n\s*var SURVEY_ROUND=/)[1] + ')').common;
 
+test('restored participant sessions validate with the server and preserve profile and drafts', async () => {
+  for (const needsPasswordChange of [false, true]) {
+    const storage = new Map([['ai_us_access_token', 'saved-token'], ['ai_us_role', 'participant'], ['ai_us_profile_grade', '5']]);
+    let opened = 0, passwordPrompt = 0, calls = 0;
+    const context = vm.createContext({
+      window: {}, participantRestoreInFlight: null, participantSessionNeedsValidation: false,
+      sessionStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
+      aiUsRequest: async (requestPath, options) => {
+        calls++;assert.equal(requestPath, '/api/v1/auth/participant/refresh');assert.equal(options.headers.Authorization, 'Bearer saved-token');
+        return { accessToken: 'validated-token', role: 'participant', audience: 'elementary', chatConsent: true, needsPasswordChange };
+      },
+      getAudience: () => 'elementary', applyChatConsent() {}, closeLogin() {}, updateSurveyRetryButton() {},
+      openSurveys() { opened++; }, openFirstPasswordChange() { passwordPrompt++; },
+    });
+    vm.runInContext(slice(current, '    function restoreParticipantSession()', '    function openSurveys('), context);
+    await Promise.all([context.restoreParticipantSession(), context.restoreParticipantSession()]);
+    assert.equal(calls, 1);
+    assert.equal(storage.get('ai_us_access_token'), 'validated-token');
+    assert.equal(storage.get('ai_us_profile_grade'), '5');
+    assert.equal(opened, needsPasswordChange ? 0 : 1);
+    assert.equal(passwordPrompt, needsPasswordChange ? 1 : 0);
+    context.window.AI_US_PREVIEW = true;
+    assert.equal(await context.restoreParticipantSession(), false);
+    assert.equal(calls, 1);
+  }
+});
+
+test('session restore retains offline sessions but sends actual authentication failures to login', async () => {
+  for (const status of [0, 401, 403]) {
+    const values = new Map([['ai_us_access_token', 'saved-token'], ['ai_us_role', 'participant'], ['ai_us_profile_grade', '5']]);
+    let listShown = 0, loginShown = 0;
+    const context = vm.createContext({
+      window: {}, participantRestoreInFlight: null, participantSessionNeedsValidation: false,
+      sessionStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) },
+      aiUsRequest: () => Promise.reject(Object.assign(new Error('unavailable'), { status })),
+      surveys: { classList: { add() { listShown++; } } }, document: { body: { style: {} } },
+      updatePartButtons() {}, updateSurveyRetryButton() {}, closeSurveys() {},
+      openLogin() { loginShown++; }, showErr() {},
+    });
+    vm.runInContext(slice(current, '    function requestParticipantLogin()', '    function updateSurveyRetryButton('), context);
+    vm.runInContext(slice(current, '    function restoreParticipantSession()', '    function openSurveys('), context);
+    assert.equal(await context.restoreParticipantSession(), false);
+    assert.equal(values.has('ai_us_access_token'), status === 0);
+    assert.equal(context.participantSessionNeedsValidation, status === 0);
+    assert.equal(listShown, status === 0 ? 1 : 0);
+    assert.equal(loginShown, status === 0 ? 0 : 1);
+    assert.equal(values.get('ai_us_profile_grade'), '5');
+  }
+});
+
+test('failed status lookup retries once, keeps its busy control, and survives token rotation', async () => {
+  const values = new Map([['ai_us_access_token', 'token-1'], ['ai_us_participant_phone', 'synthetic-participant']]);
+  const button = { hidden: true, setAttribute(name, value) { this[name] = value; } };
+  let complete, requests = 0;
+  const context = vm.createContext({
+    window: {}, serverStatusInFlight: null, participantRestoreInFlight: null, participantSessionNeedsValidation: false,
+    serverCompletedVersions: {}, serverVersionsByRound: {}, serverCompletedRounds: [], serverStatusReady: false,
+    serverStatusFailed: false, surveyRoundStates: {}, surveyRoundsOpen: {}, t1SubmissionsOpen: false,
+    sessionStorage: { getItem: key => values.get(key) || null },
+    document: { getElementById: () => button },
+    loadSurveyConfigurations: () => Promise.resolve(),
+    aiUsRequest: () => { requests++; return new Promise(resolve => { complete = resolve; }); },
+    updatePartButtons() { context.updateSurveyRetryButton(); },
+  });
+  vm.runInContext(slice(current, '    function loadServerSurveyProgress()', '    function restoreParticipantSession('), context);
+  context.aiUsRequest = () => { requests++; return Promise.reject(new Error('offline')); };
+  await context.loadServerSurveyProgress();
+  assert.equal(context.serverStatusFailed, true);
+  assert.equal(button.hidden, false);
+  context.aiUsRequest = () => { requests++; return new Promise(resolve => { complete = resolve; }); };
+  const pending = context.retrySurveyStatus();
+  context.retrySurveyStatus();
+  assert.equal(requests, 2, 'double click must not send another request');
+  assert.equal(button.hidden, false);
+  assert.equal(button.disabled, true);
+  assert.equal(button['aria-busy'], 'true');
+  values.set('ai_us_access_token', 'token-2');
+  complete({ t1SubmissionsOpen: false, completedVersionsByRound: { '2': ['part1'] } });
+  await pending;
+  assert.equal(context.serverStatusReady, true, 'same participant token rotation is not logout');
+  assert.equal(context.serverCompletedVersions.part1, true);
+  assert.equal(button.hidden, true);
+  assert.equal(button.disabled, false);
+});
+
 test('AI ranks reject duplicate names but allow repeated none and distinct other names', () => {
   const spec = t2Definitions[0], dom = fixture(spec);
   const { context } = surveyContext(current, spec, dom);
@@ -246,6 +334,16 @@ test('AI ranks reject duplicate names but allow repeated none and distinct other
   assert.equal(answered([question.source[0], question.noneOption, question.noneOption]), true);
   assert.equal(answered(['Custom AI 1', 'Custom AI 2', question.source[0]]), true);
   assert.equal(answered([question.source[0], question.source[1]]), false);
+  for (const source of question.source) {
+    const english = source.split(' (')[0], korean = source.match(/\(([^()]+)\)/)[1];
+    for (const alias of [english.toUpperCase(), english.toLowerCase(), source.toUpperCase(), ' ' + korean + ' ']) {
+      assert.equal(answered([source, alias, question.noneOption]), false, source + ' matches ' + alias);
+    }
+    assert.equal(answered([english, korean, question.noneOption]), false, 'English and Korean aliases resolve to the same AI');
+  }
+  assert.equal(answered([question.source[0], ' cHaTgPt ', question.noneOption]), false);
+  assert.equal(answered([question.source[1], ' gEmInI ', question.noneOption]), false);
+  assert.equal(answered(['챗지피티', '제미나이', '클로드']), true, 'different Korean aliases remain distinct');
 });
 
 test('rank choices unlock on change, keep none repeatable and flag duplicate restored or other answers', () => {
@@ -288,6 +386,18 @@ test('rank choices unlock on change, keep none repeatable and flag duplicate res
   context.updateRankQuestion(question);
   assert.ok(errors.every(error => error.hidden));
   assert.equal(controls[0]['aria-invalid'], 'false');
+  controls[0].value = question.source[1];
+  const other = dom.selectors.get('[data-rank-other="' + question.key + '"][data-slot="2"]')[0];
+  other.value = ' 제미나이 ';
+  context.updateRankQuestion(question);
+  assert.equal(errors[0].hidden, false);
+  assert.equal(errors[1].hidden, false);
+  assert.equal(controls[1]['aria-invalid'], 'true');
+  assert.equal(other.value, ' 제미나이 ', 'preserve duplicate text for correction');
+  controls[0].value = question.noneOption;
+  context.updateRankQuestion(question);
+  assert.ok(errors.every(error => error.hidden));
+  assert.equal(option(2, question.source[1]).disabled, true, 'Korean other text locks the matching dropdown choice');
 });
 
 test('max-selection feedback stays next to the rejected choice and clears after deselection', () => {
@@ -396,7 +506,7 @@ test('round admission locks both parts, preserves completed labels and enforces 
   const context = vm.createContext({
     window: {}, SURVEY_ROUND: 2, SURVEY_PARTS: [], serverStatusReady: true,
     surveyRoundsOpen: { '1': false, '2': false }, partsForRound: () => [], updateRoundProgress() {},
-    surveyRoundStates: { '1': 'closed', '2': 'closed' }, serverStatusFailed: false,
+    surveyRoundStates: { '1': 'closed', '2': 'closed' }, serverStatusFailed: false, updateSurveyRetryButton() {},
     roundPartCompleted: (round, part) => completed.has(round + ':' + part),
     document: { getElementById: () => null, querySelector(selector) { const match = selector.match(/data-round="(\d)"\]\[data-part="(\d)"/); return match ? buttons.get(match[1] + ':' + match[2]) : null; } },
   });
@@ -425,10 +535,11 @@ test('round admission locks both parts, preserves completed labels and enforces 
 test('participant status uses DB round map, supports old backend and fails closed on lookup error', async () => {
   const context = vm.createContext({
     window: {}, sessionStorage: { getItem: () => 'synthetic-token' },
+    document: { getElementById: () => null },
     serverCompletedVersions: {}, serverVersionsByRound: {}, serverCompletedRounds: [],
     serverStatusReady: false, surveyRoundsOpen: {}, t1SubmissionsOpen: false,
-    serverStatusFailed: false, surveyRoundStates: {}, loadSurveyConfigurations: () => Promise.resolve(),
-    updatePartButtons() {},
+    serverStatusFailed: false, surveyRoundStates: {}, loadSurveyConfigurations: () => Promise.resolve(), serverStatusInFlight: null,
+    updatePartButtons() {}, updateSurveyRetryButton() {},
     aiUsRequest: () => Promise.resolve({ completedVersionsByRound: { '2': ['part1'] }, completedRounds: [], t1SubmissionsOpen: false, surveyRoundsOpen: { '1': false, '2': false, '3': true, '4': false } }),
   });
   vm.runInContext(slice(current, '    function loadServerSurveyProgress()', '    function openSurveys('), context);
@@ -455,8 +566,13 @@ test('selected DB configurations load in part order, cache by versions and do no
   const definitions = versions.map(version => ({ ...version, surveyRound: 2, spec: { scales: [{ scaleId: 'selected', questions: [] }] } })).reverse();
   const context = vm.createContext({
     configuredSurveyParts: {}, configurationSignatures: {}, window: {}, getAudience: () => 'secondary',
+    sessionStorage: { getItem: key => key === 'ai_us_access_token' ? 'synthetic-token' : null },
     SURVEY_SETS_T2: { common: [{ marker: 'embedded' }] }, SURVEY_SETS: { elementary: [] },
-    aiUsRequest: requestPath => { calls.push(requestPath); return Promise.resolve(definitions); },
+    aiUsRequest: (requestPath, options) => {
+      assert.equal(options.headers.Authorization, 'Bearer synthetic-token', 'selected survey definitions require participant authentication');
+      calls.push(requestPath);
+      return Promise.resolve(definitions);
+    },
   });
   vm.runInContext(slice(current, '    function loadSurveyConfigurations(', '    function loadServerSurveyProgress('), context);
   vm.runInContext(slice(current, '    function partsForRound(', '    function roundPartCompleted('), context);

@@ -484,7 +484,7 @@
             </div>
             <div class="fgroup" id="incompleteChatFilter" hidden>
               <label for="incompleteChatPoint">대화문 제출 시점</label>
-              <select id="incompleteChatPoint"><option value="afterRound1">1차 후</option><option value="afterRound4">4차 후</option></select>
+              <select id="incompleteChatPoint"><option value="afterRound1">1차 후</option><option value="afterRound2">2차 후</option><option value="afterRound3">3차 후</option><option value="afterRound4">4차 후</option></select>
             </div>
             <div class="fgroup"><label for="incompleteSchoolLevel">학교급</label><select id="incompleteSchoolLevel"><option value="">전체</option><option>초등</option><option>중등</option><option>고등</option></select></div>
             <button class="btn btn-ghost" id="absentDownload" type="button" disabled>⬇ 미완료자 CSV 다운로드</button>
@@ -507,7 +507,7 @@
             <h3>대화문 강제 등록</h3>
             <div class="filters">
               <div class="fgroup"><label for="takeoutPhone">참여자 휴대폰</label><input id="takeoutPhone" type="tel" inputmode="numeric" placeholder="01012345678" required></div>
-              <div class="fgroup"><label for="takeoutPoint">제출 시점</label><select id="takeoutPoint"><option value="afterRound1">1차 후</option><option value="afterRound4">4차 후</option></select></div>
+              <div class="fgroup"><label for="takeoutPoint">제출 시점</label><select id="takeoutPoint"><option value="afterRound1">1차 후</option><option value="afterRound2">2차 후</option><option value="afterRound3">3차 후</option><option value="afterRound4">4차 후</option></select></div>
               <div class="fgroup"><label for="takeoutTool">서비스</label><select id="takeoutTool"><option value="chatgpt">ChatGPT</option><option value="gemini">Gemini</option><option value="claude">Claude</option><option value="grok">Grok</option><option value="zeta">제타</option><option value="crack">크랙</option><option value="other">기타 캐릭터AI 챗봇</option></select></div>
               <div class="fgroup"><label for="takeoutFile" id="takeoutFileLabel">내보내기 ZIP</label><input id="takeoutFile" type="file" accept=".zip,application/zip" required></div>
               <button class="btn" id="takeoutSubmit" type="submit">등록 처리</button>
@@ -549,6 +549,7 @@
                 <select id="fFmt"><option>CSV (엑셀)</option><option>Excel(.xlsx)</option></select>
               </div>
               <button class="btn" id="dlBtn" type="button">⬇ 설문 결과 내려받기</button>
+              <button class="btn" id="dlProgressBtn" type="button">⬇ 부분 응답 CSV</button>
             </div>
             <p class="sub">선택: <b id="dlSummary">전체 회차 · 전체 학교급</b> · 미리보기 아래 표 참고</p>
 
@@ -566,7 +567,7 @@
             <div class="filters">
               <div class="fgroup">
                 <label for="cRound">제출 회차</label>
-                <select id="cRound"><option>전체</option><option>대화문 1 (1차 후)</option><option>대화문 2 (4차 후)</option></select>
+                <select id="cRound"><option>전체</option><option>대화문 1 (1차 후)</option><option>2차 후 제출</option><option>3차 후 제출</option><option>대화문 2 (4차 후)</option></select>
               </div>
               <div class="fgroup">
                 <label for="cGrade">학교급</label>
@@ -1261,7 +1262,7 @@
     var summary=document.getElementById('dlSummary');
     var version=document.getElementById('fVersion'), previewBody=document.getElementById('surveyPreviewBody');
     var includeLegacy=document.getElementById('includeLegacyVersions');
-    function audienceLabel(audience){return audience==='secondary'?'중고등':audience==='elementary'?'초등':'대상 미지정';}
+    function audienceLabel(audience){return audience==='secondary'?'중고등':audience==='elementary'?'초등':audience==='all'?'공통':'대상 미지정';}
     function optionLabel(definition){
       var part=definition.part?' · 파트'+definition.part:'';
       var label=audienceLabel(definition.audience)+part+' ('+definition.surveyVersion+')';
@@ -1310,6 +1311,14 @@
       var path='/api/v1/researcher/exports/survey-responses?survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter;
       runAdminDownload(this,'설문 결과를 준비하고 있어요',function(){return downloadAdminFile(path,'설문결과_'+match[0]+'_'+selectedVersion+'.csv');});
     });
+    var progressDownload=document.getElementById('dlProgressBtn');
+    if(progressDownload)progressDownload.addEventListener('click',function(){
+      var match=round.value.match(/\d+/),selectedVersion=version.value.trim();
+      if(!match||!selectedVersion){alert('회차와 설문 버전을 선택해 주세요.');return;}
+      var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
+      var path='/api/v1/researcher/survey-progress?format=csv&survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter;
+      runAdminDownload(this,'부분 응답을 준비하고 있어요',function(){return downloadAdminFile(path,'부분응답_'+match[0]+'_'+selectedVersion+'.csv');});
+    });
   })();
   // ---- live participation status and nonparticipants ----
   (function(){
@@ -1334,9 +1343,9 @@
       if(surveyBody){
         surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
       }
-      var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round4=chat.submittedAfterRound4||{};
+      var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round2=chat.submittedAfterRound2||{},round3=chat.submittedAfterRound3||{},round4=chat.submittedAfterRound4||{};
       var chatChart=document.getElementById('statusChatChart');
-      if(chatChart){chatChart.innerHTML=[['제출 동의',consented,''],['1차 후 제출',round1,'afterRound1'],['4차 후 제출',round4,'afterRound4']].map(function(item){var label=item[2]?'<button class="linkbtn status-round-label" data-incomplete-category="chat" data-incomplete-criterion="'+item[2]+'" type="button">'+item[0]+'</button>':'<div class="status-round-label">'+item[0]+'</div>';return '<div class="status-round">'+label+'<div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
+      if(chatChart){chatChart.innerHTML=[['제출 동의',consented,''],['1차 후 제출',round1,'afterRound1'],['2차 후 제출',round2,'afterRound2'],['3차 후 제출',round3,'afterRound3'],['4차 후 제출',round4,'afterRound4']].map(function(item){var label=item[2]?'<button class="linkbtn status-round-label" data-incomplete-category="chat" data-incomplete-criterion="'+item[2]+'" type="button">'+item[0]+'</button>':'<div class="status-round-label">'+item[0]+'</div>';return '<div class="status-round">'+label+'<div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
       [['statusChatConsented',consented.total],['statusChatRound1',round1.total],['statusChatRound4',round4.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
     }).catch(function(error){var surveyBody=document.getElementById('statusSurveyBody');if(surveyBody)surveyBody.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     function formatPhone(phone){
@@ -1386,7 +1395,7 @@
       runAdminDownload(this,'미완료자 목록을 준비하고 있어요',function(){
       var head=['이름','학교급','학년','휴대폰번호','구분','기준','상태'];
       var statusLabel=incompleteReport.category==='survey'?'설문 미완료':'대화문 미제출';
-      var criterionLabel=incompleteReport.category==='survey'?incompleteReport.criterion+'회차':(incompleteReport.criterion==='afterRound1'?'1차 후':'4차 후');
+      var criterionLabel=incompleteReport.category==='survey'?incompleteReport.criterion+'회차':incompleteReport.criterion.replace('afterRound','')+'차 후';
       var rows=incompleteReport.participants.map(function(participant){
         return [participant.name||'',participant.schoolLevel||'',participant.grade||'',formatPhone(participant.phone),incompleteReport.category,criterionLabel,statusLabel];
       });
@@ -1416,12 +1425,14 @@
       var path='/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/latest-parse/download?format='+format;
       runAdminDownload(button,'대화문 파일을 준비하고 있어요',function(){return downloadAdminFile(path,'transcript-'+button.dataset.id+'_'+formatKstFilenameTimestamp()+'.'+format);});
     });
-    function pointLabel(p){return p==='afterRound1'?'대화문 1 (1차 후)':p==='afterRound4'?'대화문 2 (4차 후)':(p||'-');}
+    function pointLabel(p){return p==='afterRound1'?'대화문 1 (1차 후)':p==='afterRound4'?'대화문 2 (4차 후)':/^afterRound[23]$/.test(p)?p.replace('afterRound','')+'차 후 제출':(p||'-');}
     function sourceTag(s){return s==='image'?'🖼 이미지':s==='file'?'📦 ZIP 파일':(s||'-');}
     function filterParams(){
       var params=new URLSearchParams();
       if(cRound.value==='대화문 1 (1차 후)')params.set('submission_point','afterRound1');
       if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
+      if(cRound.value==='2차 후 제출')params.set('submission_point','afterRound2');
+      if(cRound.value==='3차 후 제출')params.set('submission_point','afterRound3');
       if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
       params.set('review_filter',cReview.value);
       return params;
@@ -1430,6 +1441,8 @@
       var payload={submissionIds:selectAllFiltered?[]:ids};
       if(cRound.value==='대화문 1 (1차 후)')payload.submissionPoint='afterRound1';
       if(cRound.value==='대화문 2 (4차 후)')payload.submissionPoint='afterRound4';
+      if(cRound.value==='2차 후 제출')payload.submissionPoint='afterRound2';
+      if(cRound.value==='3차 후 제출')payload.submissionPoint='afterRound3';
       if(cGrade.value!=='전체')payload.schoolLevel=cGrade.value;
       payload.reviewFilter=cReview.value;
       return payload;
@@ -1438,6 +1451,8 @@
       var params=new URLSearchParams();
       if(cRound.value==='대화문 1 (1차 후)')params.set('submission_point','afterRound1');
       if(cRound.value==='대화문 2 (4차 후)')params.set('submission_point','afterRound4');
+      if(cRound.value==='2차 후 제출')params.set('submission_point','afterRound2');
+      if(cRound.value==='3차 후 제출')params.set('submission_point','afterRound3');
       if(cGrade.value!=='전체')params.set('school_level',cGrade.value);
       return params;
     }

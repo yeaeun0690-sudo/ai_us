@@ -80,7 +80,9 @@ test('entire inline script parses and obsolete download paths are gone', () => {
   }
   assert.equal((helper.match(/fetch\(/g) || []).length, 1);
   assert.equal(/fetch\([^\n]*(?:latest-parse\/download|files\/[^\n]*\/download|transcript-download-jobs|download-jobs)/.test(script), false);
-  assert.equal((script.match(/runAdminDownload\(/g) || []).length, 11);
+  assert.equal((script.match(/runAdminDownload\(/g) || []).length, 12);
+  assert.match(script, /researcher\/survey-progress\?format=csv/);
+  assert.match(script, /progressDownload\.addEventListener\('click',[\s\S]*?runAdminDownload\(this,[\s\S]*?downloadAdminFile\(path/);
 });
 
 test('local generation paints first, locks all buttons, and restores inert/focus', async () => {

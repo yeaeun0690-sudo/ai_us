@@ -451,10 +451,37 @@ test('T2 required reasons, integer amounts and max selections are enforced', () 
   assert.equal(context.isAnswered(max, { 'usetype.C1': [1, 2, 3] }), true);
 });
 
+test('T2 gift preference is required, single-choice and immediately precedes the unchanged followup', () => {
+  const spec = t2Definitions[1], dom = fixture(spec);
+  const { context } = surveyContext(current, spec, dom);
+  const rewardIndex = spec.scales.findIndex(scale => scale.scaleId === 'reward');
+  assert.equal(spec.scales[rewardIndex + 1].scaleId, 'followup');
+  const question = spec.scales[rewardIndex].questions[0];
+  assert.equal(question.key, 'reward.gifticon');
+  assert.equal(question.required, true);
+  assert.equal(question.type, 'single');
+  assert.equal(JSON.stringify(question.options.map(option => option.value)), '[1,2,3,4,5]');
+  assert.match(question.helper.join(' '), /다음 평일/);
+  const radios = dom.selectors.get('input[name="reward.gifticon"]');
+  radios.forEach(control => { control.checked = false; });
+  assert.equal(context.isAnswered(question, context.collectAnswers()), false);
+  for (const option of question.options) {
+    radios.forEach(control => { control.checked = Number(control.value) === option.value; });
+    const answers = context.collectAnswers();
+    assert.equal(answers['reward.gifticon'], option.value);
+    assert.equal(context.isAnswered(question, answers), true);
+  }
+  const followup = spec.scales[rewardIndex + 1].questions[0];
+  assert.equal(followup.key, 'followup.q1');
+  assert.equal(followup.other.when, 3);
+  assert.equal(followup.other.field.key, 'followup.q1_reason');
+});
+
 test('T2 restores branch dependencies and multi other text from raw questions', () => {
   for (const [spec, answers] of [
     [t2Definitions[1], { 'demo.enrolled': 2, 'demo.outStudy': 1, 'acmot.g1': 'GOAL', 'acmot.q1': 3 }],
     [t2Definitions[0], { 'usetype.A12': [5], 'usetype.A12_other': 'CUSTOM' }],
+    [t2Definitions[1], { 'followup.q1': 3, 'followup.q1_reason': '일정이 맞지 않아요.' }],
   ]) {
     const dom = fixture(spec);
     for (const node of dom.controls) { node.checked = false; if (node.value === 'TEST' || node.value === 'OTHER') node.value = ''; }
@@ -467,6 +494,7 @@ test('T2 restores branch dependencies and multi other text from raw questions', 
     context.restoreDraft();
     const restored = context.collectAnswers();
     for (const key of Object.keys(answers)) assert.equal(JSON.stringify(restored[key]), JSON.stringify(answers[key]), key);
+    if (spec.part === 2) assert.equal(restored['reward.gifticon'] == null, true, 'legacy drafts must not silently choose a gift');
   }
 });
 

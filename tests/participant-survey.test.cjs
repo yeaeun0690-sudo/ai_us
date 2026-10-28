@@ -91,7 +91,7 @@ function surveyContext(source, spec, dom) {
   const labels = {};
   const context = vm.createContext({
     SPEC: () => spec, surveyBody: dom.body, Map,
-    window: {}, progressContext: null,
+    window: {}, progressContext: null, surveyDraftOwner: 'draft',
     currentPage: 1, dummySubmissionCompleted: false, dummySurveyStatus: {},
     sessionStorage: { getItem: () => 'test-only' },
     localStorage: { setItem: (key, value) => storage.set(key, value), getItem: key => storage.get(key) || null },
@@ -106,11 +106,10 @@ function surveyContext(source, spec, dom) {
   return { context, storage, labels };
 }
 
-test('inline scripts parse and tracking, submission remain unchanged', () => {
+test('inline scripts parse and heartbeat, submission remain unchanged', () => {
   new vm.Script(current);
   for (const [start, end] of [
     ['    function sendSurveyHeartbeat()', '    window.aiUsStartParticipantSession='],
-    ['  function aiUsMaybeRefreshParticipantSession()', '  function aiUsShowTemporaryIssue()'],
   ]) assert.equal(slice(current, start, end).replace("    if(typeof window!=='undefined'&&window.AI_US_PREVIEW)return Promise.resolve(false);\n", ''), slice(baseline, start, end), start);
   assert.match(current, /surveyBody\.innerHTML=html;\s+surveyElementCache\.clear\(\);/);
   assert.match(current, /checkSurveySubmission\(result\.submissionId\)/);
@@ -268,14 +267,18 @@ test('restored participant sessions validate with the server and preserve profil
 test('session restore retains offline sessions but sends actual authentication failures to login', async () => {
   for (const status of [0, 401, 403]) {
     const values = new Map([['ai_us_access_token', 'saved-token'], ['ai_us_role', 'participant'], ['ai_us_profile_grade', '5']]);
-    let listShown = 0, loginShown = 0;
+    let listShown = 0, loginShown = 0, notices = 0;
     const context = vm.createContext({
       window: {}, participantRestoreInFlight: null, participantSessionNeedsValidation: false,
+      participantExpiryNoticeOpen: false, participantResumeTarget: null,
+      dummySurveyBackdrop: { classList: { contains: () => false, remove() {} } },
+      dummySubmissionCompleted: false, isT2Survey: () => true,
       sessionStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) },
       aiUsRequest: () => Promise.reject(Object.assign(new Error('unavailable'), { status })),
       surveys: { classList: { add() { listShown++; } } }, document: { body: { style: {} } },
       updatePartButtons() {}, updateSurveyRetryButton() {}, closeSurveys() {},
-      openLogin() { loginShown++; }, showErr() {},
+      openLogin() { loginShown++; }, closeLogin() {}, showErr() {},
+      aiUsAudienceDialog(options) { notices++; assert.equal(options.confirmText, '다시 로그인하기'); return Promise.resolve(true); },
     });
     vm.runInContext(slice(current, '    function requestParticipantLogin()', '    function updateSurveyRetryButton('), context);
     vm.runInContext(slice(current, '    function restoreParticipantSession()', '    function openSurveys('), context);
@@ -284,6 +287,7 @@ test('session restore retains offline sessions but sends actual authentication f
     assert.equal(context.participantSessionNeedsValidation, status === 0);
     assert.equal(listShown, status === 0 ? 1 : 0);
     assert.equal(loginShown, status === 0 ? 0 : 1);
+    assert.equal(notices, status === 0 ? 0 : 1);
     assert.equal(values.get('ai_us_profile_grade'), '5');
   }
 });
@@ -293,6 +297,7 @@ test('failed status lookup retries once, keeps its busy control, and survives to
   const button = { hidden: true, setAttribute(name, value) { this[name] = value; } };
   let complete, requests = 0;
   const context = vm.createContext({
+    participantResumeTarget: null,
     window: {}, serverStatusInFlight: null, participantRestoreInFlight: null, participantSessionNeedsValidation: false,
     serverCompletedVersions: {}, serverVersionsByRound: {}, serverCompletedRounds: [], serverStatusReady: false,
     serverStatusFailed: false, surveyRoundStates: {}, surveyRoundsOpen: {}, t1SubmissionsOpen: false,
@@ -301,6 +306,7 @@ test('failed status lookup retries once, keeps its busy control, and survives to
     loadSurveyConfigurations: () => Promise.resolve(),
     aiUsRequest: () => { requests++; return new Promise(resolve => { complete = resolve; }); },
     updatePartButtons() { context.updateSurveyRetryButton(); },
+    resumeParticipantSurvey() {},
   });
   vm.runInContext(slice(current, '    function loadServerSurveyProgress()', '    function restoreParticipantSession('), context);
   context.aiUsRequest = () => { requests++; return Promise.reject(new Error('offline')); };
@@ -498,6 +504,130 @@ test('T2 restores branch dependencies and multi other text from raw questions', 
   }
 });
 
+test('a different device restores the server checkpoint without a local draft', async () => {
+  const record = { revision: 7, nextPage: 3, completed: false, answers: { 'followup.q1': 2, 'reward.gifticon': 4 } };
+  const context = vm.createContext({
+    progressContext: { round: 2, version: 't2-part2-v9-1022', key: 'same-account-draft', ready: false },
+    window: {}, progressIsCurrent: () => true,
+    sessionStorage: { getItem: () => 'same-account-new-device-token' },
+    localStorage: { getItem: () => null },
+    aiUsRequest: async () => record,
+    restoreServerSnapshot(context, snapshot) { context.restored = snapshot; },
+    flushProgress() {}, dummySurveyStatus: {},
+  });
+  vm.runInContext(slice(current, '    function loadSavedProgress()', '    function queueProgress('), context);
+  context.loadSavedProgress();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(context.progressContext.restored, record);
+  assert.equal(context.progressContext.revision, 7);
+  assert.equal(context.progressContext.ready, true);
+});
+
+test('expiry saves before clearing authentication and shows only one locked notice', async () => {
+  const values = new Map([['ai_us_access_token', 'expired'], ['ai_us_role', 'participant'], ['ai_us_participant_phone', 'account-a']]);
+  let saved = 0, notices = 0, loggedIn = 0, confirmNotice;
+  const context = vm.createContext({
+    window: {}, participantExpiryNoticeOpen: false, participantResumeTarget: null,
+    sessionStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) },
+    dummySurveyBackdrop: { classList: { contains: () => true, remove() {} } },
+    dummySubmissionCompleted: false, SURVEY_ROUND: 2, activePart: 1, currentPage: 3,
+    SPEC: () => ({ surveyVersion: 'part-two' }), isT2Survey: () => true,
+    progressContext: {}, surveyDraftOwner: 'account-a', closeSurveys() {}, closeLogin() {}, showErr() {},
+    saveSurveyDraft(answers, page) { saved++; assert.equal(values.get('ai_us_access_token'), 'expired'); assert.equal(page, 3); },
+    aiUsAudienceDialog(options) { notices++; assert.equal(options.lockFocus, true); assert.ok(options.message.includes('최근 입력')); return new Promise(resolve => { confirmNotice = resolve; }); },
+    openLogin() { loggedIn++; },
+  });
+  vm.runInContext(slice(current, '    function requestParticipantLogin()', '    function updateSurveyRetryButton('), context);
+  context.requestParticipantLogin(); context.requestParticipantLogin();
+  assert.equal(saved, 1); assert.equal(notices, 1); assert.equal(loggedIn, 0);
+  assert.equal(values.has('ai_us_access_token'), false);
+  assert.equal(context.progressContext, null); assert.equal(context.surveyDraftOwner, null);
+  assert.equal(context.participantResumeTarget.phone, 'account-a');
+  assert.equal(context.participantResumeTarget.page, 3);
+  confirmNotice(true); await new Promise(setImmediate);
+  assert.equal(loggedIn, 1);
+});
+
+test('resume requires the same account, version, open round and completed prerequisite', () => {
+  const target = { phone: 'account-a', round: 2, part: 1, version: 'part-two', page: 3 };
+  let opened = 0;
+  const context = vm.createContext({
+    serverStatusReady: true, participantResumeTarget: null,
+    sessionStorage: { getItem: () => 'account-a' }, partsForRound: () => [{}, { surveyVersion: 'part-two' }],
+    surveyRoundOpen: () => true, roundPartCompleted: (round, part) => part === 0,
+    openSurvey() { opened++; }, isT2Survey: () => true,
+  });
+  vm.runInContext(slice(current, '    function resumeParticipantSurvey()', '    function updateSurveyRetryButton('), context);
+  for (const change of [{ phone: 'account-b' }, { version: 'old-version' }]) {
+    context.participantResumeTarget = { ...target, ...change }; context.resumeParticipantSurvey(); assert.equal(opened, 0);
+  }
+  context.participantResumeTarget = { ...target }; context.surveyRoundOpen = () => false;
+  context.resumeParticipantSurvey(); assert.equal(opened, 0);
+  context.participantResumeTarget = { ...target }; context.surveyRoundOpen = () => true; context.roundPartCompleted = () => false;
+  context.resumeParticipantSurvey(); assert.equal(opened, 0);
+  context.participantResumeTarget = { ...target }; context.roundPartCompleted = (round, part) => part === 0;
+  context.resumeParticipantSurvey(); assert.equal(opened, 1); assert.equal(context.participantResumeTarget, null);
+});
+
+test('draft autosave cannot write expired or differently owned survey contents', () => {
+  for (const expired of [true, false]) {
+    const { context, storage } = surveyContext(current, t2Definitions[0], fixture(t2Definitions[0]));
+    if (expired) context.sessionStorage = { getItem: key => key === 'ai_us_access_token' ? null : 'account-b' };
+    else context.surveyDraftOwner = 'account-a-draft';
+    context.saveSurveyDraft(); assert.equal(storage.size, 0);
+  }
+});
+
+test('only current participant authenticated 401 responses trigger session expiry', async () => {
+  for (const [status, endpoint, role, token] of [[401, '/api/v1/survey-responses', 'participant', 'current'], [403, '/api/v1/survey-responses', 'participant', 'current'], [503, '/api/v1/survey-progress', 'participant', 'current'], [401, '/api/v1/auth/participant/login', 'participant', 'current'], [401, '/api/v1/survey-responses', 'researcher', 'current'], [401, '/api/v1/survey-responses', 'participant', 'old']]) {
+    const { context, state, values } = requestContext();
+    let notices = 0;
+    context.window = { aiUsParticipantSessionExpired() { notices++; } };
+    values.set('ai_us_access_token', 'current'); values.set('ai_us_role', role);
+    context.fetch = async () => ({ ok: false, status, json: async () => ({}) });
+    await assert.rejects(context.aiUsRequest(endpoint, { headers: { Authorization: 'Bearer ' + token } }));
+    assert.equal(notices, status === 401 && !endpoint.includes('/auth/') && role === 'participant' && token === 'current' ? 1 : 0);
+  }
+});
+
+test('refresh keeps its rolling contract and ignores stale account responses', async () => {
+  for (const [status, stale] of [[200, false], [401, false], [403, false], [503, false], [0, false], [200, true], [401, true]]) {
+    const values = new Map([['ai_us_access_token', 'original'], ['ai_us_role', 'participant']]);
+    let notices = 0, calls = 0;
+    const context = vm.createContext({
+      window: { aiUsParticipantSessionExpired() { notices++; } },
+      AI_US_PARTICIPANT_REFRESH_IN_FLIGHT: null, AI_US_API_BASE: 'https://invalid.test',
+      aiUsParticipantTokenExpiresSoon: () => true,
+      sessionStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) },
+      fetch: async (url, options) => {
+        calls++; assert.equal(options.headers.Authorization, 'Bearer original');
+        if (stale) values.set('ai_us_access_token', 'new-account-token');
+        if (!status) throw new TypeError('offline');
+        return { ok: status === 200, status, json: async () => ({ accessToken: 'rotated', chatConsent: true }) };
+      },
+    });
+    vm.runInContext(slice(current, '  function aiUsMaybeRefreshParticipantSession()', '  setInterval(function(){aiUsMaybeRefreshParticipantSession();}'), context);
+    const pending = context.aiUsMaybeRefreshParticipantSession();
+    assert.equal(context.aiUsMaybeRefreshParticipantSession(), pending);
+    assert.equal(await pending, status === 200 && !stale);
+    assert.equal(calls, 1);
+    assert.equal(notices, status === 401 && !stale ? 1 : 0);
+    assert.equal(values.get('ai_us_access_token'), stale ? 'new-account-token' : status === 200 ? 'rotated' : 'original');
+    assert.equal(context.AI_US_PARTICIPANT_REFRESH_IN_FLIGHT, null);
+  }
+});
+
+test('CTA precedes artwork and participant contact copy consistently uses CALM', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('id="startBtn"') < html.indexOf('<div class="stage">'));
+  assert.equal((html.match(/id="startBtn"/g) || []).length, 1);
+  assert.ok(html.includes('id="toSignup" class="linkbtn">설문 참여 신청'));
+  assert.ok(html.includes('설문 참여 신청이나 로그인에 어려움이 있으면 편하게 문의주세요.'));
+  assert.ok(html.includes('href="tel:010-9386-0839">010.9386.0839'));
+  assert.equal(html.includes('calm'), false);
+  assert.equal(html.includes('로그인 정보는 디지털상담'), false);
+});
+
 test('preview footer shares survey title labels and follows part changes', () => {
   const elements = { dummySurveyTitle: {}, surveyPreviewFooter: {} };
   const context = vm.createContext({
@@ -562,6 +692,7 @@ test('round admission locks both parts, preserves completed labels and enforces 
 
 test('participant status uses DB round map, supports old backend and fails closed on lookup error', async () => {
   const context = vm.createContext({
+    participantResumeTarget: null,
     window: {}, sessionStorage: { getItem: () => 'synthetic-token' },
     document: { getElementById: () => null },
     serverCompletedVersions: {}, serverVersionsByRound: {}, serverCompletedRounds: [],
@@ -622,7 +753,7 @@ test('direct survey opening cannot bypass round closure, status readiness or par
   const context = vm.createContext({
     window: {}, SURVEY_ROUND: 2, SURVEY_PARTS: [], activePart: 0,
     surveyRoundsOpen: { '2': false }, serverStatusReady: true,
-    partsForRound: () => [], partCompleted: () => false,
+    partsForRound: () => [], partCompleted: () => false, draftKey: () => 'draft',
   });
   vm.runInContext(slice(current, '    function surveyRoundOpen(', '    function updatePartButtons('), context);
   vm.runInContext(slice(current, '    function openSurvey(partIndex){', '      progressContext=isT2Survey()') + 'return "opened";}', context);

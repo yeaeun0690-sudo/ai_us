@@ -94,6 +94,39 @@
   .start:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(71,85,105,.3);color:#fff}
   .start-cue{display:inline-block;width:1em;margin-left:12px;animation:start-cue .7s ease-in-out .4s 2}
   @keyframes start-cue{50%{transform:translateX(6px)}}
+  .entry-actions{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:24px;align-items:start;margin-top:24px}
+  .entry-actions>.start{grid-column:2;margin-top:0}
+  .guide-home-slot{grid-column:3;text-align:left;min-width:0}
+  .participant-guide{width:100%;max-width:300px;padding:16px;border:1px solid #d5e0eb;border-radius:8px;
+    background:linear-gradient(135deg,rgba(235,245,255,.82),rgba(255,255,255,.92));
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 10px 28px rgba(48,72,99,.1);color:var(--ink);text-align:left}
+  .participant-guide:hover{border-color:#a9bfd5}
+  .participant-guide h2{margin:0 0 12px;font-family:var(--font-body);font-size:1rem;font-weight:800;line-height:1.4;letter-spacing:0}
+  .participant-guide ol{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+  .participant-guide li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:9px;align-items:start;font-size:.86rem;line-height:1.6;color:var(--ink-2)}
+  .participant-guide .guide-number{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#e2e8ef;color:#536273;font-weight:800;line-height:1}
+  .participant-guide li[aria-current="step"]{color:var(--ink);font-weight:700}
+  .participant-guide li[aria-current="step"] .guide-number{background:var(--sky);color:#fff}
+  .participant-guide .guide-note{margin:12px 0 0;font-size:.77rem;line-height:1.6;color:#4e5e70;word-break:keep-all;overflow-wrap:anywhere}
+  .participant-guide .guide-count{font-size:.77rem;font-weight:600;color:var(--muted);margin-left:8px}
+  .participant-guide .guide-login-note{display:none;margin:10px 0 0;font-size:.8rem;color:var(--ink-2);line-height:1.6}
+  .participant-guide[data-context="login"] .guide-login-note{display:block}
+  .signup-cta .linkbtn{min-height:44px;font-size:.95rem;font-weight:800}
+  .participant-guide[data-context]:not([data-context="home"]){max-width:none;margin:0 0 16px;padding:12px 14px;box-shadow:none}
+  .participant-guide[data-context]:not([data-context="home"]) h2{margin-bottom:8px;font-size:.9rem}
+  .participant-guide[data-context]:not([data-context="home"]) li:not([aria-current="step"]){display:none}
+  .participant-guide[data-context="login"] .guide-note{display:none}
+  .guide-cued{animation:guide-step-cue .8s ease-in-out 2}
+  .guide-target{animation:guide-target-cue .8s ease-in-out 2}
+  @keyframes guide-step-cue{50%{transform:translateX(3px)}}
+  @keyframes guide-target-cue{50%{outline:3px solid var(--sky);outline-offset:5px}}
+  @media(max-width:1000px){
+    .entry-actions{display:flex;flex-direction:column;align-items:center;gap:20px}
+    .guide-home-slot{width:100%;max-width:420px}
+    .guide-home-slot .participant-guide{max-width:none}
+  }
+  @media(max-width:640px){.entry-actions{margin-top:20px}.entry-actions>.start{margin-top:0}}
+  @media(max-height:520px) and (max-width:900px){.entry-actions{margin-top:12px}}
 
   /* ---------- Research section ---------- */
   .research{padding:90px 0 120px;text-align:center}
@@ -541,7 +574,21 @@
   <header class="hero">
     <h1>AI와 함께하는<br>우리의 일상탐사</h1>
     <p class="sub" id="heroSub">AI와 함께하는 우리의 일상,<br>여러분의 이야기를 들려주세요.</p>
-    <button class="start" id="startBtn" type="button">설문 시작하기 <span class="start-cue" aria-hidden="true">&#8594;</span></button>
+    <div class="entry-actions">
+      <button class="start" id="startBtn" type="button">설문 시작하기 <span class="start-cue" aria-hidden="true">&#8594;</span></button>
+      <div class="guide-home-slot" id="guideHomeSlot">
+        <aside class="participant-guide" id="participantGuide" data-context="home" aria-labelledby="participantGuideTitle">
+          <h2 id="participantGuideTitle">참여 방법<span class="guide-count" id="participantGuideCount">1 / 3</span></h2>
+          <ol>
+            <li data-guide-step="1" aria-current="step"><span class="guide-number" aria-hidden="true">1</span><span class="guide-label">‘설문 시작하기’를 눌러요.</span></li>
+            <li data-guide-step="2"><span class="guide-number" aria-hidden="true">2</span><span class="guide-label">처음이라면 ‘설문 참여 신청’을 눌러요.</span></li>
+            <li data-guide-step="3"><span class="guide-number" aria-hidden="true">3</span><span class="guide-label">신청을 마치면 로그인해요.</span></li>
+          </ol>
+          <p class="guide-note">※ 연구 참여 대상에 해당하지 않으면 ‘설문 참여 신청’이 어려울 수 있어요.</p>
+          <p class="guide-login-note">이미 신청했다면 아래에서 로그인해요.</p>
+        </aside>
+      </div>
+    </div>
 
     <div class="stage">
       <div class="art" id="art">
@@ -653,8 +700,10 @@
     <button class="x" id="loginClose" aria-label="닫기">×</button>
     <h2 id="loginTitle">설문 시작</h2>
     <p class="desc" id="loginDesc">휴대폰 번호와 비밀번호를 입력해 주세요.</p>
+    <div id="guideLoginSlot"></div>
 
     <div id="pPanel">
+      <p class="signup-cta">아직 신청 전이신가요? <button type="button" id="toSignup" class="linkbtn">설문 참여 신청</button></p>
       <div class="field">
         <label for="lid">휴대폰 번호</label>
         <input id="lid" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678" autocomplete="tel">
@@ -664,7 +713,6 @@
         <input id="lpw" type="password" placeholder="비밀번호" autocomplete="off">
       </div>
       <p class="forgot"><button type="button" id="toReset" class="linkbtn">비밀번호를 잊으셨나요?</button></p>
-      <p class="signup-cta">아직 신청 전이신가요? <button type="button" id="toSignup" class="linkbtn">설문 참여 신청</button></p>
     </div>
 
     <div id="rPanel" style="display:none">
@@ -875,6 +923,7 @@
     <button class="su-close" id="suClose" type="button">닫기</button>
   </div>
   <div class="su-wrap">
+    <div id="guideSignupSlot"></div>
     <!-- 카드뉴스 인트로 (설명문 앞) -->
     <div class="su-intro" id="suIntro">
       <div class="cn-wrap">
@@ -1020,7 +1069,8 @@
 </div>
 
 <script>
-  window.AI_US_PREVIEW=/^(part[12]|elem[12]|sec[12])$/i.test(new URLSearchParams(location.search).get('preview')||'');
+  window.AI_US_GUIDE_PREVIEW=/^guide$/i.test(new URLSearchParams(location.search).get('preview')||'');
+  window.AI_US_PREVIEW=window.AI_US_GUIDE_PREVIEW||/^(part[12]|elem[12]|sec[12])$/i.test(new URLSearchParams(location.search).get('preview')||'');
   // audience toggle (초등 / 중고등 / 연구자): swaps hero + mission images & copy
   (function(){
     var t=document.getElementById('toggle');
@@ -1173,6 +1223,68 @@
     if(m) m.textContent='바로 로그인할 수 있어요. 아래 정보로 접속해 주세요.';
   }
   if(document.readyState!=='loading') applySignupMode(); else document.addEventListener('DOMContentLoaded',applySignupMode);
+  function aiUsParticipantGuideState(state){
+    if(state.preview||state.researcher||state.blocked)return {hidden:true};
+    if(state.signup){
+      var phases={
+        intro:{target:'#cnGo',label:'연구 소개를 살펴보고 ‘연구 설명 보기’를 눌러요.'},
+        screen:{target:'#scrNext',label:'참여 전 확인 질문에 평소 경험대로 답해 주세요.'},
+        '0':{target:'#docToggle',label:'연구 설명문 전체를 읽고 내용을 확인해 주세요.'},
+        '1':{target:'.su-panel[data-step="1"] [data-next]',label:'참여 형태와 본인·보호자 동의 항목을 확인해 주세요.'},
+        '2':{target:'#suPhone',label:'본인·보호자 연락처를 입력하고 신청 내용을 확인해요.'},
+        '3':{target:'#suDone',label:'신청 완료 안내를 확인하고 ‘닫기’를 눌러요.'}
+      };
+      var phase=phases[state.phase]||phases.intro;
+      return {context:'signup',step:state.phase==='3'?3:2,phase:state.phase,target:phase.target,label:phase.label};
+    }
+    if(state.login){
+      return state.returning?{context:'login',step:3,target:'#loginSubmit',label:'휴대폰 번호와 비밀번호로 로그인해요.'}:{context:'login',step:2,target:'#toSignup'};
+    }
+    return state.finished?{context:'home',step:3,target:'#startBtn',label:'신청 완료 화면의 안내에 따라 ‘설문 시작하기’에서 로그인해요.'}:{context:'home',step:1,target:'#startBtn'};
+  }
+  function aiUsObserveParticipantGuide(){
+    var guide=document.getElementById('participantGuide'),home=document.getElementById('guideHomeSlot');
+    if(!guide||!home)return;
+    var signup=document.getElementById('signup'),login=document.getElementById('loginBackdrop');
+    var steps=Array.from(guide.querySelectorAll('[data-guide-step]'));
+    var labels=steps.map(function(step){return step.querySelector('.guide-label').textContent;});
+    var previous='',finished=false,cued=new Set(),target=null;
+    function open(id){var element=document.getElementById(id);return !!element&&element.classList.contains('open');}
+    function update(){
+      var panel=signup.querySelector('.su-panel.on');
+      var phase=signup.classList.contains('intro')?'intro':signup.classList.contains('screen')?'screen':panel?panel.dataset.step:'intro';
+      if(open('signup'))finished=phase==='3';
+      var selected=document.querySelector('#toggle button.on');
+      var state=aiUsParticipantGuideState({
+        preview:window.AI_US_PREVIEW&&!window.AI_US_GUIDE_PREVIEW,researcher:selected&&selected.dataset.role==='researcher',
+        blocked:['surveys','dummySurveyBackdrop','resetBackdrop','firstPasswordBackdrop','audienceDialog','chatOv'].some(open),
+        signup:open('signup'),phase:phase,login:open('loginBackdrop'),finished:finished,
+        returning:finished||!!document.getElementById('lid').value||!!document.getElementById('lpw').value
+      });
+      var signature=JSON.stringify(state);if(signature===previous)return;previous=signature;
+      if(target)target.classList.remove('guide-target');target=null;
+      guide.hidden=!!state.hidden;home.hidden=!!state.hidden||state.context!=='home';
+      if(state.hidden)return;
+      var parent=state.context==='signup'?document.getElementById('guideSignupSlot'):state.context==='login'?document.getElementById('guideLoginSlot'):home;
+      if(guide.parentNode!==parent)parent.appendChild(guide);
+      guide.dataset.context=state.context;
+      document.getElementById('participantGuideCount').textContent=state.step+' / 3';
+      steps.forEach(function(step,index){
+        var current=index+1===state.step;step.classList.remove('guide-cued');
+        if(current)step.setAttribute('aria-current','step');else step.removeAttribute('aria-current');
+        step.querySelector('.guide-label').textContent=current&&state.label?state.label:labels[index];
+      });
+      if(!cued.has(signature)){
+        cued.add(signature);steps[state.step-1].classList.add('guide-cued');
+        target=document.querySelector(state.target);if(target)target.classList.add('guide-target');
+      }
+    }
+    var observer=new MutationObserver(update);
+    ['signup','loginBackdrop','surveys','dummySurveyBackdrop','resetBackdrop','firstPasswordBackdrop','audienceDialog','chatOv'].forEach(function(id){var element=document.getElementById(id);if(element)observer.observe(element,{attributes:true,attributeFilter:['class']});});
+    document.querySelectorAll('#signup .su-panel,#toggle button').forEach(function(element){observer.observe(element,{attributes:true,attributeFilter:['class']});});
+    login.addEventListener('input',update);update();
+  }
+  if(document.readyState!=='loading')aiUsObserveParticipantGuide();else document.addEventListener('DOMContentLoaded',aiUsObserveParticipantGuide);
   function aiUsRequest(path,options){
     if(typeof window!=='undefined'&&window.AI_US_PREVIEW)return Promise.reject(new Error('미리보기에서는 서버 요청을 하지 않습니다.'));
     options=options||{};
@@ -1355,7 +1467,7 @@
       role=getRole();
       applyMode(); clearErr(); clearInvalid();
       bd.classList.add('open');
-      var first=document.getElementById(role==='researcher'?'rid':'lid');
+      var first=document.getElementById(role==='researcher'?'rid':participantResumeTarget||document.getElementById('lid').value?'lid':'toSignup');
       if(first) setTimeout(function(){first.focus();},60);
     }
     function closeLogin(){ if(bd) bd.classList.remove('open'); }

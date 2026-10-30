@@ -617,6 +617,57 @@ test('refresh keeps its rolling contract and ignores stale account responses', a
   }
 });
 
+test('guide review uses API-isolated preview mode without opening a survey or session', () => {
+  for (const [value, preview, guide] of [['guide', true, true], ['GUIDE', true, true], ['part2', true, false], ['', false, false]]) {
+    const context = vm.createContext({ window: {}, URLSearchParams, location: { search: '?preview=' + value } });
+    vm.runInContext(slice(current, '  window.AI_US_GUIDE_PREVIEW=', '  // audience toggle'), context);
+    assert.equal(context.window.AI_US_PREVIEW, preview);
+    assert.equal(context.window.AI_US_GUIDE_PREVIEW, guide);
+  }
+});
+
+test('guide follows actual application stages without choosing eligibility or consent answers', () => {
+  const context = vm.createContext({});
+  vm.runInContext(slice(current, '  function aiUsParticipantGuideState(', '  function aiUsObserveParticipantGuide('), context);
+  const guideState = context.aiUsParticipantGuideState;
+  assert.equal(guideState({}).step, 1);
+  assert.equal(guideState({ login: true }).target, '#toSignup');
+  assert.equal(guideState({ login: true, returning: true }).step, 3);
+  assert.equal(guideState({ finished: true }).target, '#startBtn');
+  for (const phase of ['intro', 'screen', '0', '1', '2', '3']) {
+    const state = guideState({ signup: true, phase });
+    assert.equal(state.context, 'signup');
+    assert.equal(state.step, phase === '3' ? 3 : 2);
+    assert.equal(/월 1회|주 1회|1234/.test(state.label), false);
+    assert.ok(state.target);
+  }
+  assert.ok(guideState({ signup: true, phase: 'screen' }).label.includes('평소 경험대로'));
+  assert.ok(guideState({ signup: true, phase: '3' }).label.includes('‘닫기’'));
+  assert.equal(guideState({ signup: true, phase: '1' }).target.includes('input'), false);
+});
+
+test('guide is hidden for researchers, previews and blocking screens without session or API access', () => {
+  const context = vm.createContext({});
+  vm.runInContext(slice(current, '  function aiUsParticipantGuideState(', '  function aiUsObserveParticipantGuide('), context);
+  for (const flag of ['researcher', 'preview', 'blocked']) {
+    assert.equal(context.aiUsParticipantGuideState({ [flag]: true, login: true, signup: true }).hidden, true);
+  }
+  const controller = slice(current, '  function aiUsObserveParticipantGuide(', '  function aiUsRequest(');
+  assert.equal(/sessionStorage|localStorage|fetch\(|aiUsRequest\(/.test(controller), false);
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('id="toSignup"') < html.indexOf('<label for="lid">'));
+});
+
+test('participant guide follows the CTA with three steps and a neutral eligibility note', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const guide = html.match(/<aside class="participant-guide"[\s\S]*?<\/aside>/)[0];
+  assert.ok(html.indexOf('id="startBtn"') < html.indexOf('id="participantGuide"'));
+  assert.equal((guide.match(/data-guide-step=/g) || []).length, 3);
+  assert.equal((guide.match(/aria-current="step"/g) || []).length, 1);
+  assert.ok(guide.includes('연구 참여 대상에 해당하지 않으면 ‘설문 참여 신청’이 어려울 수 있어요.'));
+  assert.equal(/월 1회|주 1회|screening/.test(guide), false);
+});
+
 test('CTA precedes artwork and participant contact copy consistently uses CALM', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.ok(html.indexOf('id="startBtn"') < html.indexOf('<div class="stage">'));

@@ -311,8 +311,11 @@
       <span class="health-item" id="apiHealth" title="API 상태 확인 중">
         <i class="health-lamp" aria-hidden="true"></i><span>API</span>
       </span>
-      <span class="health-item" id="workerHealth" title="Worker 상태 확인 중">
-        <i class="health-lamp" aria-hidden="true"></i><span>Worker</span>
+      <span class="health-item" id="workerHealth" title="설문 Worker 상태 확인 중 · 설문 제출 처리">
+        <i class="health-lamp" aria-hidden="true"></i><span>설문 Worker</span>
+      </span>
+      <span class="health-item" id="analysisWorkerHealth" title="관리자 Worker 상태 확인 중 · 현재 관리자 분석 작업 처리">
+        <i class="health-lamp" aria-hidden="true"></i><span>관리자 Worker</span>
       </span>
     </div>
     <div class="user">
@@ -649,7 +652,9 @@
               <div class="fgroup"><label for="abuseVersion">설문 버전</label><select id="abuseVersion"><option value="">설문 버전을 불러오는 중...</option></select></div>
               <label class="fgroup"><span>조회 옵션</span><span><input id="abuseIncludeLegacyVersions" type="checkbox"> 과거 v1 포함</span></label>
               <label class="fgroup"><span>표시 필터</span><span><input id="abuseHideReviewed" type="checkbox"> 확인 완료 숨기기</span></label>
+              <button class="btn btn-ghost" id="abuseReload" type="button">다시 조회</button>
             </div>
+            <p class="sub" role="status" id="abuseJobState">조회 전</p>
             <p class="sub" style="margin-top:14px">응답시간 집계</p><div class="stats" style="grid-template-columns:repeat(4,1fr);margin-top:8px" id="abuseSpeedBuckets"></div>
             <p class="sub" style="margin-top:14px">응답 패턴 유사도 집계</p><div class="stats" style="grid-template-columns:repeat(4,1fr);margin-top:8px" id="abuseBuckets"></div>
           </div>
@@ -671,7 +676,7 @@
     <button class="btn" id="serverIssueClose" type="button">확인</button>
   </div>
 </div>
-<div class="server-backdrop" id="abuseLoadingDialog" role="alert" aria-live="polite" aria-labelledby="abuseLoadingTitle">
+<div class="server-backdrop" id="abuseLoadingDialog" role="dialog" aria-modal="true" aria-live="polite" aria-labelledby="abuseLoadingTitle" aria-describedby="abuseLoadingMessage" tabindex="-1">
   <div class="server-modal loading-modal">
     <div class="spinner" aria-hidden="true"></div>
     <h2 id="abuseLoadingTitle">검토 내용을 계산하고 있어요</h2>
@@ -788,7 +793,7 @@
     return Number.isNaN(parsed.getTime())?value:parsed.toLocaleString('ko-KR',{timeZone:'Asia/Seoul'});
   }
   function refreshSystemHealth(){
-    var apiItem=document.getElementById('apiHealth'),workerItem=document.getElementById('workerHealth');
+    var apiItem=document.getElementById('apiHealth'),workerItem=document.getElementById('workerHealth'),analysisItem=document.getElementById('analysisWorkerHealth');
     fetch(AI_US_API_BASE+'/api/v1/researcher/system-health',{cache:'no-store',headers:{Authorization:'Bearer '+AI_US_ACCESS_TOKEN}})
       .then(function(response){
         if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';throw new Error('unauthorized');}
@@ -798,15 +803,20 @@
       .then(function(data){
         setSystemHealthItem(apiItem,data.api&&data.api.status==='ok'?'ok':'error','API 정상 · '+formatHealthTime(data.checkedAt));
         var worker=data.worker||{},workerOk=worker.status==='ok';
-        var detail=workerOk?'Worker 정상':'Worker 확인 필요 ('+(worker.status||'unknown')+')';
+        var detail=(workerOk?'설문 Worker 정상':'설문 Worker 확인 필요 ('+(worker.status||'unknown')+')')+' · 설문 제출 처리';
         if(worker.lastHeartbeatAt)detail+=' · 마지막 신호 '+formatHealthTime(worker.lastHeartbeatAt);
         if(typeof worker.ageSeconds==='number')detail+=' · '+worker.ageSeconds+'초 전';
         setSystemHealthItem(workerItem,workerOk?'ok':'error',detail);
+        var analysis=data.analysisWorker||{},analysisDetail=(analysis.status==='ok'?'관리자 Worker 정상':'관리자 Worker 확인 필요 ('+(analysis.status||'unknown')+')')+' · 현재 관리자 분석 작업 처리';
+        if(analysis.lastHeartbeatAt)analysisDetail+=' · 마지막 신호 '+formatHealthTime(analysis.lastHeartbeatAt);
+        if(typeof analysis.ageSeconds==='number')analysisDetail+=' · '+analysis.ageSeconds+'초 전';
+        setSystemHealthItem(analysisItem,analysis.status==='ok'?'ok':'error',analysisDetail);
       })
       .catch(function(error){
         if(error.message==='unauthorized')return;
         setSystemHealthItem(apiItem,'error','API 상태를 확인할 수 없습니다.');
-        setSystemHealthItem(workerItem,'error','Worker 상태를 확인할 수 없습니다.');
+        setSystemHealthItem(workerItem,'error','설문 Worker 상태를 확인할 수 없습니다. · 설문 제출 처리');
+        setSystemHealthItem(analysisItem,'error','관리자 Worker 상태를 확인할 수 없습니다. · 현재 관리자 분석 작업 처리');
       });
   }
   setTimeout(refreshSystemHealth,500);
@@ -829,9 +839,47 @@
         tabs.forEach(function(x){x.classList.remove('on');});
         t.classList.add('on');
         Object.keys(secs).forEach(function(k){secs[k].classList.toggle('on',k===t.dataset.tab);});
+        document.dispatchEvent(new Event('ai-us-panel-change'));
       });
     });
   })();
+
+  function aiUsPanelVisible(name){
+    var panel=document.getElementById('panel-'+name),section=panel&&panel.closest('.section');
+    return !!panel&&panel.classList.contains('on')&&(!section||section.classList.contains('on'))&&!document.hidden;
+  }
+  function aiUsOnPanelOpen(name,callback,repeat){
+    var opened=false;
+    function activate(){if(!aiUsPanelVisible(name)||opened&&!repeat)return;opened=true;callback();}
+    document.addEventListener('ai-us-panel-change',activate);
+    document.addEventListener('visibilitychange',activate);
+    activate();
+  }
+  var AI_US_ANALYSIS_JOBS=new Map();
+  function aiUsAnalysisRequest(path,options){
+    var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},30000);
+    options=Object.assign({},options||{},{signal:controller.signal,localErrorDialog:true});
+    return aiUsRequest(path,options).catch(function(error){if(error.name==='AbortError')throw new Error('서버 응답이 지연되고 있습니다. 잠시 후 다시 조회해 주세요.');throw error;}).finally(function(){clearTimeout(timer);});
+  }
+  function aiUsWaitForAnalysis(query,onState){
+    var params=new URLSearchParams(query),scope='?survey_round='+params.get('survey_round')+'&survey_version='+encodeURIComponent(params.get('survey_version')),started=Date.now();
+    function poll(jobId){
+      if(Date.now()-started>600000)return Promise.reject(new Error('분석이 계속 진행 중입니다. 잠시 후 다시 조회하면 같은 작업을 확인합니다.'));
+      return aiUsAnalysisRequest('/api/v1/researcher/abuse-review/jobs/'+encodeURIComponent(jobId)+query).then(function(job){
+        if(onState)onState(job.status);
+        if(job.status==='completed'&&job.result){AI_US_ANALYSIS_JOBS.delete(scope);return job.result;}
+        if(job.status==='failed'){AI_US_ANALYSIS_JOBS.delete(scope);throw new Error(job.error||'분석 처리에 실패했습니다. 다시 요청해 주세요.');}
+        if(job.status!=='queued'&&job.status!=='processing')throw new Error('분석 작업 상태를 확인할 수 없습니다.');
+        return new Promise(function(resolve){setTimeout(resolve,1000);}).then(function(){return poll(jobId);});
+      }).catch(function(error){if(error.status===404)AI_US_ANALYSIS_JOBS.delete(scope);throw error;});
+    }
+    var known=AI_US_ANALYSIS_JOBS.get(scope);
+    if(known)return poll(known);
+    return aiUsAnalysisRequest('/api/v1/researcher/abuse-review/jobs'+scope+(params.get('refresh')==='true'?'&refresh=true':''),{method:'POST'}).then(function(job){
+      if(!job.jobId)throw new Error('분석 작업을 확인할 수 없습니다.');
+      AI_US_ANALYSIS_JOBS.set(scope,job.jobId);return poll(job.jobId);
+    });
+  }
 
   // ---- manage sidebar ----
   (function(){
@@ -842,6 +890,7 @@
         btns.forEach(function(x){x.classList.remove('on');});
         b.classList.add('on');
         Object.keys(panels).forEach(function(k){panels[k].classList.toggle('on',k===b.dataset.panel);});
+        document.dispatchEvent(new Event('ai-us-panel-change'));
       });
     });
   })();
@@ -852,14 +901,21 @@
     if(!panel)return;
     var round=document.getElementById('abuseRound'),version=document.getElementById('abuseVersion'),includeLegacy=document.getElementById('abuseIncludeLegacyVersions'),hideReviewed=document.getElementById('abuseHideReviewed');
     var buckets=document.getElementById('abuseBuckets'),speedBuckets=document.getElementById('abuseSpeedBuckets'),summary=document.getElementById('abuseSummary'),groupSummary=document.getElementById('abuseGroupSummary'),groups=document.getElementById('abuseCandidateGroups');
-    var reviewedStatuses={},reviewedStatusRecords=[],latestAbuseData=null,speedPage=1,pairingPage=1,combinedPage=1,abuseBusy=false;
+    var reviewedStatuses={},reviewedStatusRecords=[],latestAbuseData=null,latestAbuseScope='',speedPage=1,pairingPage=1,combinedPage=1,abuseBusy=false;
     var loadingDialog=document.getElementById('abuseLoadingDialog'),loadingTitle=document.getElementById('abuseLoadingTitle'),loadingMessage=document.getElementById('abuseLoadingMessage');
     var loadingClose=document.getElementById('abuseLoadingClose');
-    function setBusy(busy,title,message){abuseBusy=busy;if(loadingTitle)loadingTitle.textContent=title||'검토 내용을 계산하고 있어요';if(loadingMessage)loadingMessage.textContent=message||'잠시만 기다려 주세요. 중복 요청은 처리하지 않아요.';if(loadingDialog)loadingDialog.classList.toggle('open',busy);if(loadingDialog)loadingDialog.classList.remove('error');if(loadingClose)loadingClose.hidden=true;}
-    function showLoadingError(message){abuseBusy=false;var serverDialog=document.getElementById('serverIssueDialog');if(serverDialog)serverDialog.classList.remove('open');if(loadingTitle)loadingTitle.textContent='검토 요청을 처리하지 못했어요';if(loadingMessage)loadingMessage.textContent=message||'잠시 후 다시 시도해 주세요.';if(loadingDialog){loadingDialog.classList.add('open','error');}if(loadingClose)loadingClose.hidden=false;if(refresh)refresh.disabled=false;}
-    if(loadingClose)loadingClose.addEventListener('click',function(){if(loadingDialog)loadingDialog.classList.remove('open','error');loadingClose.hidden=true;});
+    var busySnapshot=null,busyControls=[],busyFocus=null;
+    function setBusy(busy,title,message){
+      if(busy&&!busySnapshot){busyFocus=document.activeElement;busySnapshot=Array.from(document.body.children).filter(function(element){return element!==loadingDialog;}).map(function(element){var previous=element.inert;element.inert=true;return [element,previous];});busyControls=Array.from(panel.querySelectorAll('input,select,button')).map(function(element){var previous=element.disabled;element.disabled=true;return [element,previous];});}
+      abuseBusy=busy;if(loadingTitle)loadingTitle.textContent=title||'검토 내용을 계산하고 있어요';if(loadingMessage)loadingMessage.textContent=message||'잠시만 기다려 주세요. 중복 요청은 처리하지 않아요.';if(loadingDialog)loadingDialog.classList.toggle('open',busy);if(loadingDialog)loadingDialog.classList.remove('error');if(loadingClose)loadingClose.hidden=true;
+      if(busy&&loadingDialog)loadingDialog.focus();
+      if(!busy&&busySnapshot){busySnapshot.forEach(function(item){item[0].inert=item[1];});busyControls.forEach(function(item){item[0].disabled=item[1];});busyControls=[];busySnapshot=null;if(busyFocus&&busyFocus.isConnected)busyFocus.focus();else version.focus();}
+    }
+    function showLoadingError(message){abuseBusy=false;if(loadingTitle)loadingTitle.textContent='검토 요청을 처리하지 못했어요';if(loadingMessage)loadingMessage.textContent=message||'잠시 후 다시 시도해 주세요.';if(loadingDialog)loadingDialog.classList.add('open','error');if(loadingClose){loadingClose.hidden=false;loadingClose.focus();}}
+    if(loadingClose)loadingClose.addEventListener('click',function(){setBusy(false);});
+    if(loadingDialog)loadingDialog.addEventListener('keydown',function(event){if(event.key==='Tab'){event.preventDefault();(loadingDialog.classList.contains('error')?loadingClose:loadingDialog).focus();}if(event.key==='Escape'){event.preventDefault();if(loadingDialog.classList.contains('error'))setBusy(false);}});
     function optionLabel(definition){return (definition.title?definition.title+' · ':'')+definition.surveyVersion;}
-    function selectedQuery(includePage){var match=round.value.match(/\d+/);if(!match||!version.value)return '';var query='?survey_round='+match[0]+'&survey_version='+encodeURIComponent(version.value);return includePage?query+'&speed_page='+speedPage+'&pairing_page='+pairingPage+'&combined_page='+combinedPage+'&pair_page_size=5000':query;}
+    function selectedQuery(includePage){var match=round.value.match(/\d+/);if(!match||!version.value)return '';var query='?survey_round='+match[0]+'&survey_version='+encodeURIComponent(version.value);return includePage?query+'&speed_page='+speedPage+'&pairing_page='+pairingPage+'&combined_page='+combinedPage+'&pair_page_size=200':query;}
     function render(data,cacheResult){
       if(cacheResult!==false)latestAbuseData=data;
       buckets.innerHTML=(data.similarityBuckets||[]).map(function(item){return '<div class="stat"><div class="k">'+esc(item.label)+'</div><div class="v">'+esc(item.pairCount)+'<small>쌍</small></div></div>';}).join('');
@@ -879,20 +935,37 @@
       function pagination(kind,page,totalPages,totalCount,unit){if(totalPages<=1)return '';var start=(page-1)*200+1,end=Math.min(page*200,totalCount);return '<div class="abuse-pair-pagination"><button type="button" data-abuse-page-kind="'+kind+'" data-abuse-page="'+(page-1)+'" '+(page<=1?'disabled':'')+'>이전</button><span>'+kind+' '+start+'~'+end+unit+' / 전체 '+totalCount+unit+' · '+page+' / '+totalPages+' 페이지</span><button type="button" data-abuse-page-kind="'+kind+'" data-abuse-page="'+(page+1)+'" '+(page>=totalPages?'disabled':'')+'>다음</button></div>';}
       var speedPageCount=data.speedPageCount||Math.max(Math.ceil(speedTotal/200),1),pairingPageCount=data.pairingPageCount||Math.max(Math.ceil(pairingTotal/200),1),combinedPageCount=data.combinedPageCount||Math.max(Math.ceil(combinedTotal/200),1);
       groups.innerHTML=candidateTable(speed,false,'개인 단위 속도 이상','명',speedTotal,'속도 이상',data.speedPage||speedPage,speedPageCount)+candidateTable(pairing,true,'응답 패턴 유사','쌍',pairingTotal,'응답 패턴 유사',data.pairingPage||pairingPage,pairingPageCount)+candidateTable(combined,true,'복합 의심 후보','쌍',combinedTotal,'복합 의심',data.combinedPage||combinedPage,combinedPageCount);
-      groups.querySelectorAll('[data-abuse-page-kind]').forEach(function(button){button.addEventListener('click',function(){if(button.disabled||abuseBusy)return;var page=Number(button.dataset.abusePage),kind=button.dataset.abusePageKind,source=latestAbuseData,sourceItems=kind==='속도 이상'&&source?source.speedCandidates:(kind==='응답 패턴 유사'&&source?source.pairingCandidates:(kind==='복합 의심'&&source?source.combinedCandidates:null));if(kind==='속도 이상')speedPage=page;else if(kind==='응답 패턴 유사')pairingPage=page;else combinedPage=page;if(sourceItems&&sourceItems.length>=((page-1)*200+1)){var pageData=Object.assign({},source);pageData.speedCandidates=(source.speedCandidates||[]).slice((speedPage-1)*200,speedPage*200);pageData.pairingCandidates=(source.pairingCandidates||[]).slice((pairingPage-1)*200,pairingPage*200);pageData.combinedCandidates=(source.combinedCandidates||[]).slice((combinedPage-1)*200,combinedPage*200);pageData.speedPage=speedPage;pageData.pairingPage=pairingPage;pageData.combinedPage=combinedPage;render(pageData,false);}else{load(true,'다음 후보를 불러오고 있어요','선택한 후보 목록 페이지를 준비하는 중입니다.');}});});
-      groups.querySelectorAll('.abuse-review-toggle').forEach(function(button){button.addEventListener('click',function(){var query=selectedQuery(false),reviewed=!reviewedStatuses[button.dataset.key];button.disabled=true;aiUsRequest('/api/v1/researcher/abuse-review/statuses'+query,{method:'PUT',body:{phone:button.dataset.phone,pairedPhone:button.dataset.pairedPhone||null,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){button.disabled=false;alert(error.message);});});});
-      groupSummary.querySelectorAll('.abuse-group-review-toggle').forEach(function(button){button.addEventListener('click',function(){if(abuseBusy)return;var query=selectedQuery(false),reviewed=!reviewedStatuses[button.dataset.key],phones=JSON.parse(decodeURIComponent(button.dataset.phones||'%5B%5D'));button.disabled=true;setBusy(true,'그룹 확인을 처리하고 있어요','그룹 내부의 모든 유사 응답 pair를 함께 처리하고 있습니다.');aiUsRequest('/api/v1/researcher/abuse-review/group-statuses'+query,{method:'PUT',body:{groupKey:button.dataset.key,phones:phones,reviewed:reviewed}}).then(function(status){reviewedStatuses[button.dataset.key]=reviewed;reviewedStatusRecords=reviewedStatusRecords.filter(function(item){return item.candidateKey!==status.candidateKey;});reviewedStatusRecords.push(status);data.speedCandidates.concat(data.pairingCandidates,data.combinedCandidates).forEach(function(item){if(item.phone&&item.pairedPhone&&phones.indexOf(item.phone)>=0&&phones.indexOf(item.pairedPhone)>=0)reviewedStatuses[item.candidateKey]=reviewed;});render(data);}).catch(function(error){button.disabled=false;showLoadingError(error.message);}).finally(function(){if(!loadingDialog.classList.contains('error'))setBusy(false);});});});
+      groups.querySelectorAll('[data-abuse-page-kind]').forEach(function(button){button.addEventListener('click',function(){if(button.disabled||abuseBusy)return;var page=Number(button.dataset.abusePage),kind=button.dataset.abusePageKind;if(kind==='속도 이상')speedPage=page;else if(kind==='응답 패턴 유사')pairingPage=page;else combinedPage=page;load(true,'다음 후보를 불러오고 있어요','저장된 분석 결과에서 선택한 페이지를 준비하는 중입니다.');});});
+      groups.querySelectorAll('.abuse-review-toggle').forEach(function(button){button.addEventListener('click',function(){if(abuseBusy)return;var query=selectedQuery(false),reviewed=!reviewedStatuses[button.dataset.key];setBusy(true,'확인 상태를 저장하고 있어요');aiUsAnalysisRequest('/api/v1/researcher/abuse-review/statuses'+query,{method:'PUT',body:{phone:button.dataset.phone,pairedPhone:button.dataset.pairedPhone||null,reviewed:reviewed}}).then(function(){reviewedStatuses[button.dataset.key]=reviewed;render(data);}).catch(function(error){showLoadingError(error.message);}).finally(function(){if(!loadingDialog.classList.contains('error'))setBusy(false);});});});
+      groupSummary.querySelectorAll('.abuse-group-review-toggle').forEach(function(button){button.addEventListener('click',function(){if(abuseBusy)return;var query=selectedQuery(false),reviewed=!reviewedStatuses[button.dataset.key],phones=JSON.parse(decodeURIComponent(button.dataset.phones||'%5B%5D'));setBusy(true,'그룹 확인을 처리하고 있어요','그룹 내부의 모든 유사 응답 pair를 함께 처리하고 있습니다.');aiUsAnalysisRequest('/api/v1/researcher/abuse-review/group-statuses'+query,{method:'PUT',body:{groupKey:button.dataset.key,phones:phones,reviewed:reviewed}}).then(function(status){reviewedStatuses[button.dataset.key]=reviewed;reviewedStatusRecords=reviewedStatusRecords.filter(function(item){return item.candidateKey!==status.candidateKey;});reviewedStatusRecords.push(status);data.speedCandidates.concat(data.pairingCandidates,data.combinedCandidates).forEach(function(item){if(item.phone&&item.pairedPhone&&phones.indexOf(item.phone)>=0&&phones.indexOf(item.pairedPhone)>=0)reviewedStatuses[item.candidateKey]=reviewed;});render(data);}).catch(function(error){showLoadingError(error.message);}).finally(function(){if(!loadingDialog.classList.contains('error'))setBusy(false);});});});
     }
-    function load(showLoading,title,message){if(abuseBusy)return;var query=selectedQuery(true),statusQuery=selectedQuery(false);if(!query){summary.textContent='회차와 설문 버전을 선택해 주세요.';buckets.innerHTML='';speedBuckets.innerHTML='';groups.innerHTML='<p class="sub">검토할 설문을 선택해 주세요.</p>';return;}if(showLoading)setBusy(true,title||'검토 후보를 계산하고 있어요',message||'응답 패턴과 그룹을 분석하는 중입니다.');groups.innerHTML='<p class="sub">검토 후보를 계산하는 중입니다.</p>';Promise.all([aiUsRequest('/api/v1/researcher/abuse-review'+query),aiUsRequest('/api/v1/researcher/abuse-review/statuses'+statusQuery)]).then(function(results){reviewedStatuses={};reviewedStatusRecords=results[1]||[];reviewedStatusRecords.forEach(function(item){reviewedStatuses[item.candidateKey]=item.reviewed;});render(results[0]);}).catch(function(error){groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';if(showLoading)showLoadingError(error.message);}).finally(function(){if(showLoading&&(!loadingDialog.classList.contains('error')))setBusy(false);});}
-    function loadDefinitions(){aiUsRequest('/api/v1/researcher/survey-definitions').then(function(definitions){var visibleDefinitions=includeLegacy&&includeLegacy.checked?definitions:definitions.filter(function(definition){return !/v1-draft$/.test(definition.surveyVersion);});version.innerHTML=visibleDefinitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';}).join('')||'<option value="">등록된 설문 정의가 없습니다</option>';if(version.value){var opt=version.options[version.selectedIndex];round.value=opt.dataset.round+'회차';load(includeLegacy.checked);}}).catch(function(error){version.innerHTML='<option value="">설문 버전 조회 실패</option>';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';});}
-    version.addEventListener('change',function(){speedPage=1;pairingPage=1;combinedPage=1;load(true);});round.addEventListener('change',function(){speedPage=1;pairingPage=1;combinedPage=1;load(true);});includeLegacy.addEventListener('change',function(){speedPage=1;pairingPage=1;combinedPage=1;loadDefinitions();});hideReviewed.addEventListener('change',function(){if(latestAbuseData){render(latestAbuseData);}else{load(true,'확인 상태를 적용하고 있어요','확인 완료 후보를 화면에 정리하는 중입니다.');}});loadDefinitions();
+    function load(showLoading,title,message,forceRefresh){
+      if(abuseBusy)return;
+      var query=selectedQuery(true),statusQuery=selectedQuery(false);
+      if(!query){summary.textContent='회차와 설문 버전을 선택해 주세요.';buckets.innerHTML='';speedBuckets.innerHTML='';groups.innerHTML='<p class="sub">검토할 설문을 선택해 주세요.</p>';return;}
+      if(forceRefresh)query+='&refresh=true';
+      if(forceRefresh||statusQuery!==latestAbuseScope){latestAbuseData=null;groupSummary.textContent='';buckets.textContent='';speedBuckets.textContent='';}
+      setBusy(true,title||'검토 후보를 계산하고 있어요',message||'응답 패턴과 그룹을 분석하는 중입니다.');
+      groups.innerHTML='<p class="sub">검토 후보를 계산하는 중입니다.</p>';
+      return aiUsWaitForAnalysis(query,function(state){
+        var labels={queued:'대기 중',processing:'계산 중',completed:'완료',failed:'실패'};
+        document.getElementById('abuseJobState').textContent=labels[state]||'확인 중';
+        if(state==='queued'||state==='processing')loadingMessage.textContent=state==='queued'?'분석 작업이 대기 중입니다.':'관리자 Worker가 응답 패턴과 그룹을 계산하고 있습니다.';
+      }).then(function(data){return aiUsAnalysisRequest('/api/v1/researcher/abuse-review/statuses'+statusQuery).then(function(statuses){
+        reviewedStatuses={};reviewedStatusRecords=statuses||[];reviewedStatusRecords.forEach(function(item){reviewedStatuses[item.candidateKey]=item.reviewed;});latestAbuseScope=statusQuery;render(data);
+      });}).catch(function(error){document.getElementById('abuseJobState').textContent='조회 실패';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';showLoadingError(error.message);}).finally(function(){if(!loadingDialog.classList.contains('error'))setBusy(false);});
+    }
+    function loadDefinitions(){if(abuseBusy)return;setBusy(true,'설문 목록을 불러오고 있어요');return aiUsAnalysisRequest('/api/v1/researcher/survey-definitions').then(function(definitions){var visibleDefinitions=includeLegacy&&includeLegacy.checked?definitions:definitions.filter(function(definition){return !/v1-draft$/.test(definition.surveyVersion);});version.innerHTML=visibleDefinitions.map(function(definition){return '<option value="'+esc(definition.surveyVersion)+'" data-round="'+esc(definition.surveyRound)+'">'+esc(optionLabel(definition))+'</option>';}).join('')||'<option value="">등록된 설문 정의가 없습니다</option>';if(version.value){var opt=version.options[version.selectedIndex];round.value=opt.dataset.round+'회차';abuseBusy=false;return load(true);}setBusy(false);}).catch(function(error){version.innerHTML='<option value="">설문 버전 조회 실패</option>';groups.innerHTML='<p class="sub">'+esc(error.message)+'</p>';showLoadingError(error.message);});}
+    version.addEventListener('change',function(){speedPage=1;pairingPage=1;combinedPage=1;load(true);});round.addEventListener('change',function(){speedPage=1;pairingPage=1;combinedPage=1;load(true);});includeLegacy.addEventListener('change',function(){speedPage=1;pairingPage=1;combinedPage=1;loadDefinitions();});hideReviewed.addEventListener('change',function(){if(latestAbuseData){render(latestAbuseData);}else{load(true,'확인 상태를 적용하고 있어요','확인 완료 후보를 화면에 정리하는 중입니다.');}});
+    document.getElementById('abuseReload').addEventListener('click',function(){if(version.value)load(true,'검토 후보를 다시 계산하고 있어요',null,true);else loadDefinitions();});
+    aiUsOnPanelOpen('abuse',loadDefinitions);
   })();
 
   // ---- activity summary ----
   (function(){
     var panel=document.getElementById('panel-activity');
     if(!panel)return;
-    var activityData=null,trendDays={activity:7,traffic:7};
+    var activityData=null,trendDays={activity:7,traffic:7},activityLoading=false;
     function setValue(id,value){var el=document.getElementById(id);if(el)el.innerHTML=String(value==null?0:value)+'<small>명</small>';}
     function renderTrend(kind){
       if(!activityData)return;
@@ -907,6 +980,7 @@
       var start=document.getElementById(kind+'TrendStart'),end=document.getElementById(kind+'TrendEnd');if(start)start.textContent=items.length?items[0].date:'';if(end)end.textContent=items.length?items[items.length-1].date:'';
     }
     function load(){
+      if(!aiUsPanelVisible('activity')||activityLoading)return;activityLoading=true;
       aiUsRequest('/api/v1/researcher/activity-summary').then(function(data){
         activityData=data;
         setValue('activityDau',data.dau);setValue('activityWau',data.wau);setValue('activityMau',data.mau);setValue('activityNow',data.activeNow);
@@ -923,9 +997,9 @@
         var campaignSection=document.getElementById('activityCampaignSection'),body=document.getElementById('activityCampaignBody');
         if(campaignSection)campaignSection.hidden=!data.hasCampaignData;
         if(body&&data.hasCampaignData)body.innerHTML=(data.campaigns||[]).map(function(item){return '<tr><td>'+esc(item.campaign)+'</td><td>'+esc(item.source||'-')+'</td><td>'+esc(item.medium||'-')+'</td><td>'+esc(item.visits)+'</td><td>'+esc(item.uniqueVisitors)+'</td><td>'+esc(item.signupCompleted)+'</td><td>'+esc(item.completionRate)+'%</td></tr>';}).join('');
-      }).catch(function(error){var generated=document.getElementById('activityGeneratedAt');if(generated)generated.textContent=error.message;});
+      }).catch(function(error){var generated=document.getElementById('activityGeneratedAt');if(generated)generated.textContent=error.message;}).finally(function(){activityLoading=false;});
     }
-    load();
+    aiUsOnPanelOpen('activity',load,true);
     window.setInterval(load,30000);
     document.querySelectorAll('.trend-toggle button').forEach(function(button){button.addEventListener('click',function(){var toggle=button.closest('.trend-toggle'),kind=toggle.dataset.trend;toggle.querySelectorAll('button').forEach(function(item){item.classList.toggle('on',item===button);});trendDays[kind]=Number(button.dataset.days);renderTrend(kind);});});
   })();

@@ -85,6 +85,19 @@ test('entire inline script parses and obsolete download paths are gone', () => {
   assert.match(script, /progressDownload\.addEventListener\('click',[\s\S]*?runAdminDownload\(this,[\s\S]*?downloadAdminFile\(path/);
 });
 
+test('worker labels describe stable roles without changing health API fields', () => {
+  assert.match(html, /id="workerHealth"[^>]*title="설문 Worker 상태 확인 중 · 설문 제출 처리"[\s\S]*?<span>설문 Worker<\/span>/);
+  assert.match(html, /id="analysisWorkerHealth"[^>]*title="관리자 Worker 상태 확인 중 · 현재 관리자 분석 작업 처리"[\s\S]*?<span>관리자 Worker<\/span>/);
+  assert.equal(html.includes('분석 Worker'), false);
+  assert.match(script, /data\.worker\|\|\{\}/);
+  assert.match(script, /data\.analysisWorker\|\|\{\}/);
+  for (const label of ['설문 Worker', '관리자 Worker']) {
+    for (const state of ['정상', '확인 필요', '상태를 확인할 수 없습니다.']) {
+      assert.equal(script.includes(label + ' ' + state), true);
+    }
+  }
+});
+
 test('local generation paints first, locks all buttons, and restores inert/focus', async () => {
   const harness = setup();
   const { context, ids, background, alreadyInert } = harness;
@@ -376,7 +389,8 @@ test('round admission loads four rounds and cancel preserves saved state without
   const panels = Object.fromEntries(names.map(name => [name, { on: false, classList: { toggle(unused, active) { panels[name].on = active; } } }]));
   const buttons = names.map(name => ({ dataset: { panel: name }, classList: { add() {}, remove() {} }, addEventListener(unused, listener) { this.click = listener; } }));
   vm.runInNewContext('(function(){' + script.slice(script.indexOf('    var btns=document.querySelectorAll(\'#side button\');'), script.indexOf('  // ---- abuse review ----')), {
-    document: { querySelectorAll: () => buttons, getElementById: id => panels[id.replace('panel-', '')] },
+    Event: class { constructor(type) { this.type = type; } },
+    document: { querySelectorAll: () => buttons, getElementById: id => panels[id.replace('panel-', '')], dispatchEvent: event => assert.equal(event.type, 'ai-us-panel-change') },
   });
   buttons.find(button => button.dataset.panel === 'admission').click();
   assert.deepEqual(names.filter(name => panels[name].on), ['admission']);
@@ -489,6 +503,111 @@ test('local error dialog prevents duplicate global error popup without changing 
     await assert.rejects(context.aiUsRequest('/api/v1/admin/application-settings', { localErrorDialog }), /unavailable/);
     assert.equal(alerts, localErrorDialog ? 0 : 1);
   }
+});
+
+function analysisSetup() {
+  const timers = new Map(), calls = [], listeners = {};
+  let nextTimer = 0;
+  const context = vm.createContext({
+    Promise, Map, Date, URLSearchParams, AbortController,
+    document: { hidden: false, getElementById: () => null, addEventListener(name, callback) { listeners[name] = callback; } },
+    setTimeout(callback, delay) {
+      if (delay === 1000) { queueMicrotask(callback); return 0; }
+      timers.set(++nextTimer, callback); return nextTimer;
+    },
+    clearTimeout(id) { timers.delete(id); },
+    aiUsRequest(requestPath, options) { calls.push({ path: requestPath, options }); return Promise.reject(new Error('Unexpected request')); },
+  });
+  vm.runInContext(script.slice(script.indexOf('  function aiUsPanelVisible('), script.indexOf('  // ---- manage sidebar ----')), context);
+  return { context, timers, calls, listeners };
+}
+
+test('analysis and activity do not load until the visible menu is opened', () => {
+  const harness = analysisSetup();
+  let visible = false, loads = 0;
+  harness.context.document.getElementById = () => ({ classList: { contains: () => visible }, closest: () => ({ classList: { contains: () => true } }) });
+  harness.context.aiUsOnPanelOpen('abuse', () => loads++);
+  assert.equal(loads, 0);
+  harness.listeners['ai-us-panel-change']();
+  assert.equal(loads, 0);
+  visible = true;
+  harness.listeners['ai-us-panel-change']();
+  harness.listeners['ai-us-panel-change']();
+  assert.equal(loads, 1);
+  assert.ok(script.includes("aiUsOnPanelOpen('abuse',loadDefinitions)"));
+  assert.ok(script.includes("aiUsOnPanelOpen('activity',load,true)"));
+  harness.context.document.hidden = true;
+  assert.equal(harness.context.aiUsPanelVisible('activity'), false);
+});
+
+test('analysis poll retry reuses its known job and cleans request timers', async () => {
+  const harness = analysisSetup();
+  let posts = 0, polls = 0;
+  harness.context.aiUsRequest = async (requestPath, options) => {
+    assert.equal(options.localErrorDialog, true);
+    if (options.method === 'POST') { posts++; return { jobId: 'analysis-1', status: 'queued' }; }
+    assert.ok(requestPath.includes('/jobs/analysis-1'));
+    polls++;
+    if (polls === 1) throw new Error('connection lost');
+    return polls === 2 ? { status: 'processing' } : { status: 'completed', result: { totalResponses: 142 } };
+  };
+  const query = '?survey_round=1&survey_version=v2&pair_page_size=200';
+  await assert.rejects(harness.context.aiUsWaitForAnalysis(query), /connection lost/);
+  assert.equal(harness.context.AI_US_ANALYSIS_JOBS.size, 1);
+  const states = [];
+  const result = await harness.context.aiUsWaitForAnalysis(query, state => states.push(state));
+  assert.equal(result.totalResponses, 142);
+  assert.deepEqual(states, ['processing', 'completed']);
+  assert.equal(posts, 1);
+  assert.equal(harness.context.AI_US_ANALYSIS_JOBS.size, 0);
+  assert.equal(harness.timers.size, 0);
+});
+
+test('failed analysis permits explicit re-request and request timeout aborts cleanly', async () => {
+  const harness = analysisSetup();
+  let posts = 0;
+  harness.context.aiUsRequest = async (requestPath, options) => options.method === 'POST' ? { jobId: 'job-' + ++posts } : { status: 'failed', error: 'analysis failed' };
+  const query = '?survey_round=1&survey_version=v2';
+  await assert.rejects(harness.context.aiUsWaitForAnalysis(query), /analysis failed/);
+  assert.equal(harness.context.AI_US_ANALYSIS_JOBS.size, 0);
+  await assert.rejects(harness.context.aiUsWaitForAnalysis(query), /analysis failed/);
+  assert.equal(posts, 2);
+  harness.context.aiUsRequest = (requestPath, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(new Error('aborted')));
+  });
+  const pending = harness.context.aiUsAnalysisRequest('/pending');
+  assert.equal(harness.timers.size, 1);
+  [...harness.timers.values()][0]();
+  await assert.rejects(pending, /aborted/);
+  assert.equal(harness.timers.size, 0);
+});
+
+test('analysis polling has a total deadline and retains the job for later observation', async () => {
+  const harness = analysisSetup();
+  let clockReads = 0;
+  harness.context.Date = { now: () => clockReads++ === 0 ? 0 : 600001 };
+  harness.context.aiUsRequest = async () => ({ jobId: 'still-running' });
+  await assert.rejects(harness.context.aiUsWaitForAnalysis('?survey_round=1&survey_version=v2'), /계속 진행 중/);
+  assert.equal(harness.context.AI_US_ANALYSIS_JOBS.size, 1);
+  assert.equal(harness.timers.size, 0);
+});
+
+test('explicit analysis refresh is forwarded and missing jobs can be requested again', async () => {
+  const harness = analysisSetup();
+  let posts = 0;
+  harness.context.aiUsRequest = async (requestPath, options) => {
+    if (options.method === 'POST') {
+      posts++;
+      assert.ok(requestPath.includes('refresh=true'));
+      return { jobId: 'missing' };
+    }
+    const error = new Error('not found'); error.status = 404; throw error;
+  };
+  const query = '?survey_round=1&survey_version=v2&refresh=true';
+  await assert.rejects(harness.context.aiUsWaitForAnalysis(query), /not found/);
+  assert.equal(harness.context.AI_US_ANALYSIS_JOBS.size, 0);
+  await assert.rejects(harness.context.aiUsWaitForAnalysis(query), /not found/);
+  assert.equal(posts, 2);
 });
 
 (async function runTests() {

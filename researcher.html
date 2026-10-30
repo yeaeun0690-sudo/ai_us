@@ -107,6 +107,40 @@
   .preview.show{display:block}
   .preview .cap{font-size:.82rem;color:var(--muted);margin-bottom:8px}
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  .consent-section{margin:18px 0;min-width:0}
+  .consent-section h3{font-family:var(--fd);font-size:1.18rem;font-weight:400;color:var(--deep);margin-bottom:14px}
+  .consent-lookup{gap:12px;margin-bottom:14px}
+  .consent-lookup .fgroup{width:260px;max-width:100%;min-width:0}
+  .consent-lookup input{width:100%;min-width:0}
+  .consent-feedback{color:var(--ink-2);font-size:.86rem;margin:10px 0}
+  .consent-feedback:empty{display:none}
+  .consent-result{border:0;padding:0;min-width:0}
+  .consent-result legend{font-weight:700;color:var(--deep);font-size:.96rem;overflow-wrap:anywhere;margin-bottom:8px}
+  .consent-summary{padding:10px 12px;border-left:3px solid var(--violet);background:var(--soft);color:var(--ink-2);line-height:1.7}
+  .consent-summary strong{display:block;color:var(--deep);font-size:1rem;overflow-wrap:anywhere}
+  .consent-summary p{margin:6px 0 0;overflow-wrap:anywhere}
+  .consent-checks{display:flex;flex-wrap:wrap;gap:12px 24px;margin:16px 0}
+  .consent-checks label{display:inline-flex;align-items:flex-start;gap:8px;font-size:.9rem;color:var(--ink-2);cursor:pointer;min-width:0}
+  .consent-checks input{width:16px;height:16px;flex:0 0 16px;margin-top:4px;accent-color:var(--violet);cursor:pointer}
+  .consent-section [hidden]{display:none!important}
+  .consent-reason{margin-bottom:14px}
+  .consent-reason textarea{width:100%;min-height:88px;max-height:200px;resize:vertical;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-family:var(--fb);font-size:.9rem;line-height:1.7}
+  .consent-reason textarea:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 3px var(--soft)}
+  .consent-section .btn:disabled{opacity:.55;cursor:not-allowed;box-shadow:none;transform:none}
+  .consent-history-title{margin:22px 0 10px;font-family:var(--fd);font-size:1rem;font-weight:400;color:var(--deep)}
+  .consent-history{max-height:240px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--muted) var(--soft);border-radius:8px}
+  .manage .tbl-wrap.consent-history table{min-width:920px}
+  .consent-history th{position:sticky;top:0;z-index:1;background:var(--soft);color:var(--deep)}
+  .consent-history th:nth-child(1){width:180px}
+  .consent-history th:nth-child(2){width:200px}
+  .consent-history th:nth-child(3){width:110px}
+  .consent-history th:nth-child(4){width:130px}
+  .consent-history th:nth-child(5){width:100px}
+  .consent-history .consent-participant{white-space:normal;overflow-wrap:anywhere}
+  .consent-confirm{margin:auto;border:1px solid var(--line);width:480px;max-width:calc(100% - 32px);max-height:calc(100% - 40px);overflow:auto;font-family:var(--fb);color:var(--ink)}
+  .consent-confirm::backdrop{background:rgba(36,29,61,.45)}
+  .consent-confirm .consent-confirm-message{margin-top:14px;padding:12px;text-align:left;background:var(--soft);border-left:3px solid var(--violet);white-space:pre-line;overflow-wrap:anywhere}
+  .consent-confirm .chat-import-actions .btn{width:100%;justify-content:center}
   .manage .tbl-wrap table{min-width:0;table-layout:fixed;font-size:.78rem}
   .manage .tbl-wrap th,.manage .tbl-wrap td{padding:8px 7px;white-space:normal;overflow-wrap:anywhere;vertical-align:top}
   .manage .tbl-wrap .file-name{max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
@@ -380,6 +414,7 @@
       <nav class="side" id="side">
         <button class="on" data-panel="apply" type="button"><span class="dot"></span>회원 신청</button>
         <button data-panel="status" type="button"><span class="dot"></span>참여 현황</button>
+        <button data-panel="consent" type="button"><span class="dot"></span>동의 관리</button>
         <button data-panel="absent" type="button"><span class="dot"></span>미완료자 관리</button>
         <button data-panel="admission" type="button"><span class="dot"></span>설문 접수 관리</button>
         <button data-panel="files" type="button"><span class="dot"></span>파일 관리</button>
@@ -471,6 +506,30 @@
               <div class="stat"><div class="k">4차 후 제출자</div><div class="v" id="statusChatRound4">-<small>명</small></div></div>
             </div>
           </div>
+        </div>
+
+        <div class="panel" id="panel-consent">
+          <h2>동의 관리</h2>
+          <section id="chatConsentSection" class="card consent-section" aria-labelledby="chatConsentHeading">
+            <h3 id="chatConsentHeading">대화문 동의 관리</h3>
+            <form id="chatConsentLookup" class="filters consent-lookup">
+              <div class="fgroup"><label for="chatConsentPhone">본인 휴대전화</label><input id="chatConsentPhone" type="tel" inputmode="tel" autocomplete="off" maxlength="20" required></div>
+              <button class="btn" id="chatConsentSearch" type="submit">계정 조회</button>
+            </form>
+            <p id="chatConsentFeedback" class="consent-feedback" role="status" aria-live="polite"></p>
+            <fieldset id="chatConsentResult" class="consent-result" hidden>
+              <legend>조회 결과</legend>
+              <div class="consent-summary"><strong id="chatConsentIdentity"></strong><p id="chatConsentMaterialStatus" class="sub"></p></div>
+              <div class="consent-checks">
+                <label><input id="chatConsentEnabled" type="checkbox"> 대화문 제출 동의</label>
+                <label id="chatConsentRestoreLabel" hidden><input id="chatConsentRestore" type="checkbox"> 본인 요청으로 기존 자료도 복원</label>
+              </div>
+              <div class="fgroup consent-reason"><label for="chatConsentReason">접수·변경 사유</label><textarea id="chatConsentReason" rows="2" maxlength="500"></textarea></div>
+              <button class="btn" id="chatConsentSave" type="button">변경 확인</button>
+              <h4 id="chatConsentHistoryHeading" class="consent-history-title">동의 변경 이력</h4>
+              <div class="tbl-wrap consent-history" role="region" aria-labelledby="chatConsentHistoryHeading" tabindex="0"><table><thead><tr><th>처리 시각</th><th>참여자</th><th>동의 변경</th><th>기존 자료</th><th>처리자</th><th>사유</th></tr></thead><tbody id="chatConsentHistory"></tbody></table></div>
+            </fieldset>
+          </section>
         </div>
 
         <!-- 2. 미완료자 관리 -->
@@ -608,6 +667,7 @@
                   <option value="excluded">사례 대상 제외</option>
                   <option value="duplicate">중복 제출</option>
                   <option value="other">기타 사유</option>
+                  <option value="consent_restricted">동의 철회 · 숨김 자료</option>
                 </select>
               </div>
               <button class="btn" id="cRosterBtn" type="button">⬇ 대화문 제출 현황 CSV</button>
@@ -729,6 +789,11 @@
   </div>
 </div>
 
+<dialog id="chatConsentConfirm" class="server-modal consent-confirm" aria-labelledby="chatConsentConfirmTitle" aria-describedby="chatConsentConfirmMessage">
+  <h2 id="chatConsentConfirmTitle">대화문 동의를 변경할까요?</h2>
+  <p id="chatConsentConfirmMessage" class="consent-confirm-message"></p>
+  <div class="chat-import-actions"><button class="btn" id="chatConsentConfirmYes" type="button">변경 저장</button><button class="btn btn-ghost" id="chatConsentConfirmNo" type="button">취소</button></div>
+</dialog>
 <script>
   var AI_US_API_BASE={
     'web-ai-us-mtmm0sg55da4c824.sel3.cloudtype.app':'https://port-0-ai-us-backend-mtmm0sg55da4c824.sel3.cloudtype.app',
@@ -884,7 +949,7 @@
   // ---- manage sidebar ----
   (function(){
     var btns=document.querySelectorAll('#side button');
-    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),absent:document.getElementById('panel-absent'),admission:document.getElementById('panel-admission'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),abuse:document.getElementById('panel-abuse'),activity:document.getElementById('panel-activity')};
+    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),consent:document.getElementById('panel-consent'),absent:document.getElementById('panel-absent'),admission:document.getElementById('panel-admission'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),abuse:document.getElementById('panel-abuse'),activity:document.getElementById('panel-activity')};
     btns.forEach(function(b){
       b.addEventListener('click',function(){
         btns.forEach(function(x){x.classList.remove('on');});
@@ -1024,7 +1089,7 @@
     if(adminDownloadFocus&&adminDownloadFocus.isConnected)adminDownloadFocus.focus();
     adminDownloadFocus=null;
   }
-  function runAdminDownload(button,title,task){
+  function runAdminDownload(button,title,task,errorTitle){
     if(adminDownloadBusy||adminDownloadErrorOpen)return Promise.resolve(false);
     adminDownloadBusy=true;
     var wasDisabled=button.disabled,dialog=document.getElementById('transcriptDownloadDialog');
@@ -1043,7 +1108,7 @@
       .then(function(){closeAdminDownload();return true;})
       .catch(function(error){
         adminDownloadErrorOpen=true;
-        document.getElementById('transcriptDownloadTitle').textContent='다운로드를 준비하지 못했어요';
+        document.getElementById('transcriptDownloadTitle').textContent=errorTitle||'다운로드를 준비하지 못했어요';
         updateAdminDownload(error.message||'잠시 후 다시 시도해 주세요.');
         dialog.classList.add('error');
         close.hidden=false;
@@ -1066,7 +1131,7 @@
     var url=/^https?:\/\//i.test(path)?path:AI_US_API_BASE+path;
     return fetch(url,options).then(function(response){
       if(response.status===401||response.status===403){sessionStorage.removeItem('ai_us_access_token');sessionStorage.removeItem('ai_us_role');window.location.href='index.html';throw new Error('인증이 만료되었습니다. 다시 로그인해 주세요.');}
-      if(!response.ok)return response.json().catch(function(){return {};}).then(function(data){throw new Error(typeof data.detail==='string'?data.detail:'파일 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');});
+      if(!response.ok)return response.json().catch(function(){return {};}).then(function(data){var error=new Error(typeof data.detail==='string'?data.detail:'파일 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');error.status=response.status;throw error;});
       if(asJson)return response.json();
       updateAdminDownload('파일을 받고 있어요.');
       return response.blob().then(function(blob){return {blob:blob,disposition:response.headers.get('Content-Disposition')||''};});
@@ -1088,7 +1153,7 @@
       if(Date.now()-started>30*60*1000)throw new Error('작업이 오래 걸리고 있습니다. 다시 다운로드하면 기존 작업의 상태를 확인합니다.');
       return adminDownloadRequest(path+'/'+encodeURIComponent(job.jobId),null,true).then(function(state){
         if(state.status==='failed'){adminDownloadJobs.delete(key);throw new Error(state.error||'파일 생성에 실패했습니다.');}
-        if(state.status==='completed'&&state.downloadUrl)return downloadAdminFile(state.downloadUrl,fallback).then(function(){adminDownloadJobs.delete(key);});
+        if(state.status==='completed'&&state.downloadUrl)return downloadAdminFile(state.downloadUrl,fallback).then(function(){adminDownloadJobs.delete(key);}).catch(function(error){if(error.status===409)adminDownloadJobs.delete(key);throw error;});
         updateAdminDownload(state.status==='queued'?'다운로드 작업이 대기열에 등록되었습니다.':'파일을 준비하고 있어요.');
         return new Promise(function(resolve){setTimeout(resolve,1000);}).then(function(){return poll(job);});
       });
@@ -1516,6 +1581,73 @@
     });
   })();
 
+  // ---- 대화문 동의 관리 ----
+  var openChatConsent;
+  (function(){
+    var form=document.getElementById('chatConsentLookup'),phone=document.getElementById('chatConsentPhone'),search=document.getElementById('chatConsentSearch');
+    var result=document.getElementById('chatConsentResult'),enabled=document.getElementById('chatConsentEnabled'),restore=document.getElementById('chatConsentRestore');
+    var reason=document.getElementById('chatConsentReason'),save=document.getElementById('chatConsentSave'),feedback=document.getElementById('chatConsentFeedback');
+    var dialog=document.getElementById('chatConsentConfirm'),yes=document.getElementById('chatConsentConfirmYes'),no=document.getElementById('chatConsentConfirmNo');
+    var account=null,busy=false,pending=null;
+    function request(path,options){
+      var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},30000);
+      return aiUsRequest(path,Object.assign({},options,{signal:controller.signal,localErrorDialog:true})).finally(function(){clearTimeout(timer);});
+    }
+    function sync(){
+      var hasRestriction=!!(account&&account.restrictedBefore);
+      document.getElementById('chatConsentRestoreLabel').hidden=!hasRestriction;
+      restore.disabled=!enabled.checked||!hasRestriction;
+      if(restore.disabled)restore.checked=false;
+      save.disabled=!account||busy||(enabled.checked===account.chatConsent&&!restore.checked);
+    }
+    function render(data){
+      account=data;result.hidden=false;enabled.checked=data.chatConsent;restore.checked=false;reason.value='';
+      var identity=[data.phone,data.name,data.schoolLevel,data.grade?data.grade+'학년':''].filter(Boolean).join(' · ');
+      document.getElementById('chatConsentIdentity').textContent=identity;
+      document.getElementById('chatConsentMaterialStatus').textContent='현재 동의: '+(data.chatConsent?'동의':data.restrictedBefore?'철회':'미동의')+' · 제출 '+data.submissionCount+'건 · 숨김 '+data.restrictedSubmissionCount+'건'+(data.restrictedBefore?' · 원본 보존 중':'');
+      document.getElementById('chatConsentHistory').innerHTML=(data.history||[]).slice().reverse().map(function(item){return '<tr><td>'+esc(formatKstDateTime(item.updatedAt))+'</td><td class="consent-participant">'+esc(identity)+'</td><td>'+(item.previousConsent?'동의':'미동의')+' → '+(item.chatConsent?'동의':'철회')+'</td><td>'+(item.restoreExisting?'복원 요청 반영':item.chatConsent?'기존 제한 유지':'숨김 · 원본 보존')+'</td><td>'+esc(item.updatedByUsername||item.updatedBy)+'</td><td style="white-space:normal;overflow-wrap:anywhere">'+esc(item.reason)+'</td></tr>';}).join('')||'<tr><td colspan="6">변경 이력 없음</td></tr>';
+      sync();
+    }
+    phone.addEventListener('input',function(){account=null;result.hidden=true;feedback.textContent='';sync();});
+    enabled.addEventListener('change',sync);restore.addEventListener('change',sync);
+    form.addEventListener('submit',function(event){
+      event.preventDefault();if(busy||adminDownloadBusy||adminDownloadErrorOpen)return;
+      var normalized=phone.value.replace(/\D/g,'');
+      if(!/^01\d{9}$/.test(normalized)){feedback.textContent='본인 휴대전화 11자리를 입력해 주세요.';return;}
+      account=null;result.hidden=true;busy=true;search.disabled=true;phone.disabled=true;feedback.textContent='조회 중';
+      request('/api/v1/researcher/participants/chat-consent/lookup',{method:'POST',body:{phone:normalized}})
+        .then(function(data){phone.value=normalized;render(data);feedback.textContent='';})
+        .catch(function(error){feedback.textContent=error.name==='AbortError'?'조회 시간이 초과되었습니다. 다시 조회해 주세요.':error.message;})
+        .finally(function(){busy=false;search.disabled=false;phone.disabled=false;sync();});
+    });
+    function cancel(){pending=null;busy=false;result.disabled=false;search.disabled=false;phone.disabled=false;sync();}
+    dialog.addEventListener('close',function(){if(pending)cancel();});
+    no.addEventListener('click',function(){dialog.close();});
+    save.addEventListener('click',function(){
+      if(busy||!account||adminDownloadBusy||adminDownloadErrorOpen)return;
+      if(!reason.value.trim()){feedback.textContent='접수·변경 사유를 입력해 주세요.';reason.focus();return;}
+      pending={participantId:account.participantId,chatConsent:enabled.checked,restoreExisting:restore.checked,expectedRevision:account.revision,reason:reason.value.trim()};
+      document.getElementById('chatConsentConfirmMessage').textContent=account.phone+' · '+(account.schoolLevel||'')+'\n'+(pending.chatConsent?'대화문 제출 허용':'대화문 동의 철회')+'\n'+(pending.restoreExisting?'본인 요청에 따라 기존 자료 '+account.restrictedSubmissionCount+'건 복원':pending.chatConsent?'기존 숨김 자료는 그대로 보존·이용 제한':'기존 자료 '+account.submissionCount+'건 숨김·다운로드 제외, 원본 보존')+'\n사유: '+pending.reason;
+      busy=true;result.disabled=true;search.disabled=true;phone.disabled=true;dialog.showModal();no.focus();
+    });
+    yes.addEventListener('click',function(){
+      if(!pending)return;
+      var change=pending;pending=null;dialog.close();
+      runAdminDownload(save,'대화문 동의를 저장하고 있어요',function(){
+        updateAdminDownload('계정의 동의·자료 제한·변경 이력을 저장하고 있어요.');
+        return request('/api/v1/researcher/participants/'+encodeURIComponent(change.participantId)+'/chat-consent',{method:'PUT',body:change})
+          .then(function(data){render(data);feedback.textContent='변경을 저장했습니다.';window.dispatchEvent(new Event('ai-us-chat-consent-changed'));})
+            .catch(function(error){account=null;result.hidden=true;adminDownloadFocus=search;feedback.textContent='저장 결과를 확인하려면 계정을 다시 조회해 주세요.';throw error;});
+          },'동의 변경 결과를 확인해 주세요').finally(function(){cancel();if(!adminDownloadErrorOpen)search.focus();});
+    });
+    openChatConsent=function(value){
+      if(busy||adminDownloadBusy||adminDownloadErrorOpen)return;
+      document.querySelector('#side [data-panel="consent"]').click();
+      phone.value=value;form.dispatchEvent(new Event('submit',{cancelable:true}));
+      document.getElementById('chatConsentSection').scrollIntoView({block:'start'});
+    };
+  })();
+
   // ---- AI 대화문 다운로드 ----
   (function(){
     var cRound=document.getElementById('cRound'), cGrade=document.getElementById('cGrade'), cReview=document.getElementById('cReview');
@@ -1612,7 +1744,8 @@
           var csv=r.parseStatus==='parsed'?'<button class="btn transcript-csv" data-id="'+esc(r.submissionId)+'" type="button">CSV 받기</button>':'';
           var downloads='<div class="download-actions" data-id="'+esc(r.submissionId)+'">'+original+csv+'</div>';
           var parsed=r.parseStatus==='parsed',parse='<div class="parse-actions"><button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button">'+(parsed?'다시 파싱':'파싱 요청')+'</button></div><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'">'+(parsed?'파싱 완료 · <button class="linkbtn transcript-json" data-id="'+esc(r.submissionId)+'" type="button">JSON 받기</button>':'')+'</span>';
-          return '<tr><td><input class="chat-row-check" type="checkbox" value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc((r.schoolLevel||'-')+' · '+(r.grade||'-'))+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+downloads+'</td><td>'+parse+'</td><td>'+reviewControl(r)+'</td></tr>';
+          if(r.consentRestricted){downloads='<span class="form-tag">동의 철회 · 숨김</span>';parse='이용 제한 · 원본 보존';}
+          return '<tr><td><input class="chat-row-check" type="checkbox"'+(r.consentRestricted?' disabled':'')+' value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc((r.schoolLevel||'-')+' · '+(r.grade||'-'))+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+downloads+'</td><td>'+parse+'</td><td>'+reviewControl(r)+'</td></tr>';
         }).join('');
         cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.addEventListener('change',function(){selectAllFiltered=false;updateSelectionSummary();});});
         cBody.querySelectorAll('.review-select').forEach(function(select){select.addEventListener('change',function(){var wrap=select.parentElement.querySelector('.review-note-wrap'),note=wrap.querySelector('.review-note'),save=wrap.querySelector('.review-save'),hasStatus=!!select.value;note.hidden=!hasStatus;note.disabled=!hasStatus;note.placeholder=select.value==='other'?'기타 사유 입력 (필수)':'메모 입력 (선택)';if(hasStatus)note.focus();else save.focus();});});
@@ -1638,7 +1771,8 @@
         updateSelectionSummary();
       }).catch(function(error){cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();if(propagateError)throw error;});
     }
-    function upd(){selectAllFiltered=false;cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value)+' · '+cReview.options[cReview.selectedIndex].text;loadPreview();}
+    function upd(){selectAllFiltered=false;var restricted=cReview.value==='consent_restricted';[cBulkBtn,cTranscriptBtn,cSelectAll,cAll].forEach(function(control){if(control)control.disabled=restricted;});cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value)+' · '+cReview.options[cReview.selectedIndex].text;loadPreview();}
+    window.addEventListener('ai-us-chat-consent-changed',upd);
     cRound.addEventListener('change',upd); cGrade.addEventListener('change',upd); cReview.addEventListener('change',upd);
     if(cSelectAll)cSelectAll.addEventListener('click',function(){selectAllFiltered=true;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=true;});updateSelectionSummary();});
     if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});
@@ -1765,12 +1899,8 @@
           +'</tr>';
       }).join('');
       body.querySelectorAll('.consent-toggle').forEach(function(button){button.addEventListener('click',function(){
-        var enabled=button.dataset.enabled==='true';
-        if(!confirm('이 참여자의 대화문 제출을 '+(enabled?'허용 해제':'허용')+'할까요?'))return;
-        button.disabled=true;
-        aiUsRequest('/api/v1/researcher/applications/'+encodeURIComponent(button.dataset.id)+'/chat-consent',{method:'PUT',body:{chatConsent:!enabled}})
-          .then(function(){var item=applications.find(function(row){return row.id===button.dataset.id;});if(item)item.joinChat=!enabled;render();})
-          .catch(function(error){button.disabled=false;alert(error.message);});
+        var item=applications.find(function(row){return row.id===button.dataset.id;});
+        if(item)openChatConsent(item.phone);
       });});
       var total=applications.length;
       var approved=applications.filter(function(a){return a.status==='approved';}).length;
@@ -1785,6 +1915,7 @@
       if(allChk) allChk.checked=false;
     }
 
+    window.addEventListener('ai-us-chat-consent-changed',function(){loadApplications();});
     function loadApplications(){
       aiUsRequest('/api/v1/researcher/applications').then(function(records){
         applications=records.map(function(record){return {

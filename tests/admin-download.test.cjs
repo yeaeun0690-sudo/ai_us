@@ -80,7 +80,7 @@ test('entire inline script parses and obsolete download paths are gone', () => {
   }
   assert.equal((helper.match(/fetch\(/g) || []).length, 1);
   assert.equal(/fetch\([^\n]*(?:latest-parse\/download|files\/[^\n]*\/download|transcript-download-jobs|download-jobs)/.test(script), false);
-  assert.equal((script.match(/runAdminDownload\(/g) || []).length, 12);
+  assert.equal((script.match(/runAdminDownload\(/g) || []).length, 13);
   assert.match(script, /researcher\/survey-progress\?format=csv/);
   assert.match(script, /progressDownload\.addEventListener\('click',[\s\S]*?runAdminDownload\(this,[\s\S]*?downloadAdminFile\(path/);
 });
@@ -96,6 +96,23 @@ test('worker labels describe stable roles without changing health API fields', (
       assert.equal(script.includes(label + ' ' + state), true);
     }
   }
+});
+
+test('consent styling bounds history scrolling and reuses the console modal theme', () => {
+  const consentPosition = html.indexOf('<section id="chatConsentSection"');
+  assert.ok(consentPosition > html.indexOf('id="panel-consent"'));
+  assert.ok(consentPosition < html.indexOf('id="panel-absent"'));
+  assert.ok(html.indexOf('data-panel="status"') < html.indexOf('data-panel="consent"'));
+  assert.ok(html.indexOf('data-panel="consent"') < html.indexOf('data-panel="absent"'));
+  assert.match(html, /id="chatConsentSection" class="card consent-section"/);
+  assert.match(script, /openChatConsent=function\(value\)[\s\S]*?querySelector\('#side \[data-panel="consent"\]'\)/);
+  assert.match(html, /\.consent-history\{[^}]*max-height:240px;overflow:auto/);
+  assert.match(html, /\.manage \.tbl-wrap\.consent-history table\{min-width:920px\}/);
+  assert.match(html, /\.consent-history th\{position:sticky;top:0/);
+  assert.match(html, /class="tbl-wrap consent-history"[^>]*role="region"[^>]*tabindex="0"/);
+  assert.match(html, /id="chatConsentConfirm" class="server-modal consent-confirm"/);
+  assert.match(html, /class="fgroup consent-reason"/);
+  assert.match(html, /\.consent-section \[hidden\]\{display:none!important\}/);
 });
 
 test('local generation paints first, locks all buttons, and restores inert/focus', async () => {
@@ -210,6 +227,25 @@ for (const failedStage of ['poll', 'file']) {
     assert.equal(harness.timers.size, 0);
   });
 }
+
+test('consent-invalidated ZIP is cleared without automatic mutation retry', async () => {
+  const harness = setup();
+  let posts = 0, restricted = true;
+  harness.context.fetch = async (url, options) => {
+    if (options.method === 'POST') { posts++; return jsonResponse({ jobId: 'stale' }); }
+    if (url.endsWith('/jobs/stale')) return jsonResponse({ status: 'completed', downloadUrl: '/file' });
+    if (restricted) return { ok: false, status: 409, json: async () => ({ detail: '자료 이용 상태가 변경되었습니다.' }) };
+    return { ok: true, status: 200, headers: { get: () => '' }, blob: async () => ({}) };
+  };
+  await assert.rejects(harness.context.downloadAdminArchive('/jobs', {}, 'out.zip'), /자료 이용 상태/);
+  assert.equal(posts, 1);
+  assert.equal(harness.context.adminDownloadJobs.size, 0);
+  assert.equal(harness.downloads(), 0);
+  restricted = false;
+  await harness.context.downloadAdminArchive('/jobs', {}, 'out.zip');
+  assert.equal(posts, 2);
+  assert.equal(harness.downloads(), 1);
+});
 
 test('server file modal stays open until blob handoff completes', async () => {
   const harness = setup();
@@ -392,6 +428,8 @@ test('round admission loads four rounds and cancel preserves saved state without
     Event: class { constructor(type) { this.type = type; } },
     document: { querySelectorAll: () => buttons, getElementById: id => panels[id.replace('panel-', '')], dispatchEvent: event => assert.equal(event.type, 'ai-us-panel-change') },
   });
+  buttons.find(button => button.dataset.panel === 'consent').click();
+  assert.deepEqual(names.filter(name => panels[name].on), ['consent']);
   buttons.find(button => button.dataset.panel === 'admission').click();
   assert.deepEqual(names.filter(name => panels[name].on), ['admission']);
   assert.ok(html.indexOf('data-panel="absent"') < html.indexOf('data-panel="admission"'));
@@ -608,6 +646,132 @@ test('explicit analysis refresh is forwarded and missing jobs can be requested a
   assert.equal(harness.context.AI_US_ANALYSIS_JOBS.size, 0);
   await assert.rejects(harness.context.aiUsWaitForAnalysis(query), /not found/);
   assert.equal(posts, 2);
+});
+
+function consentSetup() {
+  const calls = [], timers = new Map(), events = [];
+  let timerId = 0;
+  const ids = {};
+  for (const match of html.matchAll(/id="(chatConsent[^"]*)"/g)) {
+    ids[match[1]] = {
+      value: '', checked: false, disabled: false, hidden: false, textContent: '', innerHTML: '', listeners: {},
+      addEventListener(name, callback) { this.listeners[name] = callback; },
+      dispatchEvent(event) { return this.listeners[event.type](event); },
+      focus() {}, scrollIntoView() {},
+      showModal() { this.open = true; },
+      close() { this.open = false; if (this.listeners.close) this.listeners.close(); },
+    };
+  }
+  const state = { account: { participantId: 'csv-only', phone: '01012345678', name: null, schoolLevel: '초등', grade: 4, chatConsent: true, revision: 0, submissionCount: 2, restrictedSubmissionCount: 0, restrictedBefore: null, history: [] } };
+  const context = vm.createContext({
+    document: { getElementById: id => ids[id], querySelector: () => ({ click() {} }) },
+    window: { dispatchEvent: event => events.push(event.type) },
+    Event: class { constructor(type) { this.type = type; } preventDefault() {} },
+    AbortController: class { constructor() { this.signal = {}; } abort() { this.signal.aborted = true; } },
+    setTimeout(callback) { timers.set(++timerId, callback); return timerId; },
+    clearTimeout(id) { timers.delete(id); },
+    adminDownloadBusy: false, adminDownloadErrorOpen: false,
+    esc: value => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'),
+    formatKstDate: value => value,
+    formatKstDateTime: value => value,
+    updateAdminDownload() {},
+    aiUsRequest(requestPath, options) {
+      calls.push({ path: requestPath, options });
+      if (state.handler) return state.handler(requestPath, options);
+      if (options.method === 'PUT') {
+        state.account = Object.assign({}, state.account, { chatConsent: options.body.chatConsent, revision: state.account.revision + 1, restrictedBefore: options.body.restoreExisting ? null : '2026-10-30T00:00:00Z' });
+      }
+      return Promise.resolve(JSON.parse(JSON.stringify(state.account)));
+    },
+    runAdminDownload(button, title, task, errorTitle) {
+      context.adminDownloadBusy = true;
+      return Promise.resolve().then(task).catch(error => { state.error = error; state.errorTitle = errorTitle; return false; }).finally(() => { context.adminDownloadBusy = false; });
+    },
+  });
+  const start = script.indexOf('  var openChatConsent;');
+  vm.runInContext(script.slice(start, script.indexOf('  // ---- AI 대화문 다운로드 ----', start)), context);
+  const emit = (id, name = 'click') => ids[id].listeners[name]({ preventDefault() {} });
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  async function lookup() { ids.chatConsentPhone.value = '010-1234-5678'; emit('chatConsentLookup', 'submit'); await flush(); }
+  return { ids, state, context, calls, timers, events, emit, flush, lookup };
+}
+
+test('consent results group account identity with status and include escaped participant details in history', async () => {
+  const harness = consentSetup();
+  await harness.lookup();
+  assert.match(html, /<legend>조회 결과<\/legend>\s*<div class="consent-summary"><strong id="chatConsentIdentity"><\/strong><p id="chatConsentMaterialStatus"/);
+  assert.equal(harness.ids.chatConsentIdentity.textContent, '01012345678 · 초등 · 4학년');
+  assert.match(harness.ids.chatConsentMaterialStatus.textContent, /현재 동의: 동의 · 제출 2건 · 숨김 0건/);
+  assert.match(harness.ids.chatConsentHistory.innerHTML, /colspan="6"/);
+  Object.assign(harness.state.account, { name: '<img src=x>', history: [{ updatedAt: 'today', updatedBy: 'researcher', reason: '요청', previousConsent: true, chatConsent: false }] });
+  await harness.lookup();
+  assert.match(harness.ids.chatConsentHistory.innerHTML, /class="consent-participant">01012345678 · &lt;img src=x> · 초등 · 4학년<\/td>/);
+  assert.ok(!harness.ids.chatConsentHistory.innerHTML.includes('<img'));
+});
+
+test('consent lookup locks duplicate requests, normalizes exact phone and cancellation writes nothing', async () => {
+  const harness = consentSetup();
+  harness.ids.chatConsentPhone.value = '010-1234-5678';
+  harness.emit('chatConsentLookup', 'submit'); harness.emit('chatConsentLookup', 'submit');
+  assert.equal(harness.calls.length, 1);
+  assert.equal(harness.calls[0].options.body.phone, '01012345678');
+  assert.equal(harness.ids.chatConsentSearch.disabled, true);
+  await harness.flush();
+  assert.equal(harness.ids.chatConsentSearch.disabled, false);
+  assert.equal(harness.timers.size, 0);
+  harness.ids.chatConsentEnabled.checked = false; harness.emit('chatConsentEnabled', 'change');
+  harness.emit('chatConsentSave');
+  assert.equal(harness.ids.chatConsentConfirm.open, undefined);
+  harness.ids.chatConsentReason.value = '본인 연락으로 철회'; harness.emit('chatConsentSave');
+  assert.equal(harness.ids.chatConsentConfirm.open, true);
+  assert.match(harness.ids.chatConsentConfirmMessage.textContent, /2건 숨김.*원본 보존/);
+  harness.emit('chatConsentConfirmNo');
+  assert.equal(harness.calls.filter(call => call.options.method === 'PUT').length, 0);
+  assert.equal(harness.ids.chatConsentResult.disabled, false);
+});
+
+test('consent saves once after confirmation and preserves scope and audited revision', async () => {
+  const harness = consentSetup(); await harness.lookup();
+  harness.ids.chatConsentEnabled.checked = false; harness.emit('chatConsentEnabled', 'change');
+  harness.ids.chatConsentReason.value = '철회 요청'; harness.emit('chatConsentSave');
+  let resolveSave;
+  harness.state.handler = (requestPath, options) => new Promise(resolve => { resolveSave = resolve; });
+  harness.emit('chatConsentConfirmYes'); harness.emit('chatConsentConfirmYes');
+  await harness.flush();
+  const writes = harness.calls.filter(call => call.options.method === 'PUT');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].options.body.expectedRevision, 0);
+  assert.equal(writes[0].options.body.restoreExisting, false);
+  assert.equal(harness.ids.chatConsentResult.disabled, true);
+  resolveSave(Object.assign({}, harness.state.account, { chatConsent: false, revision: 1, restrictedBefore: '2026-10-30T00:00:00Z', restrictedSubmissionCount: 2 }));
+  await harness.flush();
+  assert.equal(harness.ids.chatConsentEnabled.checked, false);
+  assert.equal(harness.ids.chatConsentResult.disabled, false);
+  assert.deepEqual(harness.events, ['ai-us-chat-consent-changed']);
+});
+
+test('consent failure requires fresh lookup and old materials restore only by explicit selection', async () => {
+  const harness = consentSetup();
+  Object.assign(harness.state.account, { chatConsent: false, revision: 2, restrictedBefore: '2026-10-30T00:00:00Z', restrictedSubmissionCount: 2, history: [{ updatedAt: 'today', updatedBy: 'researcher', reason: '<script>unsafe</script>', previousConsent: true, chatConsent: false }] });
+  await harness.lookup();
+  assert.ok(harness.ids.chatConsentHistory.innerHTML.includes('&lt;script>'));
+  harness.ids.chatConsentEnabled.checked = true; harness.emit('chatConsentEnabled', 'change');
+  assert.equal(harness.ids.chatConsentRestore.checked, false);
+  harness.ids.chatConsentRestore.checked = true; harness.emit('chatConsentRestore', 'change');
+  harness.ids.chatConsentReason.value = '기존 자료 복원 요청'; harness.emit('chatConsentSave');
+  assert.match(harness.ids.chatConsentConfirmMessage.textContent, /2건 복원/);
+  harness.state.handler = async () => { throw new Error('unknown outcome'); };
+  harness.emit('chatConsentConfirmYes'); await harness.flush();
+  const writes = harness.calls.filter(call => call.options.method === 'PUT');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].options.body.restoreExisting, true);
+  assert.equal(writes[0].options.body.expectedRevision, 2);
+  assert.equal(harness.ids.chatConsentResult.hidden, true);
+  assert.equal(harness.ids.chatConsentSave.disabled, true);
+  harness.emit('chatConsentSave');
+  assert.equal(harness.calls.filter(call => call.options.method === 'PUT').length, 1);
+  assert.match(harness.ids.chatConsentFeedback.textContent, /다시 조회/);
+  assert.equal(harness.timers.size, 0);
 });
 
 (async function runTests() {

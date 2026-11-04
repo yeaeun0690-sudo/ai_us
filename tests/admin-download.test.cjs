@@ -870,7 +870,7 @@ function parseSetup(records, state, conflict = false) {
     aiUsRequest(path, options) {
       calls.push({ path, options });
       if (path.includes('chat-submission-previews')) return Promise.resolve(records);
-      if (path.includes('parse-runs')) return Promise.resolve(state);
+      if (path.includes('parse-runs')) return typeof state === 'function' ? state() : Promise.resolve(state);
       if (conflict) {
         records = records.map(record => ({ ...record, parseStatus: 'invalid_source', parseError: '다른 서비스 export' }));
         return Promise.reject(Object.assign(new Error('다른 서비스 export'), { status: 409 }));
@@ -886,6 +886,13 @@ function parseSetup(records, state, conflict = false) {
 
 const parseRecord = { submissionId: 'source', filenames: ['takeout.zip'], attachmentCount: 1, sourceType: 'file', parseStatus: 'placeholder' };
 const flushParse = () => new Promise(resolve => setImmediate(resolve));
+
+test('disabled parse buttons use neutral styling without hover color or motion effects', () => {
+  const styles = html.match(/\.chat-preview-table \.transcript-parse:disabled\{([^}]+)\}/)[1];
+  for (const declaration of ['background:#f1f3f5', 'color:#6b7280', 'border-color:#d1d5db', 'box-shadow:none', 'transform:none', 'cursor:not-allowed', 'opacity:1']) {
+    assert.ok(styles.split(';').includes(declaration), declaration);
+  }
+});
 
 test('invalid file survives preview reload, escapes its reason and keeps original download only', async () => {
   const harness = parseSetup([{ ...parseRecord, parseStatus: 'invalid_source', parseError: '<img src=x onerror=alert(1)>' }]);
@@ -911,6 +918,58 @@ test('terminal source failure disables parse button and removes parsed downloads
   assert.equal(harness.csv.removed, true);
   harness.button.listeners.click();
   assert.equal(harness.calls.filter(call => call.options?.method === 'POST').length, 1);
+});
+
+test('poll connection failure stays local and resumes the accepted run without another parse request', async () => {
+  let reads = 0;
+  const timers = [];
+  const harness = parseSetup([parseRecord], () => ++reads <= 2
+    ? Promise.reject(new Error('Failed to fetch'))
+    : Promise.resolve({ status: 'failed', sourceErrorCode: 'wrong_service_export', error: '다른 서비스 export' }));
+  harness.context.setTimeout = callback => timers.push(callback);
+  await harness.context.loadPreview();
+  harness.button.listeners.click();
+  await flushParse();
+  assert.equal(timers.length, 1);
+  timers.shift()();
+  await flushParse();
+  assert.equal(harness.button.disabled, true);
+  assert.equal(harness.button.textContent, '상태 확인 필요');
+  assert.match(harness.status.innerHTML, /상태 다시 확인/);
+  harness.button.listeners.click();
+  assert.equal(harness.calls.filter(call => call.options?.method === 'POST').length, 1);
+  harness.button.aiUsResumeParse();
+  await flushParse();
+  assert.equal(harness.button.disabled, true);
+  assert.equal(harness.button.textContent, '오류 파일');
+  assert.equal(harness.status.textContent, '다른 서비스 export');
+  assert.equal(harness.button.aiUsResumeParse, null);
+  const requests = harness.calls.filter(call => !call.path.includes('chat-submission-previews'));
+  assert.ok(requests.every(call => call.options.localErrorDialog === true));
+  assert.equal(requests.filter(call => call.options.method === 'POST').length, 1);
+  assert.equal(requests.filter(call => call.path.endsWith('/parse-runs/run')).length, 3);
+  assert.equal(timers.length, 0);
+});
+
+test('one transient status failure automatically recovers the invalid-source result without a popup or new parse', async () => {
+  let reads = 0;
+  const timers = [];
+  const harness = parseSetup([parseRecord], () => ++reads === 1
+    ? Promise.reject(Object.assign(new Error('temporary gateway failure'), { status: 502 }))
+    : Promise.resolve({ status: 'failed', sourceErrorCode: 'wrong_service_export', error: '다른 서비스 export' }));
+  harness.context.setTimeout = callback => timers.push(callback);
+  await harness.context.loadPreview();
+  harness.button.listeners.click();
+  await flushParse();
+  assert.equal(harness.button.disabled, true);
+  assert.equal(timers.length, 1);
+  timers.shift()();
+  await flushParse();
+  assert.equal(harness.button.disabled, true);
+  assert.equal(harness.button.textContent, '오류 파일');
+  assert.equal(harness.status.textContent, '다른 서비스 export');
+  assert.equal(harness.calls.filter(call => call.options?.method === 'POST').length, 1);
+  assert.equal(timers.length, 0);
 });
 
 test('technical failures and unsupported formats reenable parsing; completed files retain JSON and CSV', async () => {

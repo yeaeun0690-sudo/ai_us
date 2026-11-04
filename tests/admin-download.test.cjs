@@ -543,6 +543,74 @@ test('local error dialog prevents duplicate global error popup without changing 
   }
 });
 
+function pauseSetup(role = 'admin') {
+  const harness = approvalSetup(role);
+  const element = () => ({ listeners: {}, addEventListener(name, listener) { this.listeners[name] = listener; }, focus() {} });
+  const toggle = element(), status = element(), audit = element(), refresh = element(), navigation = element();
+  const originalGet = harness.context.document.getElementById;
+  harness.context.document.getElementById = id => ({ participationPauseToggle: toggle, participationPauseStatus: status, participationPauseAudit: audit, roundSettingsRefresh: refresh }[id] || originalGet(id));
+  harness.context.document.querySelector = () => navigation;
+  harness.context.sessionStorage = { getItem: () => role };
+  harness.context.aiUsRequest = (path, options) => {
+    harness.calls.push({ path, options });
+    return Promise.resolve({ participationPaused: options.method === 'PUT' ? options.body.participationPaused : false, updatedAt: '2026-11-05T00:00:00Z', updatedBy: '<admin>' });
+  };
+  vm.runInContext(script.slice(script.indexOf('  function initParticipationSettings(){'), script.indexOf('  function initSurveyRoundSettings(){')), harness.context);
+  harness.context.initParticipationSettings();
+  return Object.assign(harness, { pauseToggle: toggle, pauseStatus: status, audit, refresh, navigation, writes: () => harness.calls.filter(call => call.options.method === 'PUT') });
+}
+
+test('global pause confirms cancel and saves once with busy dismissal blocked', async () => {
+  const harness = pauseSetup();
+  assert.equal(harness.pauseToggle.disabled, true);
+  await harness.navigation.listeners.click();
+  assert.equal(harness.pauseToggle.disabled, false);
+  harness.pauseToggle.checked = true; harness.pauseToggle.listeners.change();
+  assert.equal(harness.pauseToggle.checked, false);
+  harness.ids.autoApprovalNo.listeners.click();
+  assert.equal(harness.writes().length, 0);
+  harness.pauseToggle.checked = true; harness.pauseToggle.listeners.change();
+  let finish;
+  harness.context.aiUsRequest = (path, options) => { harness.calls.push({ path, options }); return new Promise(resolve => { finish = resolve; }); };
+  const pending = harness.ids.autoApprovalYes.listeners.click();
+  harness.ids.autoApprovalYes.listeners.click();
+  harness.ids.autoApprovalDialog.listeners.keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(harness.writes().length, 1);
+  assert.equal(harness.writes()[0].path, '/api/v1/admin/participation-settings');
+  assert.equal(harness.writes()[0].options.body.participationPaused, true);
+  assert.equal(harness.pauseToggle.disabled, true);
+  finish({ participationPaused: true, updatedAt: '2026-11-05T00:00:00Z', updatedBy: '<admin>' });
+  await pending;
+  assert.equal(harness.pauseToggle.checked, true);
+  assert.equal(harness.pauseToggle.disabled, false);
+  assert.match(harness.audit.textContent, /<admin>/);
+  assert.match(harness.pauseStatus.textContent, /중단 중/);
+  harness.pauseToggle.checked = false; harness.pauseToggle.listeners.change();
+  assert.match(harness.ids.autoApprovalMessage.textContent, /회차별.*변경되지/);
+  harness.ids.autoApprovalNo.listeners.click();
+  assert.equal(harness.pauseToggle.checked, true);
+});
+
+test('global pause failed save requires fresh read and researchers cannot mutate', async () => {
+  const harness = pauseSetup();
+  await harness.refresh.listeners.click();
+  harness.context.aiUsRequest = () => Promise.reject(new Error('uncertain save'));
+  harness.pauseToggle.checked = true; harness.pauseToggle.listeners.change();
+  await harness.ids.autoApprovalYes.listeners.click();
+  harness.ids.autoApprovalClose.listeners.click();
+  assert.equal(harness.pauseToggle.checked, false);
+  assert.equal(harness.pauseToggle.disabled, true);
+  await harness.refresh.listeners.click();
+  assert.equal(harness.audit.textContent, 'uncertain save');
+  const readonly = pauseSetup('researcher');
+  await readonly.navigation.listeners.click();
+  assert.equal(readonly.pauseToggle.disabled, true);
+  readonly.pauseToggle.checked = true; readonly.pauseToggle.listeners.change();
+  assert.equal(readonly.pauseToggle.checked, false);
+  assert.equal(readonly.writes().length, 0);
+  assert.equal(readonly.context.approvalChange, null);
+});
+
 function analysisSetup() {
   const timers = new Map(), calls = [], listeners = {};
   let nextTimer = 0;

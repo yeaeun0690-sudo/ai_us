@@ -832,7 +832,7 @@ test('direct survey opening cannot bypass round closure, status readiness or par
   assert.equal(context.openSurvey(0), 'opened');
 });
 
-test('pause policy shows the approved notice, disables signup and reverses explicitly', () => {
+test('pause policy shows the approved notice, reverses and fails closed on lookup errors', async () => {
   const notices = [{ hidden: true }, { hidden: true }, { hidden: true }];
   const messages = [{ textContent: '' }, { textContent: '' }, { textContent: '' }];
   const nodes = { toSignup: {}, startBtn: {}, participationStatusRetry: {} };
@@ -853,6 +853,33 @@ test('pause policy shows the approved notice, disables signup and reverses expli
   assert.equal(nodes.toSignup.disabled, false);
   assert.ok(notices.every(notice => notice.hidden));
   assert.deepEqual(states, [['participation-paused', true], ['participation-paused', false]]);
+  assert.throws(() => context.aiUsApplyParticipationStatus({}), /접수 상태/);
+  context.aiUsRequest = () => Promise.reject(new Error('settings unavailable'));
+  vm.runInContext(slice(current, '  function aiUsLoadParticipationStatus(){', '  aiUsLoadParticipationStatus();'), context);
+  await context.aiUsLoadParticipationStatus();
+  assert.equal(context.window.aiUsAdmissionReady, false);
+  assert.equal(context.window.aiUsParticipationPaused, true);
+  assert.equal(nodes.toSignup.disabled, true);
+  assert.equal(nodes.participationStatusRetry.hidden, false);
+});
+
+test('returning to a visible participant page refreshes policy and authenticated eligibility', () => {
+  let publicReads = 0, participantReads = 0, authenticated = false;
+  const context = vm.createContext({
+    window: { aiUsReloadParticipantStatus() { participantReads++; } },
+    document: { hidden: false, getElementById: () => ({ classList: { contains: () => true } }) },
+    sessionStorage: { getItem: key => authenticated ? (key === 'ai_us_role' ? 'participant' : 'token') : null },
+    aiUsLoadParticipationStatus() { publicReads++; },
+  });
+  vm.runInContext(slice(current, '  function aiUsRefreshAdmission(){', "  window.addEventListener('focus',aiUsRefreshAdmission);"), context);
+  context.aiUsRefreshAdmission();
+  assert.equal(publicReads, 1);
+  authenticated = true;
+  context.aiUsRefreshAdmission();
+  assert.equal(participantReads, 1);
+  context.document.hidden = true;
+  context.aiUsRefreshAdmission();
+  assert.equal(participantReads, 1);
 });
 
 (async function runTests() {

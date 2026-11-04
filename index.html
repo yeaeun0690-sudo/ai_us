@@ -1303,7 +1303,7 @@
     if(typeof window!=='undefined'&&window.AI_US_PREVIEW)return Promise.reject(new Error('미리보기에서는 서버 요청을 하지 않습니다.'));
     options=options||{};
     options.headers=options.headers||{};
-    var quietFailure=path==='/api/v1/participant/survey-sessions/heartbeat'||path.indexOf('/api/v1/survey-progress')===0||path==='/api/v1/participant/survey-status'||path.indexOf('/api/v1/participant/survey-configurations/')===0||path==='/api/v1/auth/participant/refresh';
+    var quietFailure=path==='/api/v1/applications/status'||path==='/api/v1/participant/survey-sessions/heartbeat'||path.indexOf('/api/v1/survey-progress')===0||path==='/api/v1/participant/survey-status'||path.indexOf('/api/v1/participant/survey-configurations/')===0||path==='/api/v1/auth/participant/refresh';
     var participantToken=sessionStorage.getItem('ai_us_access_token');
     if(path!=='/api/v1/auth/participant/refresh'&&options.headers.Authorization&&sessionStorage.getItem('ai_us_role')==='participant'&&participantToken&&aiUsParticipantTokenExpiresSoon(participantToken)){
       return aiUsMaybeRefreshParticipantSession().then(function(refreshed){
@@ -1370,6 +1370,7 @@
   window.aiUsChatSubmissionAllowed=false;
   window.aiUsChatSubmissionReason='제출 가능 여부를 확인하고 있어요.';
   function aiUsApplyParticipationStatus(data){
+    if(!data||typeof data.participationPaused!=='boolean')throw new Error('접수 상태를 확인하지 못했습니다.');
     window.aiUsAdmissionReady=true;
     window.aiUsParticipationPaused=data.participationPaused===true;
     document.body.classList.toggle('participation-paused',window.aiUsParticipationPaused);
@@ -1392,6 +1393,14 @@
   }
   aiUsLoadParticipationStatus();
   document.getElementById('participationStatusRetry').addEventListener('click',aiUsLoadParticipationStatus);
+  function aiUsRefreshAdmission(){
+    if(document.hidden)return;
+    var dashboard=document.getElementById('surveys');
+    if(sessionStorage.getItem('ai_us_role')==='participant'&&sessionStorage.getItem('ai_us_access_token')&&dashboard&&dashboard.classList.contains('open')&&window.aiUsReloadParticipantStatus)return window.aiUsReloadParticipantStatus();
+    return aiUsLoadParticipationStatus();
+  }
+  window.addEventListener('focus',aiUsRefreshAdmission);
+  document.addEventListener('visibilitychange',aiUsRefreshAdmission);
   function aiUsAudienceLabel(audience){return audience==='secondary'?'중고등':'초등';}
   function aiUsSetApiAudience(audience){if(window.aiUsSetAudience)window.aiUsSetAudience(audience==='secondary'?'teen':'kid');}
   function aiUsAudienceDialog(options){
@@ -1602,7 +1611,7 @@
       updateSurveyRetryButton();
       return participantRestoreInFlight;
     }
-    function openSurveys(){ if(surveys){surveys.classList.add('open');document.body.style.overflow='hidden';updatePartButtons();loadServerSurveyProgress();} }
+    function openSurveys(){ if(surveys){window.aiUsReloadParticipantStatus=loadServerSurveyProgress;surveys.classList.add('open');document.body.style.overflow='hidden';updatePartButtons();loadServerSurveyProgress();} }
     function closeSurveys(){ if(surveys){surveys.classList.remove('open');document.body.style.overflow='';} stopSurveySession(); }
     function beginSurveySession(){
       stopSurveySession();

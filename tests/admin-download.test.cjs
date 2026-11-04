@@ -774,6 +774,104 @@ test('consent failure requires fresh lookup and old materials restore only by ex
   assert.equal(harness.timers.size, 0);
 });
 
+function parseSetup(records, state, conflict = false) {
+  const calls = [];
+  const button = { dataset: { id: 'source' }, disabled: false, listeners: {}, addEventListener(name, listener) { this.listeners[name] = listener; } };
+  const status = {};
+  const csv = { removed: false, remove() { this.removed = true; } };
+  const actions = {
+    querySelectorAll: () => [csv], querySelector: () => csv.removed ? null : csv,
+    insertAdjacentHTML() { csv.removed = false; },
+  };
+  let markup = '';
+  const body = {
+    querySelectorAll: selector => selector === '.transcript-parse' && markup.includes('transcript-parse') ? [button] : [],
+    querySelector: selector => selector.includes('.download-actions') ? actions : selector.includes('.transcript-status') ? status : button,
+  };
+  Object.defineProperty(body, 'innerHTML', {
+    get: () => markup,
+    set(value) { markup = value; button.disabled = value.includes('disabled>오류 파일'); },
+  });
+  const context = vm.createContext({
+    cBody: body, Promise,
+    filterParams: () => new URLSearchParams(), updateSelectionSummary() {},
+    esc: value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])),
+    pointLabel: value => value, formatKstDate: value => value, sourceTag: value => value,
+    compactFilename: value => value, reviewControl: () => '',
+    setTimeout() { throw new Error('Terminal parse states must not keep polling'); },
+    aiUsRequest(path, options) {
+      calls.push({ path, options });
+      if (path.includes('chat-submission-previews')) return Promise.resolve(records);
+      if (path.includes('parse-runs')) return Promise.resolve(state);
+      if (conflict) {
+        records = records.map(record => ({ ...record, parseStatus: 'invalid_source', parseError: '다른 서비스 export' }));
+        return Promise.reject(Object.assign(new Error('다른 서비스 export'), { status: 409 }));
+      }
+      return Promise.resolve({ runId: 'run' });
+    },
+  });
+  vm.runInContext(
+    script.slice(script.indexOf('    function showCompletedParse('), script.indexOf('    function compactFilename(')) +
+    script.slice(script.indexOf('    function loadPreview(propagateError)'), script.indexOf('    function upd(){selectAllFiltered=')), context);
+  return { context, button, status, csv, body, calls };
+}
+
+const parseRecord = { submissionId: 'source', filenames: ['takeout.zip'], attachmentCount: 1, sourceType: 'file', parseStatus: 'placeholder' };
+const flushParse = () => new Promise(resolve => setImmediate(resolve));
+
+test('invalid file survives preview reload, escapes its reason and keeps original download only', async () => {
+  const harness = parseSetup([{ ...parseRecord, parseStatus: 'invalid_source', parseError: '<img src=x onerror=alert(1)>' }]);
+  for (let reload = 0; reload < 2; reload++) {
+    await harness.context.loadPreview();
+    assert.match(harness.body.innerHTML, /disabled>오류 파일/);
+    assert.match(harness.body.innerHTML, /&lt;img src=x onerror=alert\(1\)&gt;/);
+    assert.doesNotMatch(harness.body.innerHTML, /<img|transcript-json|transcript-csv/);
+    assert.match(harness.body.innerHTML, /chat-file-download/);
+    harness.button.listeners.click();
+  }
+  assert.equal(harness.calls.filter(call => call.options?.method === 'POST').length, 0);
+});
+
+test('terminal source failure disables parse button and removes parsed downloads without another request', async () => {
+  const harness = parseSetup([parseRecord], { status: 'failed', sourceErrorCode: 'wrong_service_export', error: '다른 서비스 export' });
+  await harness.context.loadPreview();
+  harness.button.listeners.click();
+  await flushParse();
+  assert.equal(harness.button.disabled, true);
+  assert.equal(harness.button.textContent, '오류 파일');
+  assert.equal(harness.status.textContent, '다른 서비스 export');
+  assert.equal(harness.csv.removed, true);
+  harness.button.listeners.click();
+  assert.equal(harness.calls.filter(call => call.options?.method === 'POST').length, 1);
+});
+
+test('technical failures and unsupported formats reenable parsing; completed files retain JSON and CSV', async () => {
+  for (const state of [{ status: 'failed', error: 'temporary failure' }, { status: 'warning', warnings: ['unsupported format'] }, { status: 'completed' }]) {
+    const harness = parseSetup([parseRecord], state);
+    await harness.context.loadPreview();
+    harness.button.listeners.click();
+    await flushParse();
+    assert.equal(harness.button.disabled, false);
+    assert.notEqual(harness.button.textContent, '오류 파일');
+    if (state.status === 'completed') {
+      assert.match(harness.status.innerHTML, /transcript-json/);
+      assert.equal(harness.csv.removed, false);
+    } else assert.match(harness.status.textContent, /파싱 (?:실패|보류)/);
+  }
+});
+
+test('stale preview refreshes on parse conflict and does not offer a retry for an invalid source', async () => {
+  const harness = parseSetup([parseRecord], null, true);
+  await harness.context.loadPreview();
+  harness.button.listeners.click();
+  await flushParse();
+  assert.equal(harness.button.disabled, true);
+  assert.match(harness.body.innerHTML, /disabled>오류 파일/);
+  assert.match(harness.body.innerHTML, /다른 서비스 export/);
+  assert.doesNotMatch(harness.body.innerHTML, /transcript-retry/);
+  assert.equal(harness.calls.filter(call => call.options?.method === 'POST').length, 1);
+});
+
 (async function runTests() {
   let failures = 0;
   for (const item of tests) {

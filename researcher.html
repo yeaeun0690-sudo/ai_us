@@ -162,7 +162,7 @@
   .chat-preview-table .download-actions{display:grid;gap:4px}
   .chat-preview-table .download-actions .btn{width:100%;justify-content:center;padding:6px 4px;font-size:.7rem;box-shadow:none}
   .chat-preview-table .parse-actions{display:flex;gap:4px;flex-wrap:wrap}
-  .chat-preview-table .parse-actions .btn{padding:6px 8px;font-size:.7rem;box-shadow:none}
+  .chat-preview-table .parse-actions .btn{padding:6px 4px;font-size:.7rem;box-shadow:none;white-space:nowrap}
   .chat-preview-table .review-select,.chat-preview-table .review-note{width:100%;min-width:0;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fff;font-family:var(--fb);font-size:.7rem;color:var(--ink)}
   .chat-preview-table .review-select{cursor:pointer}
   .chat-preview-table .review-select:focus,.chat-preview-table .review-note:focus{outline:none;border-color:var(--violet)}
@@ -1717,6 +1717,12 @@
       var actions=cBody.querySelector('.download-actions[data-id="'+submissionId+'"]');
       if(actions)actions.querySelectorAll('.transcript-csv').forEach(function(button){button.remove();});
     }
+    function showInvalidParse(submissionId,reason){
+      hideParseDownloads(submissionId);
+      var button=cBody.querySelector('.transcript-parse[data-id="'+submissionId+'"]'),statusEl=cBody.querySelector('.transcript-status[data-id="'+submissionId+'"]');
+      if(button){button.disabled=true;button.textContent='오류 파일';}
+      if(statusEl)statusEl.textContent=reason||'대화 원본 확인 필요';
+    }
     function compactFilename(name){var value=String(name||''),dot=value.lastIndexOf('.'),extension=dot>0?value.slice(dot):'',stem=dot>0?value.slice(0,dot):value;if(value.length<=42)return value;return stem.slice(0,20)+'…'+stem.slice(-12)+extension;}
     function reviewControl(record){
       var review=record.review||{},value=review.status||'',options=[['','미검토'],['incentive_paid','사례금 지급 완료'],['excluded','사례 대상 제외'],['duplicate','중복 제출'],['other','기타 사유']];
@@ -1744,6 +1750,7 @@
           var csv=r.parseStatus==='parsed'?'<button class="btn transcript-csv" data-id="'+esc(r.submissionId)+'" type="button">CSV 받기</button>':'';
           var downloads='<div class="download-actions" data-id="'+esc(r.submissionId)+'">'+original+csv+'</div>';
           var parsed=r.parseStatus==='parsed',parse='<div class="parse-actions"><button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button">'+(parsed?'다시 파싱':'파싱 요청')+'</button></div><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'">'+(parsed?'파싱 완료 · <button class="linkbtn transcript-json" data-id="'+esc(r.submissionId)+'" type="button">JSON 받기</button>':'')+'</span>';
+          if(r.parseStatus==='invalid_source')parse='<div class="parse-actions"><button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button" disabled>오류 파일</button></div><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'">'+esc(r.parseError||'대화 원본 확인 필요')+'</span>';
           if(r.consentRestricted){downloads='<span class="form-tag">동의 철회 · 숨김</span>';parse='이용 제한 · 원본 보존';}
           return '<tr><td><input class="chat-row-check" type="checkbox"'+(r.consentRestricted?' disabled':'')+' value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc((r.schoolLevel||'-')+' · '+(r.grade||'-'))+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+downloads+'</td><td>'+parse+'</td><td>'+reviewControl(r)+'</td></tr>';
         }).join('');
@@ -1755,17 +1762,18 @@
           runAdminDownload(button,'원본 파일을 준비하고 있어요',function(){return downloadAdminFile(path,'chat-submission-'+button.dataset.id+'_'+formatKstFilenameTimestamp()+'.zip');});
         });});
         cBody.querySelectorAll('.transcript-parse').forEach(function(button){button.addEventListener('click',function(){
+          if(button.disabled)return;
           var statusEl=cBody.querySelector('.transcript-status[data-id="'+button.dataset.id+'"]');button.disabled=true;hideParseDownloads(button.dataset.id);if(statusEl)statusEl.textContent=' 파싱 요청 중…';
           function requestParse(attempt){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST'}).then(function(run){
             function poll(){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse-runs/'+encodeURIComponent(run.runId)).then(function(state){
               var labels={queued:' 대기열에 등록됨',processing:' 원본 파일을 분석하는 중…'};if(statusEl&&labels[state.status])statusEl.textContent=labels[state.status];
               if(state.status==='completed'){button.disabled=false;showCompletedParse(button.dataset.id);return;}
               if(state.status==='warning'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.textContent=' 파싱 보류: '+((state.warnings||[]).join(' ')||'이 형식의 parser adapter를 준비 중입니다.');return;}
-              if(state.status==='failed'){button.disabled=false;if(statusEl)statusEl.textContent=' 파싱 실패: '+(state.error||'파일 형식을 읽지 못했습니다.');return;}
+              if(state.status==='failed'){if(state.sourceErrorCode){showInvalidParse(button.dataset.id,state.error);return;}button.disabled=false;if(statusEl)statusEl.textContent=' 파싱 실패: '+(state.error||'파일 형식을 읽지 못했습니다.');return;}
               setTimeout(poll,1000);
             }).catch(function(error){button.disabled=false;if(statusEl)statusEl.innerHTML=' 파싱 상태 확인 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
             poll();
-          }).catch(function(error){var network=/failed to fetch|networkerror/i.test(error.message||'');if(network&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){requestParse(1);},800);return;}button.disabled=false;if(statusEl)statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. backend 컨테이너를 재배포한 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
+          }).catch(function(error){if(error.status===409){if(statusEl)statusEl.textContent=error.message;loadPreview();return;}var network=/failed to fetch|networkerror/i.test(error.message||'');if(network&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){requestParse(1);},800);return;}button.disabled=false;if(statusEl)statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. backend 컨테이너를 재배포한 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
           requestParse(0);
         });});
         updateSelectionSummary();

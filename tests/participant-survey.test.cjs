@@ -672,7 +672,7 @@ test('CTA precedes artwork and participant contact copy consistently uses CALM',
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.ok(html.indexOf('id="startBtn"') < html.indexOf('<div class="stage">'));
   assert.equal((html.match(/id="startBtn"/g) || []).length, 1);
-  assert.ok(html.includes('id="toSignup" class="linkbtn">설문 참여 신청'));
+  assert.ok(html.includes('id="toSignup" class="linkbtn" disabled>접수 확인 중'));
   assert.ok(html.includes('설문 참여 신청이나 로그인에 어려움이 있으면 편하게 문의주세요.'));
   assert.ok(html.includes('href="tel:010-9386-0839">010.9386.0839'));
   assert.equal(html.includes('calm'), false);
@@ -737,6 +737,13 @@ test('round admission locks both parts, preserves completed labels and enforces 
   assert.equal(buttons.get('2:0').textContent, '확인 중');
   context.serverStatusFailed = true; context.updatePartButtons();
   assert.equal(buttons.get('2:0').textContent, '확인 실패');
+  context.serverStatusReady = true;
+  context.window.aiUsParticipationPaused = true;
+  context.surveyRoundsOpen['2'] = true;
+  context.updatePartButtons();
+  assert.ok([...buttons.values()].every(button => button.disabled));
+  assert.equal(buttons.get('1:0').textContent, '제출 완료');
+  assert.equal(buttons.get('3:0').textContent, '접수 일시 중단');
   context.window.AI_US_PREVIEW = true; context.updatePartButtons();
   assert.equal(buttons.get('2:1').disabled, false);
 });
@@ -814,11 +821,38 @@ test('direct survey opening cannot bypass round closure, status readiness or par
   assert.equal(context.openSurvey(1), undefined);
   context.partCompleted = () => true;
   assert.equal(context.openSurvey(1), 'opened');
+  context.window.aiUsParticipationPaused = true;
+  assert.equal(context.openSurvey(0), undefined);
+  assert.equal(context.openSurvey(1), undefined);
+  context.window.aiUsParticipationPaused = false;
   context.serverStatusReady = false;
   assert.equal(context.openSurvey(0), undefined);
   context.window.AI_US_PREVIEW = true;
   context.surveyRoundsOpen['2'] = false;
   assert.equal(context.openSurvey(0), 'opened');
+});
+
+test('pause policy shows the approved notice, disables signup and reverses explicitly', () => {
+  const notices = [{ hidden: true }, { hidden: true }, { hidden: true }];
+  const messages = [{ textContent: '' }, { textContent: '' }, { textContent: '' }];
+  const nodes = { toSignup: {}, startBtn: {}, participationStatusRetry: {} };
+  const states = [];
+  const context = vm.createContext({ window: {}, document: {
+    body: { classList: { toggle: (name, value) => states.push([name, value]) } },
+    querySelectorAll: selector => selector === '[data-participation-notice]' ? notices : messages,
+    getElementById: id => nodes[id],
+  } });
+  vm.runInContext(slice(current, '  function aiUsApplyParticipationStatus(', '  window.aiUsApplyParticipationStatus='), context);
+  context.aiUsApplyParticipationStatus({ participationPaused: true });
+  assert.equal(context.window.aiUsAdmissionReady, true);
+  assert.equal(nodes.toSignup.disabled, true);
+  assert.ok(nodes.startBtn.innerHTML.includes('기존 참가자 로그인'));
+  assert.ok(notices.every(notice => !notice.hidden));
+  assert.ok(messages.every(message => message.textContent === '응답 자료 검수 중입니다. 현재는 설문을 이미 완료한 기존 참가자의 대화문 제출만 가능하며, 재개 시 문자로 안내드립니다.'));
+  context.aiUsApplyParticipationStatus({ participationPaused: false });
+  assert.equal(nodes.toSignup.disabled, false);
+  assert.ok(notices.every(notice => notice.hidden));
+  assert.deepEqual(states, [['participation-paused', true], ['participation-paused', false]]);
 });
 
 (async function runTests() {

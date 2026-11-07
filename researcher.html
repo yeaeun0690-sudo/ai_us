@@ -201,6 +201,10 @@
   .abuse-pair-pagination{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0;color:var(--muted);font-size:.78rem}
   .abuse-pair-pagination button{padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink-2);cursor:pointer}
   .abuse-pair-pagination button:disabled{opacity:.45;cursor:default}
+  .chat-pagination{display:grid;grid-template-columns:auto minmax(0,1fr) auto;width:100%;max-width:420px;min-height:32px;margin:12px auto}
+  .chat-pagination span{min-width:0;max-width:100%;overflow-wrap:anywhere;text-align:center}
+  .chat-pagination [data-chat-page-action="retry"]{grid-column:1 / -1;justify-self:center}
+  .chat-pagination[hidden]{display:none}
   table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:460px}
   th{text-align:left;color:var(--muted);font-weight:700;padding:11px 14px;background:#faf9fe;border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
@@ -685,12 +689,14 @@
             <p class="sub">대화문 제출 현황 CSV에는 현재 제출 회차·학교급의 제출·파싱·관리 상태와 검토 메모가 포함되며 대화문 본문은 제외됩니다.</p>
             <p class="sub chat-selection-bar"><span>선택: <b id="cSummary">전체 · 전체 학교급 · 미검토만 보기</b></span><span class="chat-selection-actions"><button class="linkbtn" id="cSelectAll" type="button" aria-label="현재 조회 조건 전체 선택">전체 선택</button><button class="linkbtn" id="cClearSelection" type="button">선택 해제</button><span id="cSelectionSummary">0건 선택됨</span></span></p>
 
+            <nav id="chatPaginationTop" class="abuse-pair-pagination chat-pagination" aria-label="AI 대화문 자료 페이지 (위)" hidden></nav>
             <div class="tbl-wrap chat-preview-wrap" style="margin-top:14px">
               <table class="chat-preview-table">
                 <thead><tr><th><input type="checkbox" id="cAll" aria-label="현재 목록 전체 선택"></th><th>제출 회차</th><th>학교급·학년</th><th>아이디(휴대폰)</th><th>제출일</th><th>도구·파일</th><th>다운로드</th><th>파싱 상태</th><th>관리 상태</th></tr></thead>
                 <tbody id="chatPreviewBody"><tr><td colspan="9">대화문 제출 내역을 불러오는 중입니다.</td></tr></tbody>
               </table>
             </div>
+            <nav id="chatPaginationBottom" class="abuse-pair-pagination chat-pagination" aria-label="AI 대화문 자료 페이지 (아래)" hidden></nav>
           </div>
         </div>
 
@@ -1664,6 +1670,8 @@
     var cAll=document.getElementById('cAll'), cSelectAll=document.getElementById('cSelectAll');
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
     var cRosterBtn=document.getElementById('cRosterBtn'),cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false;
+    var chatPage=1,chatTotal=0,chatPageSize=100,previewRequest=0,chatLoading=false,chatLoadError=false,chatLegacy=false,selectedSubmissionIds=new Set();
+    var chatPagination=[document.getElementById('chatPaginationTop'),document.getElementById('chatPaginationBottom')];
     var reviewDialog=document.getElementById('reviewSaveDialog'),reviewTitle=document.getElementById('reviewSaveTitle'),reviewMessage=document.getElementById('reviewSaveMessage'),reviewClose=document.getElementById('reviewSaveClose'),reviewFocusTarget=null;
     if(!cRound) return;
     cBody.addEventListener('click',function(event){
@@ -1709,12 +1717,18 @@
     function finishReviewBusy(){if(reviewDialog)reviewDialog.classList.remove('open','error');if(reviewClose)reviewClose.hidden=true;reviewFocusTarget=null;}
     function showReviewMessage(title,message,focusTarget){reviewFocusTarget=focusTarget||null;if(reviewTitle)reviewTitle.textContent=title;if(reviewMessage)reviewMessage.textContent=message;if(reviewDialog)reviewDialog.classList.add('open','error');if(reviewClose){reviewClose.hidden=false;reviewClose.focus();}}
     if(reviewClose)reviewClose.addEventListener('click',function(){if(reviewDialog)reviewDialog.classList.remove('open','error');reviewClose.hidden=true;if(reviewFocusTarget&&document.body.contains(reviewFocusTarget))reviewFocusTarget.focus();reviewFocusTarget=null;});
-    function selectedIds(){return Array.prototype.slice.call(cBody.querySelectorAll('.chat-row-check:checked')).map(function(input){return input.value;});}
+    function selectedIds(){return Array.from(selectedSubmissionIds);}
     function updateSelectionSummary(){
       var count=selectedIds().length;
-      cSelectionSummary.textContent=selectAllFiltered?(count?'전체 선택됨':'0건 선택됨'):count+'건 선택됨';
-      if(cAll)cAll.checked=!!(count&&count===cBody.querySelectorAll('.chat-row-check').length);
+      cSelectionSummary.textContent=selectAllFiltered?'전체 조회 조건 '+chatTotal+'건 선택됨':count+'건 선택됨';
+      var visible=Array.prototype.slice.call(cBody.querySelectorAll('.chat-row-check:not(:disabled)')),checked=visible.filter(function(input){return input.checked;}).length;
+      if(cAll){cAll.checked=!!(visible.length&&checked===visible.length);cAll.indeterminate=checked>0&&checked<visible.length;}
     }
+    function renderChatPagination(){
+      var pages=Math.max(1,Math.ceil(chatTotal/chatPageSize)),start=chatTotal?(chatPage-1)*chatPageSize+1:0,end=Math.min(chatPage*chatPageSize,chatTotal);
+      chatPagination.forEach(function(nav){if(!nav)return;nav.hidden=false;nav.innerHTML='<button type="button" data-chat-page-action="previous" '+(chatLoading||chatPage<=1?'disabled':'')+'>이전</button><span aria-live="polite">'+(chatLegacy?'페이지 조회 지원을 위해 서버 업데이트가 필요합니다.':start+'~'+end+'건 / 전체 '+chatTotal+'건 · '+chatPage+' / '+pages+' 페이지')+'</span><button type="button" data-chat-page-action="next" '+(chatLoading||chatPage>=pages||chatLegacy?'disabled':'')+'>다음</button>'+(chatLoadError?'<button type="button" data-chat-page-action="retry">다시 조회</button>':'');});
+    }
+    chatPagination.forEach(function(nav){if(nav)nav.addEventListener('click',function(event){var button=event.target.closest('[data-chat-page-action]');if(!button||button.disabled||chatLoading)return;if(button.dataset.chatPageAction==='previous')chatPage--;else if(button.dataset.chatPageAction==='next')chatPage++;loadPreview();});});
     function showCompletedParse(submissionId){
       var actions=cBody.querySelector('.download-actions[data-id="'+submissionId+'"]'),statusEl=cBody.querySelector('.transcript-status[data-id="'+submissionId+'"]'),button=cBody.querySelector('.transcript-parse[data-id="'+submissionId+'"]');
       if(actions&&!actions.querySelector('.transcript-csv'))actions.insertAdjacentHTML('beforeend','<button class="btn transcript-csv" data-id="'+esc(submissionId)+'" type="button">CSV 받기</button>');
@@ -1744,13 +1758,18 @@
       var saved=false;
       select.disabled=true;if(note)note.disabled=true;
       setReviewBusy();
-      aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(submissionId)+'/review',request).then(function(){saved=true;return loadPreview(true);}).then(finishReviewBusy).catch(function(error){finishReviewBusy();if(!saved)loadPreview();if(error.status&&error.status<500)showReviewMessage('관리 상태를 저장하지 못했어요',error.message||'입력 내용을 확인해 주세요.');});
+      aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(submissionId)+'/review',request).then(function(){saved=true;selectedSubmissionIds.delete(submissionId);return loadPreview(true);}).then(finishReviewBusy).catch(function(error){finishReviewBusy();if(!saved)loadPreview();if(error.status&&error.status<500)showReviewMessage('관리 상태를 저장하지 못했어요',error.message||'입력 내용을 확인해 주세요.');});
     }
     function loadPreview(propagateError){
       if(!cBody) return;
-      var params=filterParams();
+      var params=filterParams(),requestId=++previewRequest;
+      params.set('page',chatPage);chatLoading=true;chatLoadError=false;renderChatPagination();
       cBody.innerHTML='<tr><td colspan="9">대화문 제출 내역을 불러오는 중입니다.</td></tr>';
-      return aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(records){
+      return aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(data){
+        if(requestId!==previewRequest)return;
+        chatLegacy=Array.isArray(data);var records=chatLegacy?data:data.items;
+        chatTotal=chatLegacy?records.length:data.total;chatPage=chatLegacy?1:data.page;chatPageSize=chatLegacy?100:data.pageSize;
+        chatLoading=false;renderChatPagination();
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="9">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
         cBody.innerHTML=records.map(function(r){
           var names=r.filenames||[],fileClass=names.length===1?'single':'multi',files=names.map(function(name){var display=names.length===1?compactFilename(name):name;return '<span class="file-name '+fileClass+'" title="'+esc(name)+'">'+esc(display)+'</span>';}).join('')||'첨부 없음';
@@ -1760,9 +1779,9 @@
           var parsed=r.parseStatus==='parsed',parse='<div class="parse-actions"><button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button">'+(parsed?'다시 파싱':'파싱 요청')+'</button></div><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'">'+(parsed?'파싱 완료 · <button class="linkbtn transcript-json" data-id="'+esc(r.submissionId)+'" type="button">JSON 받기</button>':'')+'</span>';
           if(r.parseStatus==='invalid_source')parse='<div class="parse-actions"><button class="btn btn-ghost transcript-parse" data-id="'+esc(r.submissionId)+'" type="button" disabled>오류 파일</button></div><span class="sub transcript-status" data-id="'+esc(r.submissionId)+'">'+esc(r.parseError||'대화 원본 확인 필요')+'</span>';
           if(r.consentRestricted){downloads='<span class="form-tag">동의 철회 · 숨김</span>';parse='이용 제한 · 원본 보존';}
-          return '<tr><td><input class="chat-row-check" type="checkbox"'+(r.consentRestricted?' disabled':'')+' value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc((r.schoolLevel||'-')+' · '+(r.grade||'-'))+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+downloads+'</td><td>'+parse+'</td><td>'+reviewControl(r)+'</td></tr>';
+          return '<tr><td><input class="chat-row-check" type="checkbox"'+(r.consentRestricted?' disabled':selectAllFiltered||selectedSubmissionIds.has(r.submissionId)?' checked':'')+' value="'+esc(r.submissionId)+'"></td><td>'+esc(pointLabel(r.submissionPoint))+'</td><td>'+esc((r.schoolLevel||'-')+' · '+(r.grade||'-'))+'</td><td>'+esc(r.participantPhone||'-')+'</td><td>'+esc(formatKstDate(r.submittedAt))+'</td><td><span class="form-tag">'+esc((r.tool||'미지정')+' · '+sourceTag(r.sourceType))+'</span><br><small>'+files+'</small></td><td>'+downloads+'</td><td>'+parse+'</td><td>'+reviewControl(r)+'</td></tr>';
         }).join('');
-        cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.addEventListener('change',function(){selectAllFiltered=false;updateSelectionSummary();});});
+        cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.addEventListener('change',function(){if(selectAllFiltered){selectAllFiltered=false;selectedSubmissionIds.clear();cBody.querySelectorAll('.chat-row-check:checked').forEach(function(checked){selectedSubmissionIds.add(checked.value);});}if(input.checked)selectedSubmissionIds.add(input.value);else selectedSubmissionIds.delete(input.value);updateSelectionSummary();});});
         cBody.querySelectorAll('.review-select').forEach(function(select){select.addEventListener('change',function(){var wrap=select.parentElement.querySelector('.review-note-wrap'),note=wrap.querySelector('.review-note'),save=wrap.querySelector('.review-save'),hasStatus=!!select.value;note.hidden=!hasStatus;note.disabled=!hasStatus;note.placeholder=select.value==='other'?'기타 사유 입력 (필수)':'메모 입력 (선택)';if(hasStatus)note.focus();else save.focus();});});
         cBody.querySelectorAll('.review-save').forEach(function(button){button.addEventListener('click',function(){var select=button.parentElement.parentElement.querySelector('.review-select'),note=button.parentElement.querySelector('.review-note');if(select.value==='other'&&!note.value.trim()){showReviewMessage('기타 사유를 입력해 주세요','기타 사유를 선택한 경우 검토 메모를 반드시 입력해야 합니다.',note);return;}button.disabled=true;saveReview(select,note);});});
         cBody.querySelectorAll('.chat-file-download').forEach(function(button){button.addEventListener('click',function(){
@@ -1787,14 +1806,14 @@
           requestParse(0);
         });});
         updateSelectionSummary();
-      }).catch(function(error){cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();if(propagateError)throw error;});
+      }).catch(function(error){if(requestId!==previewRequest)return;chatLoading=false;chatLoadError=true;renderChatPagination();cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();if(propagateError)throw error;});
     }
-    function upd(){selectAllFiltered=false;var restricted=cReview.value==='consent_restricted';[cBulkBtn,cTranscriptBtn,cSelectAll,cAll].forEach(function(control){if(control)control.disabled=restricted;});cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value)+' · '+cReview.options[cReview.selectedIndex].text;loadPreview();}
+    function upd(){selectAllFiltered=false;selectedSubmissionIds.clear();chatPage=1;var restricted=cReview.value==='consent_restricted';[cBulkBtn,cTranscriptBtn,cSelectAll,cAll].forEach(function(control){if(control)control.disabled=restricted;});cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value)+' · '+cReview.options[cReview.selectedIndex].text;loadPreview();}
     window.addEventListener('ai-us-chat-consent-changed',upd);
     cRound.addEventListener('change',upd); cGrade.addEventListener('change',upd); cReview.addEventListener('change',upd);
-    if(cSelectAll)cSelectAll.addEventListener('click',function(){selectAllFiltered=true;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=true;});updateSelectionSummary();});
-    if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});
-    if(cAll)cAll.addEventListener('change',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=cAll.checked;});updateSelectionSummary();});
+    if(cSelectAll)cSelectAll.addEventListener('click',function(){selectAllFiltered=true;selectedSubmissionIds.clear();cBody.querySelectorAll('.chat-row-check:not(:disabled)').forEach(function(input){input.checked=true;});updateSelectionSummary();});
+    if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;selectedSubmissionIds.clear();cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});
+    if(cAll)cAll.addEventListener('change',function(){selectAllFiltered=false;cBody.querySelectorAll('.chat-row-check:not(:disabled)').forEach(function(input){input.checked=cAll.checked;if(input.checked)selectedSubmissionIds.add(input.value);else selectedSubmissionIds.delete(input.value);});updateSelectionSummary();});
     loadPreview();
     if(cRosterBtn)cRosterBtn.addEventListener('click',function(){
       var params=rosterParams(),url=AI_US_API_BASE+'/api/v1/researcher/exports/chat-submissions'+(params.toString()?'?'+params.toString():'');

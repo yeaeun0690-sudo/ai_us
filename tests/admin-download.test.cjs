@@ -862,6 +862,8 @@ function parseSetup(records, state, conflict = false) {
   });
   const context = vm.createContext({
     cBody: body, Promise,
+    chatPage: 1, chatTotal: 0, chatPageSize: 100, previewRequest: 0, chatLoading: false, chatLoadError: false, chatLegacy: false,
+    selectedSubmissionIds: new Set(), selectAllFiltered: false, renderChatPagination() {},
     filterParams: () => new URLSearchParams(), updateSelectionSummary() {},
     esc: value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])),
     pointLabel: value => value, formatKstDate: value => value, sourceTag: value => value,
@@ -881,11 +883,48 @@ function parseSetup(records, state, conflict = false) {
   vm.runInContext(
     script.slice(script.indexOf('    function showCompletedParse('), script.indexOf('    function compactFilename(')) +
     script.slice(script.indexOf('    function loadPreview(propagateError)'), script.indexOf('    function upd(){selectAllFiltered=')), context);
-  return { context, button, status, csv, body, calls };
+  return { context, button, status, csv, body, calls, setRecords(value) { records = value; } };
 }
 
 const parseRecord = { submissionId: 'source', filenames: ['takeout.zip'], attachmentCount: 1, sourceType: 'file', parseStatus: 'placeholder' };
 const flushParse = () => new Promise(resolve => setImmediate(resolve));
+
+test('chat pagination requests older pages and preserves selected rows', async () => {
+  const envelope = { items: [parseRecord], total: 205, page: 2, pageSize: 100 };
+  const harness = parseSetup(envelope, {});
+  harness.context.chatPage = 2;
+  harness.context.selectedSubmissionIds.add('source');
+  await harness.context.loadPreview();
+  assert.match(harness.calls[0].path, /[?&]page=2(?:&|$)/);
+  assert.equal(harness.context.chatTotal, 205);
+  assert.equal(harness.context.chatPage, 2);
+  assert.match(harness.body.innerHTML, /type="checkbox" checked value="source"/);
+  harness.setRecords({ items: [], total: 0, page: 1, pageSize: 100 });
+  await harness.context.loadPreview();
+  assert.equal(harness.context.chatPage, 1);
+  assert.equal(harness.context.chatTotal, 0);
+});
+
+test('chat pagination ignores stale filtered responses', async () => {
+  let finishOld;
+  const harness = parseSetup(new Promise(resolve => { finishOld = resolve; }), {});
+  const old = harness.context.loadPreview();
+  harness.setRecords({ items: [], total: 0, page: 1, pageSize: 100 });
+  await harness.context.loadPreview();
+  finishOld({ items: [parseRecord], total: 205, page: 2, pageSize: 100 });
+  await old;
+  assert.equal(harness.context.chatTotal, 0);
+  assert.equal(harness.context.chatPage, 1);
+  assert.equal(harness.body.innerHTML.includes('value="source"'), false);
+});
+
+test('chat pagination matches abuse styling and resets filters without limiting whole-filter downloads', () => {
+  for (const position of ['Top', 'Bottom']) assert.match(html, new RegExp('id="chatPagination' + position + '" class="abuse-pair-pagination chat-pagination"'));
+  assert.match(script, /function upd\(\)\{selectAllFiltered=false;selectedSubmissionIds\.clear\(\);chatPage=1/);
+  assert.match(script, /submissionIds:selectAllFiltered\?\[\]:ids/);
+  assert.match(script, /if\(!selectAllFiltered&&!ids\.length\)/);
+  assert.match(script, /data-chat-page-action="retry"/);
+});
 
 test('disabled parse buttons use neutral styling without hover color or motion effects', () => {
   const styles = html.match(/\.chat-preview-table \.transcript-parse:disabled\{([^}]+)\}/)[1];

@@ -862,16 +862,19 @@ function parseSetup(records, state, conflict = false) {
   });
   const context = vm.createContext({
     cBody: body, Promise,
+    previewCache: new Map(), previewPending: new Map(), previewCacheEpoch: 0, previewCacheToken: 'synthetic', AI_US_ACCESS_TOKEN: 'synthetic',
+    chatRenderedPage: 1, chatRenderedFilter: null, chatRetryPage: 1,
+    AbortController, clearTimeout() {},
     chatPage: 1, chatTotal: 0, chatPageSize: 100, previewRequest: 0, chatLoading: false, chatLoadError: false, chatLegacy: false,
     selectedSubmissionIds: new Set(), selectAllFiltered: false, renderChatPagination() {},
     filterParams: () => new URLSearchParams(), updateSelectionSummary() {},
     esc: value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])),
     pointLabel: value => value, formatKstDate: value => value, sourceTag: value => value,
     compactFilename: value => value, reviewControl: () => '',
-    setTimeout() { throw new Error('Terminal parse states must not keep polling'); },
+    setTimeout(callback, delay) { if(delay===10000)return 0;if(delay===800||delay===2000){queueMicrotask(callback);return 0;}throw new Error('Unexpected timer: '+delay); },
     aiUsRequest(path, options) {
       calls.push({ path, options });
-      if (path.includes('chat-submission-previews')) return Promise.resolve(records);
+      if (path.includes('chat-submission-previews')) return typeof records === 'function' ? records(path, options) : Promise.resolve(records);
       if (path.includes('parse-runs')) return typeof state === 'function' ? state() : Promise.resolve(state);
       if (conflict) {
         records = records.map(record => ({ ...record, parseStatus: 'invalid_source', parseError: '다른 서비스 export' }));
@@ -881,9 +884,10 @@ function parseSetup(records, state, conflict = false) {
     },
   });
   vm.runInContext(
+    script.slice(script.indexOf('    function invalidateChatPreviewCache('), script.indexOf('    function selectedIds(')) +
     script.slice(script.indexOf('    function showCompletedParse('), script.indexOf('    function compactFilename(')) +
     script.slice(script.indexOf('    function loadPreview(propagateError)'), script.indexOf('    function upd(){selectAllFiltered=')), context);
-  return { context, button, status, csv, body, calls, setRecords(value) { records = value; } };
+  return { context, button, status, csv, body, calls, setRecords(value, invalidate = true) { records = value; if(invalidate)context.invalidateChatPreviewCache(); } };
 }
 
 const parseRecord = { submissionId: 'source', filenames: ['takeout.zip'], attachmentCount: 1, sourceType: 'file', parseStatus: 'placeholder' };
@@ -896,6 +900,7 @@ test('chat pagination requests older pages and preserves selected rows', async (
   harness.context.selectedSubmissionIds.add('source');
   await harness.context.loadPreview();
   assert.match(harness.calls[0].path, /[?&]page=2(?:&|$)/);
+  assert.equal(harness.calls[0].options.localErrorDialog, true);
   assert.equal(harness.context.chatTotal, 205);
   assert.equal(harness.context.chatPage, 2);
   assert.match(harness.body.innerHTML, /type="checkbox" checked value="source"/);
@@ -915,6 +920,98 @@ test('chat pagination ignores stale filtered responses', async () => {
   await old;
   assert.equal(harness.context.chatTotal, 0);
   assert.equal(harness.context.chatPage, 1);
+  assert.equal(harness.body.innerHTML.includes('value="source"'), false);
+});
+
+test('chat preview cache reuses fresh pages, expires and isolates login sessions', async () => {
+  const harness = parseSetup({ items: [parseRecord], total: 205, page: 1, pageSize: 100 }, {});
+  await harness.context.loadPreview();
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 1);
+  harness.setRecords({ items: [], total: 0, page: 1, pageSize: 100 }, false);
+  await harness.context.loadPreview();
+  assert.equal(harness.context.chatTotal, 205);
+  for (const cached of harness.context.previewCache.values()) cached.expiresAt = 0;
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 2);
+  assert.equal(harness.context.chatTotal, 0);
+  harness.context.AI_US_ACCESS_TOKEN = 'another-synthetic-session';
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 3);
+  harness.context.invalidateChatPreviewCache();
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 4);
+});
+
+test('identical in-flight page reads are shared and cache stays bounded', async () => {
+  let finish;
+  const harness = parseSetup(new Promise(resolve => { finish = resolve; }), {});
+  const first = harness.context.loadPreview();
+  const second = harness.context.loadPreview();
+  assert.equal(harness.calls.length, 1);
+  finish({ items: [], total: 0, page: 1, pageSize: 100 });
+  await Promise.all([first, second]);
+  for (let page = 2; page <= 25; page++) {
+    harness.setRecords({ items: [], total: 2500, page, pageSize: 100 }, false);
+    await harness.context.fetchChatPreview(new URLSearchParams({ page }));
+  }
+  assert.equal(harness.context.previewCache.size, 20);
+});
+
+test('page GET retries temporary failures twice locally but never retries client errors', async () => {
+  let reads = 0;
+  const harness = parseSetup(() => ++reads < 3
+    ? Promise.reject(Object.assign(new Error('synthetic temporary failure'), { status: 502 }))
+    : Promise.resolve({ items: [parseRecord], total: 205, page: 3, pageSize: 100 }), {});
+  harness.context.chatPage = 3;
+  await harness.context.loadPreview();
+  assert.equal(reads, 3);
+  assert.equal(harness.context.chatLoadError, false);
+  assert.ok(harness.calls.every(call => call.options.localErrorDialog === true && call.options.cache === 'no-store' && !call.options.method));
+  harness.setRecords(() => Promise.reject(Object.assign(new Error('synthetic bad filter'), { status: 422 })));
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 4);
+  assert.equal(harness.context.chatLoadError, true);
+  assert.equal(harness.context.previewCache.size, 0);
+});
+
+test('page request timeouts finish after bounded retries without caching failures', async () => {
+  const harness = parseSetup((path, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(Object.assign(new Error('synthetic timeout'), { name: 'AbortError' })));
+  }), {});
+  harness.context.setTimeout = callback => { queueMicrotask(callback); return 0; };
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 3);
+  assert.ok(harness.calls.every(call => call.options.signal.aborted));
+  assert.equal(harness.context.previewCache.size, 0);
+  assert.equal(harness.context.chatLoading, false);
+  assert.equal(harness.context.chatLoadError, true);
+});
+
+test('failed next page keeps the last valid rows and retries the requested page', async () => {
+  const harness = parseSetup({ items: [parseRecord], total: 205, page: 2, pageSize: 100 }, {});
+  harness.context.chatPage = 2;
+  await harness.context.loadPreview();
+  const markup = harness.body.innerHTML;
+  harness.setRecords(() => Promise.reject(Object.assign(new Error('synthetic gateway failure'), { status: 503 })));
+  harness.context.chatPage = 3;
+  await harness.context.loadPreview();
+  assert.equal(harness.body.innerHTML, markup);
+  assert.equal(harness.context.chatPage, 2);
+  assert.equal(harness.context.chatRetryPage, 3);
+  assert.equal(harness.context.chatLoadError, true);
+  assert.equal(harness.context.previewCache.size, 0);
+});
+
+test('authorization failure clears cached and displayed participant metadata without retry', async () => {
+  const harness = parseSetup({ items: [parseRecord], total: 205, page: 1, pageSize: 100 }, {});
+  await harness.context.loadPreview();
+  harness.context.selectedSubmissionIds.add('source');
+  harness.setRecords(() => Promise.reject(Object.assign(new Error('synthetic forbidden'), { status: 403 })));
+  await harness.context.loadPreview();
+  assert.equal(harness.calls.length, 2);
+  assert.equal(harness.context.previewCache.size, 0);
+  assert.equal(harness.context.selectedSubmissionIds.size, 0);
   assert.equal(harness.body.innerHTML.includes('value="source"'), false);
 });
 
@@ -965,7 +1062,7 @@ test('poll connection failure stays local and resumes the accepted run without a
   const harness = parseSetup([parseRecord], () => ++reads <= 2
     ? Promise.reject(new Error('Failed to fetch'))
     : Promise.resolve({ status: 'failed', sourceErrorCode: 'wrong_service_export', error: '다른 서비스 export' }));
-  harness.context.setTimeout = callback => timers.push(callback);
+  harness.context.setTimeout = (callback, delay) => delay === 10000 ? 0 : timers.push(callback);
   await harness.context.loadPreview();
   harness.button.listeners.click();
   await flushParse();
@@ -996,7 +1093,7 @@ test('one transient status failure automatically recovers the invalid-source res
   const harness = parseSetup([parseRecord], () => ++reads === 1
     ? Promise.reject(Object.assign(new Error('temporary gateway failure'), { status: 502 }))
     : Promise.resolve({ status: 'failed', sourceErrorCode: 'wrong_service_export', error: '다른 서비스 export' }));
-  harness.context.setTimeout = callback => timers.push(callback);
+  harness.context.setTimeout = (callback, delay) => delay === 10000 ? 0 : timers.push(callback);
   await harness.context.loadPreview();
   harness.button.listeners.click();
   await flushParse();

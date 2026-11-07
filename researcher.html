@@ -203,7 +203,7 @@
   .abuse-pair-pagination button:disabled{opacity:.45;cursor:default}
   .chat-pagination{display:grid;grid-template-columns:auto minmax(0,1fr) auto;width:100%;max-width:420px;min-height:32px;margin:12px auto}
   .chat-pagination span{min-width:0;max-width:100%;overflow-wrap:anywhere;text-align:center}
-  .chat-pagination [data-chat-page-action="retry"]{grid-column:1 / -1;justify-self:center}
+  .chat-pagination [data-chat-page-action="retry"],.chat-pagination [data-chat-page-action="refresh"]{grid-column:1 / -1;justify-self:center}
   .chat-pagination[hidden]{display:none}
   table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:460px}
   th{text-align:left;color:var(--muted);font-weight:700;padding:11px 14px;background:#faf9fe;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -1331,6 +1331,7 @@
         return requestWithTimeout('/api/v1/researcher/chat-submission-imports/'+encodeURIComponent(sessions[0].uploadId)+'/complete',{method:'POST',body:{uploadIds:sessions.map(function(session){return session.uploadId;})}},validationTimeoutMs,'서버 검증 응답이 오래 없어 확인이 중단되었습니다. 파일 목록에서 등록 여부를 확인한 뒤 다시 시도해 주세요.');
       })().then(function(){
         setImportProgress(100,'강제 등록이 완료되었습니다.');
+        window.dispatchEvent(new Event('ai-us-chat-submissions-changed'));
         importForm.reset();
         updateImportFileType();
         status.value='active';
@@ -1671,6 +1672,8 @@
     var cClearSelection=document.getElementById('cClearSelection'), cSelectionSummary=document.getElementById('cSelectionSummary');
     var cRosterBtn=document.getElementById('cRosterBtn'),cBulkBtn=document.getElementById('cBulkBtn'),cTranscriptBtn=document.getElementById('cDlBtn'),selectAllFiltered=false;
     var chatPage=1,chatTotal=0,chatPageSize=100,previewRequest=0,chatLoading=false,chatLoadError=false,chatLegacy=false,selectedSubmissionIds=new Set();
+    var previewCache=new Map(),previewPending=new Map(),previewCacheEpoch=0,previewCacheToken=AI_US_ACCESS_TOKEN;
+    var chatRenderedPage=1,chatRenderedFilter=null,chatRetryPage=1;
     var chatPagination=[document.getElementById('chatPaginationTop'),document.getElementById('chatPaginationBottom')];
     var reviewDialog=document.getElementById('reviewSaveDialog'),reviewTitle=document.getElementById('reviewSaveTitle'),reviewMessage=document.getElementById('reviewSaveMessage'),reviewClose=document.getElementById('reviewSaveClose'),reviewFocusTarget=null;
     if(!cRound) return;
@@ -1717,6 +1720,36 @@
     function finishReviewBusy(){if(reviewDialog)reviewDialog.classList.remove('open','error');if(reviewClose)reviewClose.hidden=true;reviewFocusTarget=null;}
     function showReviewMessage(title,message,focusTarget){reviewFocusTarget=focusTarget||null;if(reviewTitle)reviewTitle.textContent=title;if(reviewMessage)reviewMessage.textContent=message;if(reviewDialog)reviewDialog.classList.add('open','error');if(reviewClose){reviewClose.hidden=false;reviewClose.focus();}}
     if(reviewClose)reviewClose.addEventListener('click',function(){if(reviewDialog)reviewDialog.classList.remove('open','error');reviewClose.hidden=true;if(reviewFocusTarget&&document.body.contains(reviewFocusTarget))reviewFocusTarget.focus();reviewFocusTarget=null;});
+    function invalidateChatPreviewCache(){previewCache.clear();previewPending.clear();previewCacheEpoch++;}
+    function fetchChatPreview(params){
+      if(previewCacheToken!==AI_US_ACCESS_TOKEN){invalidateChatPreviewCache();previewCacheToken=AI_US_ACCESS_TOKEN;}
+      var key=params.toString(),cached=previewCache.get(key);
+      if(cached&&cached.expiresAt>Date.now())return Promise.resolve(cached.data);
+      if(previewPending.has(key))return previewPending.get(key);
+      var epoch=previewCacheEpoch,started=Date.now();
+      function attempt(number){
+        var controller=new AbortController(),remaining=30000-(Date.now()-started);
+        var timer=setTimeout(function(){controller.abort();},Math.max(1,Math.min(10000,remaining)));
+        return aiUsRequest('/api/v1/researcher/chat-submission-previews?'+key,{signal:controller.signal,localErrorDialog:true,cache:'no-store'})
+          .finally(function(){clearTimeout(timer);}).catch(function(error){
+            if(error.status===401||error.status===403){invalidateChatPreviewCache();throw error;}
+            var delay=number===0?800:2000,temporary=!error.status||error.status>=500||error.status===429||error.status===408;
+            if(temporary&&number<2&&epoch===previewCacheEpoch&&Date.now()-started+delay<30000){
+              return new Promise(function(resolve){setTimeout(resolve,delay);}).then(function(){return attempt(number+1);});
+            }
+            throw error;
+          });
+      }
+      var pending=attempt(0).then(function(data){
+        if(epoch===previewCacheEpoch&&previewCacheToken===AI_US_ACCESS_TOKEN){
+          if(!Array.isArray(data)&&(!data||!Array.isArray(data.items)))throw new Error('목록 응답 형식을 확인할 수 없습니다.');
+          previewCache.delete(key);previewCache.set(key,{data:data,expiresAt:Date.now()+30000});
+          while(previewCache.size>20)previewCache.delete(previewCache.keys().next().value);
+        }
+        return data;
+      }).finally(function(){if(previewPending.get(key)===pending)previewPending.delete(key);});
+      previewPending.set(key,pending);return pending;
+    }
     function selectedIds(){return Array.from(selectedSubmissionIds);}
     function updateSelectionSummary(){
       var count=selectedIds().length;
@@ -1726,10 +1759,11 @@
     }
     function renderChatPagination(){
       var pages=Math.max(1,Math.ceil(chatTotal/chatPageSize)),start=chatTotal?(chatPage-1)*chatPageSize+1:0,end=Math.min(chatPage*chatPageSize,chatTotal);
-      chatPagination.forEach(function(nav){if(!nav)return;nav.hidden=false;nav.innerHTML='<button type="button" data-chat-page-action="previous" '+(chatLoading||chatPage<=1?'disabled':'')+'>이전</button><span aria-live="polite">'+(chatLegacy?'페이지 조회 지원을 위해 서버 업데이트가 필요합니다.':start+'~'+end+'건 / 전체 '+chatTotal+'건 · '+chatPage+' / '+pages+' 페이지')+'</span><button type="button" data-chat-page-action="next" '+(chatLoading||chatPage>=pages||chatLegacy?'disabled':'')+'>다음</button>'+(chatLoadError?'<button type="button" data-chat-page-action="retry">다시 조회</button>':'');});
+      chatPagination.forEach(function(nav){if(!nav)return;nav.hidden=false;nav.innerHTML='<button type="button" data-chat-page-action="previous" '+(chatLoading||chatPage<=1?'disabled':'')+'>이전</button><span aria-live="polite">'+(chatLegacy?'페이지 조회 지원을 위해 서버 업데이트가 필요합니다.':start+'~'+end+'건 / 전체 '+chatTotal+'건 · '+chatPage+' / '+pages+' 페이지')+(chatLoading?' · 조회 중':chatLoadError?' · 조회 실패':'')+'</span><button type="button" data-chat-page-action="next" '+(chatLoading||chatPage>=pages||chatLegacy?'disabled':'')+'>다음</button>'+(chatLoadError?'<button type="button" data-chat-page-action="retry">다시 조회</button>':'<button type="button" data-chat-page-action="refresh" '+(chatLoading?'disabled':'')+'>새로 조회</button>');});
     }
-    chatPagination.forEach(function(nav){if(nav)nav.addEventListener('click',function(event){var button=event.target.closest('[data-chat-page-action]');if(!button||button.disabled||chatLoading)return;if(button.dataset.chatPageAction==='previous')chatPage--;else if(button.dataset.chatPageAction==='next')chatPage++;loadPreview();});});
+    chatPagination.forEach(function(nav){if(nav)nav.addEventListener('click',function(event){var button=event.target.closest('[data-chat-page-action]');if(!button||button.disabled||chatLoading)return;if(button.dataset.chatPageAction==='previous')chatPage--;else if(button.dataset.chatPageAction==='next')chatPage++;else if(button.dataset.chatPageAction==='retry')chatPage=chatRetryPage;else if(button.dataset.chatPageAction==='refresh')invalidateChatPreviewCache();loadPreview();});});
     function showCompletedParse(submissionId){
+      invalidateChatPreviewCache();
       var actions=cBody.querySelector('.download-actions[data-id="'+submissionId+'"]'),statusEl=cBody.querySelector('.transcript-status[data-id="'+submissionId+'"]'),button=cBody.querySelector('.transcript-parse[data-id="'+submissionId+'"]');
       if(actions&&!actions.querySelector('.transcript-csv'))actions.insertAdjacentHTML('beforeend','<button class="btn transcript-csv" data-id="'+esc(submissionId)+'" type="button">CSV 받기</button>');
       if(button)button.textContent='다시 파싱';
@@ -1740,6 +1774,7 @@
       if(actions)actions.querySelectorAll('.transcript-csv').forEach(function(button){button.remove();});
     }
     function showInvalidParse(submissionId,reason){
+      invalidateChatPreviewCache();
       hideParseDownloads(submissionId);
       var button=cBody.querySelector('.transcript-parse[data-id="'+submissionId+'"]'),statusEl=cBody.querySelector('.transcript-status[data-id="'+submissionId+'"]');
       if(button){button.disabled=true;button.textContent='오류 파일';}
@@ -1754,21 +1789,26 @@
       return select+note;
     }
     function saveReview(select,note){
+      invalidateChatPreviewCache();
       var submissionId=select.dataset.id,status=select.value,request=status?{method:'PATCH',body:{status:status,note:note&&note.value.trim()?note.value.trim():null}}:{method:'DELETE'};
       var saved=false;
       select.disabled=true;if(note)note.disabled=true;
       setReviewBusy();
-      aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(submissionId)+'/review',request).then(function(){saved=true;selectedSubmissionIds.delete(submissionId);return loadPreview(true);}).then(finishReviewBusy).catch(function(error){finishReviewBusy();if(!saved)loadPreview();if(error.status&&error.status<500)showReviewMessage('관리 상태를 저장하지 못했어요',error.message||'입력 내용을 확인해 주세요.');});
+      aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(submissionId)+'/review',request).then(function(){saved=true;invalidateChatPreviewCache();selectedSubmissionIds.delete(submissionId);return loadPreview(true);}).then(finishReviewBusy).catch(function(error){finishReviewBusy();if(!saved)loadPreview();if(error.status&&error.status<500)showReviewMessage('관리 상태를 저장하지 못했어요',error.message||'입력 내용을 확인해 주세요.');});
     }
     function loadPreview(propagateError){
       if(!cBody) return;
-      var params=filterParams(),requestId=++previewRequest;
+      var params=filterParams(),filterKey=params.toString(),requestedPage=chatPage,requestId=++previewRequest;
+      var retainRows=chatRenderedFilter===filterKey;
       params.set('page',chatPage);chatLoading=true;chatLoadError=false;renderChatPagination();
-      cBody.innerHTML='<tr><td colspan="9">대화문 제출 내역을 불러오는 중입니다.</td></tr>';
-      return aiUsRequest('/api/v1/researcher/chat-submission-previews'+(params.toString()?'?'+params.toString():'')).then(function(data){
+      if(!retainRows)cBody.innerHTML='<tr><td colspan="9">대화문 제출 내역을 불러오는 중입니다.</td></tr>';
+      var pending=fetchChatPreview(params),cacheEpoch=previewCacheEpoch;
+      return pending.then(function(data){
         if(requestId!==previewRequest)return;
+        if(cacheEpoch!==previewCacheEpoch)return loadPreview(propagateError);
         chatLegacy=Array.isArray(data);var records=chatLegacy?data:data.items;
         chatTotal=chatLegacy?records.length:data.total;chatPage=chatLegacy?1:data.page;chatPageSize=chatLegacy?100:data.pageSize;
+        chatRenderedPage=chatPage;chatRenderedFilter=filterKey;
         chatLoading=false;renderChatPagination();
         if(!records||!records.length){cBody.innerHTML='<tr><td colspan="9">해당 조건의 대화문 제출이 없습니다.</td></tr>';updateSelectionSummary();return;}
         cBody.innerHTML=records.map(function(r){
@@ -1794,7 +1834,7 @@
           function requestParse(attempt){aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse',{method:'POST',localErrorDialog:true}).then(function(run){
             function poll(attempt){button.disabled=true;button.textContent='파싱 중';if(statusEl)statusEl.textContent=' 파싱 상태 확인 중…';aiUsRequest('/api/v1/researcher/chat-submissions/'+encodeURIComponent(button.dataset.id)+'/parse-runs/'+encodeURIComponent(run.runId),{localErrorDialog:true}).then(function(state){
               var labels={queued:' 대기열에 등록됨',processing:' 원본 파일을 분석하는 중…'};if(statusEl&&labels[state.status])statusEl.textContent=labels[state.status];
-              if(state.status==='completed'||state.status==='warning'||state.status==='failed')button.aiUsResumeParse=null;
+              if(state.status==='completed'||state.status==='warning'||state.status==='failed'){button.aiUsResumeParse=null;invalidateChatPreviewCache();}
               if(state.status==='completed'){button.disabled=false;showCompletedParse(button.dataset.id);return;}
               if(state.status==='warning'){button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.textContent=' 파싱 보류: '+((state.warnings||[]).join(' ')||'이 형식의 parser adapter를 준비 중입니다.');return;}
               if(state.status==='failed'){if(state.sourceErrorCode){showInvalidParse(button.dataset.id,state.error);return;}button.disabled=false;button.textContent='다시 파싱';if(statusEl)statusEl.textContent=' 파싱 실패: '+(state.error||'파일 형식을 읽지 못했습니다.');return;}
@@ -1802,14 +1842,16 @@
             }).catch(function(error){var temporary=!error.status||error.status>=500;if(temporary&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){poll(1);},800);return;}button.disabled=true;button.textContent='상태 확인 필요';if(statusEl)statusEl.innerHTML=' 파싱 상태 확인 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">상태 다시 확인</button>';});}
             button.aiUsResumeParse=function(){poll(0);};
             poll(0);
-          }).catch(function(error){if(error.status===409){if(statusEl)statusEl.textContent=error.message;loadPreview();return;}var network=/failed to fetch|networkerror/i.test(error.message||'');if(network&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){requestParse(1);},800);return;}button.disabled=false;if(statusEl)statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. backend 컨테이너를 재배포한 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
+          }).catch(function(error){if(error.status===409){if(statusEl)statusEl.textContent=error.message;invalidateChatPreviewCache();loadPreview();return;}var network=/failed to fetch|networkerror/i.test(error.message||'');if(network&&attempt===0){if(statusEl)statusEl.textContent=' 연결을 다시 확인하는 중…';setTimeout(function(){requestParse(1);},800);return;}button.disabled=false;if(statusEl)statusEl.innerHTML=network?' 파싱 요청을 전송하지 못했습니다. backend 컨테이너를 재배포한 뒤 페이지를 새로고침하고 다시 시도해 주세요. <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>':' 파싱 요청 실패: '+esc(error.message)+' <button class="linkbtn transcript-retry" data-id="'+esc(button.dataset.id)+'" type="button">다시 시도</button>';});}
           requestParse(0);
         });});
         updateSelectionSummary();
-      }).catch(function(error){if(requestId!==previewRequest)return;chatLoading=false;chatLoadError=true;renderChatPagination();cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();if(propagateError)throw error;});
+      }).catch(function(error){if(requestId!==previewRequest)return;chatLoading=false;chatLoadError=true;chatRetryPage=requestedPage;if(error.status===401||error.status===403){retainRows=false;chatRenderedFilter=null;selectedSubmissionIds.clear();}if(retainRows)chatPage=chatRenderedPage;renderChatPagination();if(!retainRows)cBody.innerHTML='<tr><td colspan="9">'+esc(error.message)+'</td></tr>';updateSelectionSummary();if(propagateError)throw error;});
     }
     function upd(){selectAllFiltered=false;selectedSubmissionIds.clear();chatPage=1;var restricted=cReview.value==='consent_restricted';[cBulkBtn,cTranscriptBtn,cSelectAll,cAll].forEach(function(control){if(control)control.disabled=restricted;});cSummary.textContent=(cRound.value==='전체'?'전체':cRound.value)+' · '+(cGrade.value==='전체'?'전체 학교급':cGrade.value)+' · '+cReview.options[cReview.selectedIndex].text;loadPreview();}
-    window.addEventListener('ai-us-chat-consent-changed',upd);
+    window.addEventListener('ai-us-chat-consent-changed',function(){invalidateChatPreviewCache();upd();});
+    window.addEventListener('ai-us-chat-submissions-changed',function(){invalidateChatPreviewCache();loadPreview();});
+    window.addEventListener('focus',invalidateChatPreviewCache);
     cRound.addEventListener('change',upd); cGrade.addEventListener('change',upd); cReview.addEventListener('change',upd);
     if(cSelectAll)cSelectAll.addEventListener('click',function(){selectAllFiltered=true;selectedSubmissionIds.clear();cBody.querySelectorAll('.chat-row-check:not(:disabled)').forEach(function(input){input.checked=true;});updateSelectionSummary();});
     if(cClearSelection)cClearSelection.addEventListener('click',function(){selectAllFiltered=false;selectedSubmissionIds.clear();cBody.querySelectorAll('.chat-row-check').forEach(function(input){input.checked=false;});updateSelectionSummary();});

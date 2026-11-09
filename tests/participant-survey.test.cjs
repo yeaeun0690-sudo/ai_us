@@ -674,7 +674,9 @@ test('CTA precedes artwork and participant contact copy consistently uses CALM',
   assert.equal((html.match(/id="startBtn"/g) || []).length, 1);
   assert.ok(html.includes('id="toSignup" class="linkbtn" disabled>접수 확인 중'));
   assert.ok(html.includes('설문 참여 신청이나 로그인에 어려움이 있으면 편하게 문의주세요.'));
-  assert.ok(html.includes('href="tel:010-9386-0839">010.9386.0839'));
+  assert.equal((html.match(/href="sms:010-9386-0839">010\.9386\.0839<\/a> \(문자만 가능\)/g) || []).length, 2);
+  assert.equal(html.includes('href="tel:010-9386-0839"'), false);
+  assert.equal(html.includes('전화 및 문자'), false);
   assert.equal(html.includes('calm'), false);
   assert.equal(html.includes('로그인 정보는 디지털상담'), false);
 });

@@ -240,6 +240,17 @@
   /* participation charts */
   .status-section{margin-top:18px}
   .status-bars{display:grid;gap:18px;margin-top:16px}
+  .allowlist-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .allowlist-tabs{display:flex;gap:8px;overflow-x:auto;min-height:44px;margin:16px 0;border-bottom:1px solid var(--line)}
+  .allowlist-tabs button{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;color:var(--ink-2);font:inherit;cursor:pointer}
+  .allowlist-tabs button[aria-selected="true"]{border-bottom-color:var(--violet);color:var(--deep);font-weight:700}
+  #panel-allowlist{min-width:0}
+  #panel-allowlist .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #panel-allowlist .tbl-wrap{max-height:65vh}
+  #panel-allowlist table{min-width:920px}
+  #panel-allowlist th{position:sticky;top:0;z-index:1}
+  #panel-allowlist td{white-space:nowrap}
+  @media(min-width:1000px){#panel-allowlist .stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
   .status-round{display:grid;grid-template-columns:58px 1fr;gap:14px;align-items:start}
   .status-round-label{padding-top:2px;color:var(--deep);font-family:var(--fd);font-size:1rem}
   .status-bar-list{display:grid;gap:8px}
@@ -429,6 +440,7 @@
         <button data-panel="download" type="button"><span class="dot"></span>결과 다운로드</button>
         <button data-panel="abuse" type="button"><span class="dot"></span>어뷰징 검토</button>
         <button data-panel="activity" type="button"><span class="dot"></span>활성/유입 분석</button>
+        <button data-panel="allowlist" type="button"><span class="dot"></span>설문 허용 명단</button>
       </nav>
 
       <!-- panels -->
@@ -583,7 +595,7 @@
         <div class="panel" id="panel-admission">
           <h2>설문 접수 관리</h2>
           <div class="participation-setting">
-            <div class="setting-copy"><b id="participationPauseLabel">전체 접수 일시 중단</b><p>중단 중에는 신규 가입과 미완료 설문 참여가 제한됩니다. 설문 완료자 중 대화문 미제출자만 제출할 수 있습니다.</p><p id="participationPauseAudit">현재 상태를 확인해 주세요.</p></div>
+            <div class="setting-copy"><b id="participationPauseLabel">전체 접수 일시 중단</b><p>신규 가입은 중단됩니다. 기존 참가자는 허용된 후속 설문에 참여할 수 있으며, 설문 완료·동의자는 대화문을 추가 제출할 수 있습니다.</p><p id="participationPauseAudit">현재 상태를 확인해 주세요.</p></div>
             <label class="approval-switch"><input id="participationPauseToggle" type="checkbox" aria-labelledby="participationPauseLabel" disabled><span id="participationPauseStatus" role="status" aria-live="polite">확인 중</span></label>
           </div>
           <div class="filters"><button class="btn btn-ghost" id="roundSettingsRefresh" type="button">새로고침</button></div>
@@ -734,6 +746,23 @@
           </div>
           <div class="card"><h3>그룹별 의심 후보</h3><p class="sub">그룹을 먼저 확인하면 내부 pair 전체가 함께 확인 처리됩니다. 필요한 경우 아래 개별 pair에서 예외를 다시 확인하거나 해제할 수 있어요.</p><div id="abuseGroupSummary"><p class="sub">아직 불러온 그룹이 없어요.</p></div></div>
           <div class="card"><h3>권고 사유별 후보</h3><p class="sub" id="abuseSummary">회차와 설문 버전을 선택하면 후보를 확인할 수 있어요.</p><div id="abuseCandidateGroups"><p class="sub">아직 불러온 후보가 없어요.</p></div></div>
+        </div>
+
+        <div class="panel" id="panel-allowlist">
+          <div class="allowlist-heading"><h2>설문 허용 명단</h2><button class="btn btn-ghost" id="allowlistRefresh" type="button" aria-label="허용 명단 새로고침" title="새로고침">&#8635;</button></div>
+          <div class="allowlist-tabs" id="allowlistTabs" role="tablist" aria-label="허용 명단 그룹"></div>
+          <div id="allowlistReport" role="tabpanel" aria-label="허용 명단 조회">
+            <p class="sub" id="allowlistDeadline"></p>
+            <div class="stats">
+              <div class="stat total"><div class="k">허용 대상</div><div class="v" id="allowlistTotal">-<small>명</small></div></div>
+              <div class="stat"><div class="k">설문 완료</div><div class="v" id="allowlistCompleted">-<small>명</small></div></div>
+              <div class="stat"><div class="k">파트1만 제출</div><div class="v" id="allowlistPartial">-<small>명</small></div></div>
+              <div class="stat"><div class="k">미제출</div><div class="v" id="allowlistNotSubmitted">-<small>명</small></div></div>
+            </div>
+            <div class="filters"><div class="fgroup"><label for="allowlistSearch">대상자 검색</label><input id="allowlistSearch" type="search" placeholder="이름 또는 연락처"></div><div class="fgroup"><label for="allowlistStatus">제출 상태</label><select id="allowlistStatus"><option value="">전체</option><option value="completed">설문 완료</option><option value="partial">파트1만 제출</option><option value="notSubmitted">미제출</option><option value="accountMissing">계정 확인 필요</option></select></div></div>
+            <p class="sub" id="allowlistMessage" role="status" aria-live="polite">조회 전</p>
+            <div class="tbl-wrap"><table><thead><tr><th>번호</th><th>이름</th><th>학교급</th><th>학년</th><th>연락처</th><th>상태</th><th>파트1 제출시각 (한국시간)</th><th>완료 제출시각 (한국시간)</th></tr></thead><tbody id="allowlistBody"><tr><td colspan="8">조회 전</td></tr></tbody></table></div>
+          </div>
         </div>
 
       </div>
@@ -963,7 +992,7 @@
   // ---- manage sidebar ----
   (function(){
     var btns=document.querySelectorAll('#side button');
-    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),consent:document.getElementById('panel-consent'),absent:document.getElementById('panel-absent'),admission:document.getElementById('panel-admission'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),abuse:document.getElementById('panel-abuse'),activity:document.getElementById('panel-activity')};
+    var panels={apply:document.getElementById('panel-apply'),status:document.getElementById('panel-status'),consent:document.getElementById('panel-consent'),absent:document.getElementById('panel-absent'),admission:document.getElementById('panel-admission'),files:document.getElementById('panel-files'),download:document.getElementById('panel-download'),abuse:document.getElementById('panel-abuse'),activity:document.getElementById('panel-activity'),allowlist:document.getElementById('panel-allowlist')};
     btns.forEach(function(b){
       b.addEventListener('click',function(){
         btns.forEach(function(x){x.classList.remove('on');});
@@ -2089,7 +2118,7 @@
       pending=true;render();
       var opened=window.aiUsConfirmSettingChange({
         title:requested?'전체 접수를 일시 중단할까요?':'전체 접수 중단을 해제할까요?',
-        message:requested?'신규 가입과 설문 진행 저장·최종 제출을 중단합니다. 설문 완료자 중 대화문 미제출자만 제출할 수 있습니다. 기존 응답과 제출 내역은 유지됩니다.':'신규 가입과 회차별 설정에서 허용된 설문 접수를 다시 허용합니다. 회차별 제출 허용·기간 종료 설정은 변경되지 않습니다.',
+        message:requested?'신규 가입과 일반 설문 접수를 중단합니다. 개인별로 허용된 T2 후속 참여와 개방된 T3 참여는 유지되며, 설문 완료·동의자는 대화문을 추가 제출할 수 있습니다. 기존 응답과 제출 내역은 유지됩니다.':'신규 가입과 설정에서 허용된 설문 접수를 다시 허용합니다. 회차별 제출 허용·기간 종료 및 후속 명단·기한 제한은 변경되지 않습니다.',
         savingTitle:'전체 접수 설정을 저장하고 있어요',errorTitle:'전체 접수 설정을 확인하지 못했어요',
         save:function(){return aiUsRequest('/api/v1/admin/participation-settings',{method:'PUT',body:{participationPaused:requested},localErrorDialog:true}).then(function(record){
           if(!record||record.participationPaused!==requested)throw new Error('저장 결과를 확인할 수 없습니다. 새로고침해 주세요.');
@@ -2170,6 +2199,45 @@
   }
   initSurveyRoundSettings();
   initParticipationSettings();
+  function initSurveyAllowlist(){
+    var tabs=document.getElementById('allowlistTabs'),body=document.getElementById('allowlistBody'),refresh=document.getElementById('allowlistRefresh');
+    if(!tabs||!body||!refresh)return;
+    var search=document.getElementById('allowlistSearch'),filter=document.getElementById('allowlistStatus'),message=document.getElementById('allowlistMessage');
+    var groups=[],selected='',report=null,sequence=0;
+    function date(value){if(!value)return '-';var instant=new Date(value);return isNaN(instant.getTime())?'-':instant.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});}
+    function clear(){report=null;['Total','Completed','Partial','NotSubmitted'].forEach(function(key){document.getElementById('allowlist'+key).textContent='-';});document.getElementById('allowlistDeadline').textContent='';body.innerHTML='<tr><td colspan="8">불러오는 중이에요.</td></tr>';}
+    function renderTabs(){tabs.innerHTML=groups.map(function(group){return '<button type="button" role="tab" aria-controls="allowlistReport" aria-selected="'+(group.id===selected)+'" tabindex="'+(group.id===selected?'0':'-1')+'" data-group-id="'+esc(group.id)+'">'+esc(group.label)+' ('+esc(group.total)+'명)</button>';}).join('');}
+    function render(){
+      if(!report)return;
+      var labels={completed:'설문 완료',partial:'파트1만 제출',notSubmitted:'미제출',accountMissing:'계정 확인 필요'};
+      var query=search.value.trim().toLowerCase(),digits=query.replace(/\D/g,'');
+      var rows=report.participants.filter(function(row){return (!filter.value||row.status===filter.value)&&(!query||String(row.name||'').toLowerCase().includes(query)||String(row.phone||'').includes(query)||(digits&&/^[-\d\s]+$/.test(query)&&String(row.phone||'').replace(/\D/g,'').includes(digits)));});
+      body.innerHTML=rows.length?rows.map(function(row,index){var phone=String(row.phone||'').replace(/^(\d{3})(\d{4})(\d{4})$/,'$1-$2-$3');return '<tr><td>'+(index+1)+'</td><td>'+esc(row.name||'-')+'</td><td>'+esc(row.schoolLevel||'-')+'</td><td>'+esc(row.grade==null?'-':row.grade)+'</td><td>'+esc(phone||'-')+'</td><td>'+esc(labels[row.status]||'-')+'</td><td>'+esc(date(row.part1SubmittedAt))+'</td><td>'+esc(date(row.submittedAt))+'</td></tr>';}).join(''):'<tr><td colspan="8">해당 대상자가 없습니다.</td></tr>';
+      message.textContent='전체 '+report.counts.total+'명 · 표시 '+rows.length+'명'+(report.counts.accountMissing?' · 계정 확인 필요 '+report.counts.accountMissing+'명':'');
+    }
+    function select(identifier){
+      selected=identifier;renderTabs();var ticket=++sequence;clear();refresh.disabled=true;message.textContent='명단을 불러오는 중이에요.';
+      return aiUsRequest('/api/v1/researcher/survey-allowlists/'+encodeURIComponent(identifier),{cache:'no-store',localErrorDialog:true}).then(function(data){
+        if(ticket!==sequence)return;
+        if(data.id!==identifier||!Array.isArray(data.participants)||!data.counts||data.participants.length!==data.counts.total)throw new Error('전체 명단을 확인하지 못했습니다. 새로고침해 주세요.');
+        report=data;[['Total','total'],['Completed','completed'],['Partial','partial'],['NotSubmitted','notSubmitted']].forEach(function(item){document.getElementById('allowlist'+item[0]).innerHTML=esc(data.counts[item[1]])+'<small>명</small>';});
+        document.getElementById('allowlistDeadline').textContent='허용 설문: '+data.surveyRound+'회차'+(data.deadline?' · 참여 기한: '+date(data.deadline)+' 이전':'');render();
+      }).catch(function(error){if(ticket!==sequence)return;clear();body.innerHTML='<tr><td colspan="8">명단을 불러오지 못했습니다.</td></tr>';message.textContent=error.message;}).finally(function(){if(ticket===sequence)refresh.disabled=false;});
+    }
+    function load(){var ticket=++sequence;clear();refresh.disabled=true;message.textContent='명단 그룹을 불러오는 중이에요.';
+      return aiUsRequest('/api/v1/researcher/survey-allowlists',{cache:'no-store',localErrorDialog:true}).then(function(data){
+        if(ticket!==sequence)return;if(!Array.isArray(data))throw new Error('명단 그룹을 확인하지 못했습니다.');groups=data;
+        if(!groups.length){selected='';renderTabs();body.innerHTML='<tr><td colspan="8">등록된 허용 명단이 없습니다.</td></tr>';message.textContent='등록된 허용 명단이 없습니다.';return;}
+        search.value='';filter.value='';return select(groups.some(function(group){return group.id===selected;})?selected:groups[0].id);
+      }).catch(function(error){if(ticket!==sequence)return;groups=[];renderTabs();body.innerHTML='<tr><td colspan="8">명단 그룹을 불러오지 못했습니다.</td></tr>';message.textContent=error.message;}).finally(function(){if(ticket===sequence)refresh.disabled=false;});
+    }
+    tabs.addEventListener('click',function(event){var button=event.target.closest('[data-group-id]');if(button&&button.dataset.groupId!==selected)select(button.dataset.groupId);});
+    tabs.addEventListener('keydown',function(event){if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||!groups.length)return;event.preventDefault();var index=groups.findIndex(function(group){return group.id===selected;});index=event.key==='Home'?0:event.key==='End'?groups.length-1:(index+(event.key==='ArrowRight'?1:-1)+groups.length)%groups.length;select(groups[index].id);var button=tabs.querySelector('[data-group-id="'+groups[index].id+'"]');if(button)button.focus();});
+    search.addEventListener('input',render);filter.addEventListener('change',render);refresh.addEventListener('click',load);
+    aiUsOnPanelOpen('allowlist',load,true);
+    return {load:load,select:select};
+  }
+  initSurveyAllowlist();
 </script>
 </body>
 </html>

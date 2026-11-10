@@ -801,9 +801,16 @@ test('round admission locks both parts, preserves completed labels and enforces 
   context.window.aiUsParticipationPaused = true;
   context.surveyRoundsOpen['2'] = true;
   context.updatePartButtons();
-  assert.ok([...buttons.values()].every(button => button.disabled));
+  assert.equal(buttons.get('2:1').disabled, false);
   assert.equal(buttons.get('1:0').textContent, '제출 완료');
   assert.equal(buttons.get('3:0').textContent, '접수 일시 중단');
+  context.surveyRoundsOpen['3'] = true;
+  context.surveyRoundStates['3'] = 'open';
+  context.updatePartButtons();
+  assert.equal(buttons.get('3:0').disabled, false);
+  assert.equal(buttons.get('3:1').disabled, true);
+  completed.add('3:0'); context.updatePartButtons();
+  assert.equal(buttons.get('3:1').disabled, false);
   context.window.AI_US_PREVIEW = true; context.updatePartButtons();
   assert.equal(buttons.get('2:1').disabled, false);
 });
@@ -882,6 +889,8 @@ test('direct survey opening cannot bypass round closure, status readiness or par
   context.partCompleted = () => true;
   assert.equal(context.openSurvey(1), 'opened');
   context.window.aiUsParticipationPaused = true;
+  assert.equal(context.openSurvey(0), 'opened');
+  context.surveyRoundsOpen['2'] = false;
   assert.equal(context.openSurvey(0), undefined);
   assert.equal(context.openSurvey(1), undefined);
   context.window.aiUsParticipationPaused = false;

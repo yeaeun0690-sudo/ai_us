@@ -9,6 +9,80 @@ const html = fs.readFileSync(path.join(__dirname, '../researcher.html'), 'utf8')
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const helper = script.slice(script.indexOf('  var adminDownloadBusy='), script.indexOf('  function esc(s)'));
 
+test('allowlist menu is last and all original panels remain outside the sidebar', () => {
+  const sidebar = html.match(/<nav class="side" id="side">[\s\S]*?<\/nav>/)[0];
+  const menu = Array.from(sidebar.matchAll(/data-panel="([^"]+)"/g), match => match[1]);
+  assert.equal(menu[menu.length - 1], 'allowlist');
+  assert.ok(!sidebar.includes('class="panel'));
+  for (const name of menu) assert.equal((html.match(new RegExp('id="panel-' + name + '"', 'g')) || []).length, 1);
+  assert.equal((html.match(/id="serverIssueDialog"/g) || []).length, 1);
+  assert.ok(html.indexOf('<div class="panels">') > html.indexOf(sidebar));
+  assert.ok(html.indexOf('id="panel-allowlist"') > html.indexOf('id="panel-abuse"'));
+  assert.ok(html.indexOf('id="panel-allowlist"') < html.indexOf('id="serverIssueDialog"'));
+});
+
+function allowlistHarness(request) {
+  const ids = Object.fromEntries(['allowlistTabs', 'allowlistBody', 'allowlistRefresh', 'allowlistSearch', 'allowlistStatus',
+    'allowlistMessage', 'allowlistDeadline', 'allowlistTotal', 'allowlistCompleted', 'allowlistPartial', 'allowlistNotSubmitted']
+    .map(id => [id, { value: '', textContent: '', innerHTML: '', listeners: {}, addEventListener(name, handler) { this.listeners[name] = handler; }, querySelector() { return null; } }]));
+  let activate;
+  const calls = [];
+  const context = vm.createContext({
+    document: { getElementById: id => ids[id] },
+    esc: value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])),
+    aiUsOnPanelOpen(name, callback) { assert.equal(name, 'allowlist'); activate = callback; },
+    aiUsRequest(path, options) { calls.push({ path, options }); return request(path); },
+  });
+  vm.runInContext(script.slice(script.indexOf('  function initSurveyAllowlist(){'), script.indexOf('\n  initSurveyAllowlist();')), context);
+  const controller = context.initSurveyAllowlist();
+  return { ids, calls, controller, activate: () => activate() };
+}
+
+test('allowlist panel lazily renders all 177 members, escapes data and filters without writes', async () => {
+  const participants = Array.from({ length: 177 }, (_, index) => ({ participantId: 'synthetic-' + index,
+    name: index === 0 ? '<unsafe>' : '대상 ' + index, phone: '01000000000', schoolLevel: '초등', grade: 5,
+    status: index < 60 ? 'completed' : index < 80 ? 'partial' : 'notSubmitted',
+    part1SubmittedAt: index < 80 ? '2026-11-10T01:00:00Z' : null,
+    submittedAt: index < 60 ? '2026-11-10T02:00:00Z' : null }));
+  const group = { id: 't2-ungrouped', label: '<대상자>', surveyRound: 2, total: 177 };
+  const harness = allowlistHarness(path => Promise.resolve(path.endsWith('/t2-ungrouped') ? {
+    ...group, participants, counts: { total: 177, completed: 60, partial: 20, notSubmitted: 97, accountMissing: 0 }, deadline: '2026-11-15T15:00:00Z',
+  } : [group]));
+  assert.equal(harness.calls.length, 0);
+  await harness.activate();
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 177);
+  assert.ok(harness.ids.allowlistTabs.innerHTML.includes('&lt;대상자&gt;'));
+  assert.ok(harness.ids.allowlistBody.innerHTML.includes('&lt;unsafe&gt;'));
+  assert.ok(harness.ids.allowlistDeadline.textContent.includes('2026'));
+  assert.ok(harness.ids.allowlistDeadline.textContent.includes('00:00:00'));
+  harness.ids.allowlistStatus.value = 'completed'; harness.ids.allowlistStatus.listeners.change();
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 60);
+  assert.equal(harness.ids.allowlistTotal.innerHTML, '177<small>명</small>');
+  harness.ids.allowlistStatus.value = ''; harness.ids.allowlistSearch.value = '대상 170'; harness.ids.allowlistSearch.listeners.input();
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 1);
+  assert.ok(harness.calls.every(call => !call.options.method && !call.options.body));
+});
+
+test('allowlist panel ignores stale tab reports and handles empty lists and failures', async () => {
+  let resolveFirst;
+  const first = new Promise(resolve => { resolveFirst = resolve; });
+  const report = id => ({ id, label: id, surveyRound: 3, deadline: null, participants: [],
+    counts: { total: 0, completed: 0, partial: 0, notSubmitted: 0, accountMissing: 0 } });
+  const harness = allowlistHarness(path => path.endsWith('/school-a') ? first : path.endsWith('/school-b') ? Promise.resolve(report('school-b'))
+    : Promise.resolve([{ id: 'school-a', label: '학교 A', total: 0 }, { id: 'school-b', label: '학교 B', total: 0 }]));
+  const opening = harness.activate();
+  await Promise.resolve(); await Promise.resolve();
+  await harness.controller.select('school-b');
+  resolveFirst({ ...report('school-a'), surveyRound: 2 }); await opening;
+  assert.ok(harness.ids.allowlistDeadline.textContent.includes('3회차'));
+  assert.equal(harness.ids.allowlistRefresh.disabled, false);
+  const empty = allowlistHarness(() => Promise.resolve([])); await empty.activate();
+  assert.ok(empty.ids.allowlistMessage.textContent.includes('등록된 허용 명단이 없습니다'));
+  const failed = allowlistHarness(() => Promise.reject(new Error('synthetic unavailable'))); await failed.activate();
+  assert.equal(failed.ids.allowlistMessage.textContent, 'synthetic unavailable');
+  assert.equal(failed.ids.allowlistRefresh.disabled, false);
+});
+
 function setup() {
   let focused;
   let downloads = 0;

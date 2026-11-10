@@ -605,7 +605,7 @@
   <section class="participation-notice" data-participation-notice hidden aria-label="접수 안내" aria-live="polite">
     <h2>[안내] 설문 접수 일시 중단</h2>
     <p data-participation-message></p>
-    <p>신규 가입과 미완료 설문 참여는 잠시 중단됩니다.</p>
+    <p>신규 가입은 중단되며, 후속 설문은 허용된 대상자만 참여할 수 있습니다.</p>
     <button id="participationStatusRetry" type="button" class="linkbtn" hidden>접수 상태 다시 확인</button>
   </section>
 
@@ -742,7 +742,7 @@
     <div id="guideLoginSlot"></div>
 
     <div id="pPanel">
-      <div class="participation-notice" data-participation-notice hidden><h2>[안내] 설문 접수 일시 중단</h2><p data-participation-message></p><p>신규 가입과 미완료 설문 참여는 잠시 중단됩니다.</p></div>
+      <div class="participation-notice" data-participation-notice hidden><h2>[안내] 설문 접수 일시 중단</h2><p data-participation-message></p><p>신규 가입은 중단되며, 후속 설문은 허용된 대상자만 참여할 수 있습니다.</p></div>
       <p class="signup-cta">신규 참여 신청 <button type="button" id="toSignup" class="linkbtn" disabled>접수 확인 중</button></p>
       <div class="field">
         <label for="lid">휴대폰 번호</label>
@@ -853,7 +853,7 @@
   </div>
   <div class="sv-body">
     <h2>나의 설문 탐사</h2>
-    <div class="participation-notice" data-participation-notice hidden><h2>[안내] 설문 접수 일시 중단</h2><p data-participation-message></p><p>신규 가입과 미완료 설문 참여는 잠시 중단됩니다.</p></div>
+    <div class="participation-notice" data-participation-notice hidden><h2>[안내] 설문 접수 일시 중단</h2><p data-participation-message></p><p>신규 가입은 중단되며, 후속 설문은 허용된 대상자만 참여할 수 있습니다.</p></div>
     <div class="sv-tabs" id="svTabs">
       <button class="sv-tab on" data-tab="survey" type="button">설문 참여하기</button>
       <button class="sv-tab" data-tab="chat" type="button">대화문 제출하기</button>
@@ -1616,7 +1616,7 @@
       var participantPhone=sessionStorage.getItem('ai_us_participant_phone');
       function sameSession(){return !!sessionStorage.getItem('ai_us_access_token')&&participantPhone===sessionStorage.getItem('ai_us_participant_phone');}
       serverStatusInFlight=aiUsRequest('/api/v1/participant/survey-status',{headers:{Authorization:'Bearer '+accessToken}})
-        .then(function(data){if(!sameSession())return;if(window.aiUsApplyParticipationStatus)window.aiUsApplyParticipationStatus(data);window.aiUsChatSubmissionAllowed=data.chatSubmissionAllowed===true;window.aiUsChatSubmissionReason=data.chatSubmissionUnavailableReason||'';return loadSurveyConfigurations(data).then(function(){if(!sameSession())return;serverCompletedVersions={};serverVersionsByRound=data.completedVersionsByRound||{};Object.keys(serverVersionsByRound).forEach(function(round){serverVersionsByRound[round].forEach(function(version){serverCompletedVersions[version]=true;});});serverCompletedRounds=data.completedRounds||[];t1SubmissionsOpen=data.t1SubmissionsOpen===true;surveyRoundsOpen=data.surveyRoundsOpen||{'1':t1SubmissionsOpen,'2':true,'3':false,'4':false};surveyRoundStates=data.surveyRoundStates||{};serverStatusReady=true;window.aiUsCompletedRounds=serverCompletedRounds;updatePartButtons();if(window.applyChatConsent)window.applyChatConsent();if(window.aiUsParticipationPaused){var chatTab=document.querySelector('#svTabs [data-tab="chat"]');if(chatTab)chatTab.click();}resumeParticipantSurvey();});})
+        .then(function(data){if(!sameSession())return;if(window.aiUsApplyParticipationStatus)window.aiUsApplyParticipationStatus(data);window.aiUsChatSubmissionAllowed=data.chatSubmissionAllowed===true;window.aiUsChatSubmissionReason=data.chatSubmissionUnavailableReason||'';return loadSurveyConfigurations(data).then(function(){if(!sameSession())return;serverCompletedVersions={};serverVersionsByRound=data.completedVersionsByRound||{};Object.keys(serverVersionsByRound).forEach(function(round){serverVersionsByRound[round].forEach(function(version){serverCompletedVersions[version]=true;});});serverCompletedRounds=data.completedRounds||[];t1SubmissionsOpen=data.t1SubmissionsOpen===true;surveyRoundsOpen=data.surveyRoundsOpen||{'1':t1SubmissionsOpen,'2':!window.aiUsParticipationPaused,'3':false,'4':false};surveyRoundStates=data.surveyRoundStates||{};serverStatusReady=true;window.aiUsCompletedRounds=serverCompletedRounds;updatePartButtons();if(window.applyChatConsent)window.applyChatConsent();if(window.aiUsParticipationPaused&&!Object.keys(surveyRoundsOpen).some(function(round){return surveyRoundsOpen[round]===true;})){var chatTab=document.querySelector('#svTabs [data-tab="chat"]');if(chatTab)chatTab.click();}resumeParticipantSurvey();});})
         .catch(function(error){if(sameSession()){serverStatusReady=false;serverStatusFailed=true;if(error.status===401||error.status===403)requestParticipantLogin();else updatePartButtons();}})
         .finally(function(){serverStatusInFlight=null;if(sameSession())updatePartButtons();});
       updatePartButtons();return serverStatusInFlight;
@@ -2269,13 +2269,13 @@
     function partsForRound(round){var configured=!window.AI_US_PREVIEW&&configuredSurveyParts[String(round)];if(configured)return configured.all||configured[getAudience()]||[];return round===2?SURVEY_SETS_T2.common:(SURVEY_SETS[getAudience()]||SURVEY_SETS.elementary);}
     function roundPartCompleted(round,index){if(window.AI_US_PREVIEW)return !!previewCompleted[round+':'+index];var part=partsForRound(round)[index],expected=part&&part.surveyVersion;return serverCompletedVersions[expected]===true||(serverVersionsByRound[String(round)]||[]).some(function(version){return new RegExp('^t'+round+'-(?:(?:elem|secondary)-)?part'+(index+1)+'-').test(version);});}
     function partCompleted(idx){return roundPartCompleted(SURVEY_ROUND,idx);}
-    function surveyRoundOpen(round){return window.AI_US_PREVIEW===true||(!window.aiUsParticipationPaused&&surveyRoundsOpen[String(round)]===true);}
-    function surveyRoundState(round){if(window.AI_US_PREVIEW)return round<3?'open':'preparing';if(window.aiUsParticipationPaused)return 'paused';var state=surveyRoundStates[String(round)]||(surveyRoundOpen(round)?'open':round===1?'closed':'preparing');return state==='open'&&!surveyRoundOpen(round)?'preparing':state;}
+    function surveyRoundOpen(round){return window.AI_US_PREVIEW===true||surveyRoundsOpen[String(round)]===true;}
+    function surveyRoundState(round){if(window.AI_US_PREVIEW)return round<3?'open':'preparing';var state=surveyRoundStates[String(round)]||(surveyRoundOpen(round)?'open':window.aiUsParticipationPaused?'paused':round===1?'closed':'preparing');return state==='open'&&!surveyRoundOpen(round)?'preparing':state;}
     function updatePartButtons(){
       SURVEY_PARTS=partsForRound(SURVEY_ROUND);
       var labels={preparing:'준비 중',open:'접수 중',closed:'접수 종료',paused:'일시 중단'},openRounds=[];
       [1,2,3,4].forEach(function(round){var state=surveyRoundState(round),badge=document.querySelector('[data-round-state="'+round+'"]');if(badge){badge.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'확인 실패':'확인 중'):labels[state];badge.setAttribute('data-state',state);}if(state==='open')openRounds.push(round);[0,1].forEach(function(index){var button=document.querySelector('#tab-survey .go[data-round="'+round+'"][data-part="'+index+'"]');if(!button)return;var completed=roundPartCompleted(round,index),closed=state!=='open';button.classList.toggle('done',completed);button.disabled=completed||closed||(!window.AI_US_PREVIEW&&!serverStatusReady)||(index===1&&!roundPartCompleted(round,0));button.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'확인 실패':'확인 중'):completed?'제출 완료':closed?(state==='paused'?'접수 일시 중단':state==='closed'?'참여 기간이 끝났어요':'설문 준비 중'):index===1&&!roundPartCompleted(round,0)?'파트 1 완료 후':'시작하기';var row=button.parentNode,status=row.querySelector('.part-status');if(!status){status=document.createElement('span');status.className='part-status';row.insertBefore(status,button);}status.textContent=serverStatusReady||window.AI_US_PREVIEW?(completed?'제출 완료':'미제출'):'';});});
-      var availability=document.getElementById('surveyAvailabilityNote');if(availability)availability.textContent=window.aiUsParticipationPaused&&!window.AI_US_PREVIEW?'설문 접수가 일시 중단되었습니다. 미완료 설문은 참여할 수 없습니다.':!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'설문 상태를 확인하지 못했어요. 다시 확인해 주세요.':'참여 가능한 설문을 확인하고 있어요.'):openRounds.length?'지금은 '+openRounds.join('·')+'회차 탐사에 참여할 수 있어요.':'현재 참여 가능한 설문이 없어요.';
+      var availability=document.getElementById('surveyAvailabilityNote');if(availability)availability.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'설문 상태를 확인하지 못했어요. 다시 확인해 주세요.':'참여 가능한 설문을 확인하고 있어요.'):openRounds.length?'지금은 '+openRounds.join('·')+'회차 탐사에 참여할 수 있어요.':window.aiUsParticipationPaused&&!window.AI_US_PREVIEW?'설문 접수가 일시 중단되었습니다. 현재 허용된 설문이 없습니다.':'현재 참여 가능한 설문이 없어요.';
       updateSurveyRetryButton();
       updateRoundProgress();
     }
@@ -2675,7 +2675,7 @@
     function applyChatConsent(){
       var consent=!window.AI_US_PREVIEW&&sessionStorage.getItem('ai_us_chat_consent')==='true'&&(window.aiUsCompletedRounds||[]).length>0;
       if(window.aiUsParticipationPaused)consent=consent&&window.aiUsChatSubmissionAllowed===true;
-      var eligibility=document.getElementById('chatEligibilityMessage');if(eligibility)eligibility.textContent=window.aiUsParticipationPaused?(window.aiUsChatSubmissionReason||'접수 중단 기간에는 설문을 완료하고 대화문을 아직 제출하지 않은 참가자만 제출할 수 있습니다.'):'신청할 때 대화문 제출에 동의하고 설문을 한 회차 이상 완료하면 이용할 수 있어요.';
+      var eligibility=document.getElementById('chatEligibilityMessage');if(eligibility)eligibility.textContent=window.aiUsParticipationPaused?(window.aiUsChatSubmissionReason||'설문을 한 회차 이상 완료하고 대화문 제출에 동의하면 추가 제출할 수 있습니다.'):'신청할 때 대화문 제출에 동의하고 설문을 한 회차 이상 완료하면 이용할 수 있어요.';
       document.querySelectorAll('.chat-go').forEach(function(button){var rounds=window.aiUsCompletedRounds||[];button.setAttribute('data-point','afterRound'+(rounds.indexOf(2)>=0?2:rounds[0]||1));});
       var pointLabel=document.getElementById('chatPointLabel'),rounds=window.aiUsCompletedRounds||[];if(pointLabel)pointLabel.textContent=(rounds.length?(rounds.indexOf(2)>=0?2:rounds[0])+'차 설문 완료 후 제출':'설문 완료 후 제출')+' · 10,000원 상당';
       if(chatOpen&&chatLocked){
@@ -2857,7 +2857,7 @@
       fd.append('tool',t.id); fd.append('submissionPoint',chatPoint);
       fd.append('sourceType', t.result==='image'?'image':'file'); fd.append('submissionId',(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()));
       aiUsRequest('/api/v1/chat-submissions/uploads',{method:'POST',headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},body:fd})
-        .then(function(){ aiUsTrack('chat_submission_created',true);document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block';if(window.aiUsParticipationPaused){window.aiUsChatSubmissionAllowed=false;window.aiUsChatSubmissionReason='이미 대화문을 제출하셨습니다. 접수 중단 기간에는 미제출자만 제출할 수 있습니다.';if(window.applyChatConsent)window.applyChatConsent();} })
+        .then(function(){ aiUsTrack('chat_submission_created',true);document.getElementById('chatSubmit').style.display='none'; document.getElementById('chatDone').style.display='block'; })
         .catch(function(e){ showChatErr(e&&e.status===413?'파일 용량이 너무 커요. 안내된 용량을 확인해 주세요.':((e&&e.message)?e.message:'제출 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.')); })
         .then(function(){ chatSubmitting=false; btn.disabled=false; btn.textContent='제출하기'; });
     }

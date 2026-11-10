@@ -238,6 +238,33 @@
   .audience-dialog .aud-actions button{flex:1;margin-top:0}
   .audience-dialog .aud-cancel{background:#fff;border:1px solid var(--line);color:var(--ink-2);box-shadow:none}
 
+  .reward-notice{position:fixed;inset:0;width:calc(100% - 40px);max-width:560px;height:fit-content;
+    max-height:calc(100% - 40px);max-height:calc(100dvh - 40px);margin:auto;border:1px solid var(--line);border-radius:20px;
+    padding:20px 28px 28px;color:var(--ink);font-family:var(--font-body);background:#fff;
+    box-shadow:0 24px 80px rgba(24,28,36,.24);overflow-y:auto;overscroll-behavior:contain}
+  .reward-notice[open]{display:flex;flex-direction:column;animation:bd .2s ease}
+  .reward-notice::backdrop{background:rgba(24,28,36,.52)}
+  .reward-notice__top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .reward-notice__brand{font-family:var(--font-display);font-size:1rem;font-weight:400;color:var(--sky)}
+  .reward-notice__close{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border:1px solid var(--line);
+    border-radius:8px;background:#fff;color:var(--ink-2);font:28px/1 var(--font-body);cursor:pointer}
+  .reward-notice__content{width:100%;display:flex;flex-direction:column;align-items:center;
+    padding-top:16px;text-align:center;gap:20px}
+  .reward-notice__art{display:block;width:144px;max-width:100%;height:auto;aspect-ratio:870/565;object-fit:contain}
+  .reward-notice h2{font-family:var(--font-display);font-size:1.65rem;font-weight:400;line-height:1.4;letter-spacing:0;color:var(--deep)}
+  .reward-notice__message{font-size:1.05rem;line-height:1.9;word-break:keep-all;overflow-wrap:anywhere;letter-spacing:0;color:var(--ink-2)}
+  .reward-notice__confirm{max-width:280px;min-height:52px;margin-top:8px;border-radius:8px}
+  .reward-notice button:focus-visible{outline:3px solid var(--sky);outline-offset:4px}
+  @media(max-width:560px){
+    .reward-notice{padding:16px 20px 24px}
+    .reward-notice__content{gap:18px;padding-top:12px}
+    .reward-notice__art{width:120px}
+    .reward-notice h2{font-size:1.5rem}
+    .reward-notice__message{font-size:1rem}
+  }
+  @media(max-height:500px){.reward-notice__art{display:none}.reward-notice__content{gap:16px;padding:20px 0}}
+  @media(prefers-reduced-motion:reduce){.reward-notice[open]{animation:none}}
+
   /* ---------- Surveys view ---------- */
   .surveys{position:fixed;inset:0;background:#fff;z-index:90;overflow-y:auto;display:none}
   .surveys.open{display:block}
@@ -1070,6 +1097,19 @@
   </div>
 </div>
 
+<dialog class="reward-notice" id="rewardNotice" aria-modal="true" aria-labelledby="rewardNoticeTitle" aria-describedby="rewardNoticeMessage">
+  <div class="reward-notice__top">
+    <b class="reward-notice__brand">AI 마음 탐사대</b>
+    <button class="reward-notice__close" id="rewardNoticeClose" type="button" aria-label="리워드 공지 닫기" title="닫기">&#215;</button>
+  </div>
+  <div class="reward-notice__content">
+    <img class="reward-notice__art" src="univers.png" alt="" width="180" height="117">
+    <h2 id="rewardNoticeTitle">리워드 발송 안내</h2>
+    <p class="reward-notice__message" id="rewardNoticeMessage">10월 29일 이후 제출해 주신 설문조사 및 대화문에 대한 리워드는 11월 중 순차적으로 발송될 예정입니다. 발송까지 조금만 기다려 주시면 감사하겠습니다.</p>
+    <button class="btn-primary reward-notice__confirm" id="rewardNoticeConfirm" type="button" autofocus>확인</button>
+  </div>
+</dialog>
+
 <div class="backdrop audience-dialog" id="audienceDialog" role="dialog" aria-modal="true" aria-labelledby="audienceDialogTitle">
   <div class="modal">
     <div class="aud-icon" id="audienceDialogIcon" aria-hidden="true">↔</div>
@@ -1085,6 +1125,34 @@
 <script>
   window.AI_US_GUIDE_PREVIEW=/^guide$/i.test(new URLSearchParams(location.search).get('preview')||'');
   window.AI_US_PREVIEW=window.AI_US_GUIDE_PREVIEW||/^(part[12]|elem[12]|sec[12])$/i.test(new URLSearchParams(location.search).get('preview')||'');
+  function aiUsShowRewardNotice(){
+    if(window.AI_US_PREVIEW)return;
+    var notice=document.getElementById('rewardNotice');
+    if(!notice||notice.open||typeof notice.showModal!=='function')return;
+    var close=document.getElementById('rewardNoticeClose');
+    var confirm=document.getElementById('rewardNoticeConfirm');
+    var previousOverflow=document.body.style.overflow;
+    function dismiss(){notice.close();}
+    function onKeydown(event){if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismiss();}}
+    function restore(){
+      document.body.style.overflow=previousOverflow;
+      close.removeEventListener('click',dismiss);
+      confirm.removeEventListener('click',dismiss);
+      notice.removeEventListener('keydown',onKeydown);
+      notice.removeEventListener('close',restore);
+      var start=document.getElementById('startBtn');
+      if(start&&!document.querySelector('.backdrop.open, .surveys.open, .signup.open, .chat-ov.open'))start.focus({preventScroll:true});
+    }
+    close.addEventListener('click',dismiss);
+    confirm.addEventListener('click',dismiss);
+    notice.addEventListener('keydown',onKeydown);
+    notice.addEventListener('close',restore);
+    notice.showModal();
+    document.body.style.overflow='hidden';
+  }
+  if(!window.AI_US_PREVIEW){
+    if(document.readyState!=='loading')aiUsShowRewardNotice();else document.addEventListener('DOMContentLoaded',aiUsShowRewardNotice,{once:true});
+  }
   // audience toggle (초등 / 중고등 / 연구자): swaps hero + mission images & copy
   (function(){
     var t=document.getElementById('toggle');

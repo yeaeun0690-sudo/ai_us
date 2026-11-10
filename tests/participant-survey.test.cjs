@@ -620,7 +620,7 @@ test('refresh keeps its rolling contract and ignores stale account responses', a
 test('guide review uses API-isolated preview mode without opening a survey or session', () => {
   for (const [value, preview, guide] of [['guide', true, true], ['GUIDE', true, true], ['part2', true, false], ['', false, false]]) {
     const context = vm.createContext({ window: {}, URLSearchParams, location: { search: '?preview=' + value } });
-    vm.runInContext(slice(current, '  window.AI_US_GUIDE_PREVIEW=', '  // audience toggle'), context);
+    vm.runInContext(slice(current, '  window.AI_US_GUIDE_PREVIEW=', '  function aiUsShowRewardNotice('), context);
     assert.equal(context.window.AI_US_PREVIEW, preview);
     assert.equal(context.window.AI_US_GUIDE_PREVIEW, guide);
   }
@@ -679,6 +679,64 @@ test('CTA precedes artwork and participant contact copy consistently uses CALM',
   assert.equal(html.includes('전화 및 문자'), false);
   assert.equal(html.includes('calm'), false);
   assert.equal(html.includes('로그인 정보는 디지털상담'), false);
+});
+
+test('reward announcement preserves approved copy in a compact dialog over a gray backdrop', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const notice = html.match(/<dialog class="reward-notice"[\s\S]*?<\/dialog>/)[0];
+  assert.ok(notice.includes('aria-labelledby="rewardNoticeTitle"'));
+  assert.ok(notice.includes('aria-describedby="rewardNoticeMessage"'));
+  assert.ok(notice.includes('10월 29일 이후 제출해 주신 설문조사 및 대화문에 대한 리워드는 11월 중 순차적으로 발송될 예정입니다. 발송까지 조금만 기다려 주시면 감사하겠습니다.'));
+  assert.ok(notice.includes('id="rewardNoticeClose"'));
+  assert.ok(notice.includes('id="rewardNoticeConfirm"'));
+  assert.ok(html.includes('max-width:560px;height:fit-content'));
+  assert.ok(html.includes('.reward-notice::backdrop{background:rgba(24,28,36,.52)}'));
+});
+
+test('reward announcement opens once, restores scrolling on close and skips preview mode', () => {
+  for (const preview of [false, true]) {
+    let openings = 0;
+    let focused = 0;
+    const listeners = new Map();
+    const button = () => ({ addEventListener(type, handler) { this.handler = handler; }, removeEventListener() { this.handler = null; } });
+    const close = button();
+    const confirm = button();
+    const notice = {
+      open: false, showModal() { this.open = true; openings++; },
+      close() { this.open = false; listeners.get('close')(); },
+      addEventListener(type, handler) { listeners.set(type, handler); },
+      removeEventListener(type) { listeners.delete(type); },
+    };
+    const nodes = { rewardNotice: notice, rewardNoticeClose: close, rewardNoticeConfirm: confirm, startBtn: { focus() { focused++; } } };
+    const body = { style: { overflow: 'auto' } };
+    const context = vm.createContext({ window: { AI_US_PREVIEW: preview }, document: { readyState: 'complete', body, getElementById: id => nodes[id], querySelector: () => null } });
+    const controller = slice(current, '  function aiUsShowRewardNotice(', '  // audience toggle');
+    assert.equal(/fetch\(|localStorage|sessionStorage|aiUsRequest\(/.test(controller), false);
+    vm.runInContext(controller, context);
+    if (preview) { assert.equal(openings, 0); assert.equal(body.style.overflow, 'auto'); continue; }
+    context.aiUsShowRewardNotice();
+    assert.equal(openings, 1);
+    assert.equal(body.style.overflow, 'hidden');
+    confirm.handler();
+    assert.equal(notice.open, false);
+    assert.equal(body.style.overflow, 'auto');
+    assert.equal(focused, 1);
+    context.aiUsShowRewardNotice();
+    close.handler();
+    assert.equal(notice.open, false);
+    assert.equal(body.style.overflow, 'auto');
+    context.aiUsShowRewardNotice();
+    listeners.get('keydown')({ key: 'Tab' });
+    assert.equal(notice.open, true);
+    let prevented = false;
+    let stopped = false;
+    listeners.get('keydown')({ key: 'Escape', preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
+    assert.equal(notice.open, false);
+    assert.equal(body.style.overflow, 'auto');
+    assert.equal(prevented, true);
+    assert.equal(stopped, true);
+    assert.equal(listeners.has('keydown'), false);
+  }
 });
 
 test('preview footer shares survey title labels and follows part changes', () => {

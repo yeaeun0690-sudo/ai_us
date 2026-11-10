@@ -739,6 +739,27 @@ test('reward announcement opens once, restores scrolling on close and skips prev
   }
 });
 
+test('three-round participation excludes retired cards and legacy completions', () => {
+  const participantHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.ok(!participantHtml.includes('data-round="4"'));
+  assert.ok(!participantHtml.includes('id="chatFutureSubmission"'));
+  assert.ok(participantHtml.includes('총 <b>3회</b>'));
+  assert.ok(current.includes('총 30,000원'));
+  assert.ok(!current.includes('40,000원'));
+  assert.ok(current.includes('총 4회 이상 대화한 방'));
+  const label = {}, bar = { style: {} };
+  const context = vm.createContext({ serverCompletedRounds: [1, 4, 4],
+    document: { getElementById: id => id === 'roundProgLbl' ? label : bar } });
+  vm.runInContext(slice(current, '    function updateRoundProgress()', '    function setSurveyCompleted('), context);
+  context.updateRoundProgress();
+  assert.equal(label.textContent, '1 / 3회 완료');
+  assert.equal(bar.style.width, '33%');
+  context.serverCompletedRounds = [1, 2, 3, 4];
+  context.updateRoundProgress();
+  assert.equal(label.textContent, '3 / 3회 완료');
+  assert.equal(bar.style.width, '100%');
+});
+
 test('preview footer shares survey title labels and follows part changes', () => {
   const elements = { dummySurveyTitle: {}, surveyPreviewFooter: {} };
   const context = vm.createContext({
@@ -769,7 +790,7 @@ test('preview footer shares survey title labels and follows part changes', () =>
 
 test('round admission locks both parts, preserves completed labels and enforces prerequisites', () => {
   const buttons = new Map(), completed = new Set(['1:0']);
-  for (const round of [1, 2, 3, 4]) for (const part of [0, 1]) {
+  for (const round of [1, 2, 3]) for (const part of [0, 1]) {
     buttons.set(round + ':' + part, { classList: { toggle() {} }, parentNode: { querySelector: () => ({}) } });
   }
   const context = vm.createContext({
@@ -785,7 +806,8 @@ test('round admission locks both parts, preserves completed labels and enforces 
   assert.equal(buttons.get('1:0').textContent, '제출 완료');
   assert.equal(buttons.get('2:0').textContent, '참여 기간이 끝났어요');
   assert.equal(buttons.get('3:0').textContent, '설문 준비 중');
-  assert.equal(buttons.get('4:1').textContent, '설문 준비 중');
+  context.surveyRoundsOpen['4'] = true;
+  assert.equal(context.surveyRoundOpen(4), false);
   context.surveyRoundsOpen['2'] = true; context.surveyRoundStates['2'] = 'open'; context.updatePartButtons();
   assert.equal(buttons.get('2:0').disabled, false);
   assert.equal(buttons.get('2:1').disabled, true);

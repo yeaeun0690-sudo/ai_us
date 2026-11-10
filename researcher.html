@@ -247,9 +247,10 @@
   #panel-allowlist{min-width:0}
   #panel-allowlist .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   #panel-allowlist .tbl-wrap{max-height:65vh}
-  #panel-allowlist table{min-width:920px}
-  #panel-allowlist th{position:sticky;top:0;z-index:1}
+  #panel-allowlist .tbl-wrap table{min-width:1000px;table-layout:auto}
+  #panel-allowlist th{position:sticky;top:0;z-index:1;white-space:nowrap}
   #panel-allowlist td{white-space:nowrap}
+  #panel-allowlist th:nth-child(6),#panel-allowlist td:nth-child(6),#panel-allowlist th:nth-child(7),#panel-allowlist td:nth-child(7){min-width:220px}
   @media(min-width:1000px){#panel-allowlist .stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
   .status-round{display:grid;grid-template-columns:58px 1fr;gap:14px;align-items:start}
   .status-round-label{padding-top:2px;color:var(--deep);font-family:var(--fd);font-size:1rem}
@@ -523,7 +524,7 @@
             <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
               <div class="stat"><div class="k">제출 동의자</div><div class="v" id="statusChatConsented">-<small>명</small></div></div>
               <div class="stat"><div class="k">1차 후 제출자</div><div class="v" id="statusChatRound1">-<small>명</small></div></div>
-              <div class="stat"><div class="k">4차 후 제출자</div><div class="v" id="statusChatRound4">-<small>명</small></div></div>
+              <div class="stat"><div class="k">4차 후 제출자 (과거 기록)</div><div class="v" id="statusChatRound4">-<small>명</small></div></div>
             </div>
           </div>
         </div>
@@ -576,7 +577,7 @@
             </div>
             <div class="fgroup" id="incompleteChatFilter" hidden>
               <label for="incompleteChatPoint">대화문 제출 시점</label>
-              <select id="incompleteChatPoint"><option value="afterRound1">1차 후</option><option value="afterRound2">2차 후</option><option value="afterRound3">3차 후</option><option value="afterRound4">4차 후</option></select>
+              <select id="incompleteChatPoint"><option value="afterRound1">1차 후</option><option value="afterRound2">2차 후</option><option value="afterRound3">3차 후</option><option value="afterRound4">4차 후 (과거 기록)</option></select>
             </div>
             <div class="fgroup"><label for="incompleteSchoolLevel">학교급</label><select id="incompleteSchoolLevel"><option value="">전체</option><option>초등</option><option>중등</option><option>고등</option></select></div>
             <button class="btn btn-ghost" id="absentDownload" type="button" disabled>⬇ 미완료자 CSV 다운로드</button>
@@ -615,7 +616,7 @@
             <h3>대화문 강제 등록</h3>
             <div class="filters">
               <div class="fgroup"><label for="takeoutPhone">참여자 휴대폰</label><input id="takeoutPhone" type="tel" inputmode="numeric" placeholder="01012345678" required></div>
-              <div class="fgroup"><label for="takeoutPoint">제출 시점</label><select id="takeoutPoint"><option value="afterRound1">1차 후</option><option value="afterRound2">2차 후</option><option value="afterRound3">3차 후</option><option value="afterRound4">4차 후</option></select></div>
+              <div class="fgroup"><label for="takeoutPoint">제출 시점</label><select id="takeoutPoint"><option value="afterRound1">1차 후</option><option value="afterRound2">2차 후</option><option value="afterRound3">3차 후</option></select></div>
               <div class="fgroup"><label for="takeoutTool">서비스</label><select id="takeoutTool"><option value="chatgpt">ChatGPT</option><option value="gemini">Gemini</option><option value="claude">Claude</option><option value="grok">Grok</option><option value="zeta">제타</option><option value="crack">크랙</option><option value="other">기타 캐릭터AI 챗봇</option></select></div>
               <div class="fgroup"><label for="takeoutFile" id="takeoutFileLabel">내보내기 ZIP</label><input id="takeoutFile" type="file" accept=".zip,application/zip" required></div>
               <button class="btn" id="takeoutSubmit" type="submit">등록 처리</button>
@@ -639,7 +640,7 @@
             <div class="filters">
               <div class="fgroup">
                 <label for="fRound">회차</label>
-                <select id="fRound"><option>전체</option><option>1회차</option><option>2회차</option><option>3회차</option><option>4회차</option></select>
+                <select id="fRound"><option>전체</option><option>1회차</option><option>2회차</option><option>3회차</option><option value="4회차">4회차 (과거 기록)</option></select>
               </div>
               <div class="fgroup">
                 <label for="fVersion">설문 버전</label>
@@ -671,11 +672,11 @@
 
           <div class="card">
             <h3>AI 대화문 자료</h3>
-            <p class="sub" style="margin-bottom:14px">대화문은 <b>1차 설문 후·4차 설문 후 총 2회</b> 제출돼요. 대화문 제출 대상은 신청 시 <b>대화문 제출에 동의한 참여자</b>예요. 제출 형식은 <b>공유 링크(URL) 우선, 미지원 시 복사·붙여넣기 텍스트</b>이며, ‘대화문’ 열에 링크 또는 원문이 담깁니다.</p>
+            <p class="sub" style="margin-bottom:14px">설문을 <b>한 회차 이상 완료</b>하고 신청 시 <b>대화문 제출에 동의한 참여자</b>가 대화문을 제출할 수 있어요. 제출 형식은 <b>공유 링크(URL) 우선, 미지원 시 복사·붙여넣기 텍스트</b>이며, ‘대화문’ 열에 링크 또는 원문이 담깁니다.</p>
             <div class="filters">
               <div class="fgroup">
                 <label for="cRound">제출 회차</label>
-                <select id="cRound"><option>전체</option><option>대화문 1 (1차 후)</option><option>2차 후 제출</option><option>3차 후 제출</option><option>대화문 2 (4차 후)</option></select>
+                <select id="cRound"><option>전체</option><option>대화문 1 (1차 후)</option><option>2차 후 제출</option><option>3차 후 제출</option><option value="대화문 2 (4차 후)">4차 후 (과거 기록)</option></select>
               </div>
               <div class="fgroup">
                 <label for="cGrade">학교급</label>
@@ -734,7 +735,7 @@
           <div class="card">
             <h3>검토 범위</h3>
             <div class="filters">
-              <div class="fgroup"><label for="abuseRound">회차</label><select id="abuseRound"><option>전체</option><option>1회차</option><option>2회차</option><option>3회차</option><option>4회차</option></select></div>
+              <div class="fgroup"><label for="abuseRound">회차</label><select id="abuseRound"><option>전체</option><option>1회차</option><option>2회차</option><option>3회차</option><option value="4회차">4회차 (과거 기록)</option></select></div>
               <div class="fgroup"><label for="abuseVersion">설문 버전</label><select id="abuseVersion"><option value="">설문 버전을 불러오는 중...</option></select></div>
               <label class="fgroup"><span>조회 옵션</span><span><input id="abuseIncludeLegacyVersions" type="checkbox"> 과거 v1 포함</span></label>
               <label class="fgroup"><span>표시 필터</span><span><input id="abuseHideReviewed" type="checkbox"> 확인 완료 숨기기</span></label>
@@ -759,9 +760,9 @@
               <div class="stat"><div class="k">파트1만 제출</div><div class="v" id="allowlistPartial">-<small>명</small></div></div>
               <div class="stat"><div class="k">미제출</div><div class="v" id="allowlistNotSubmitted">-<small>명</small></div></div>
             </div>
-            <div class="filters"><div class="fgroup"><label for="allowlistSearch">대상자 검색</label><input id="allowlistSearch" type="search" placeholder="이름 또는 연락처"></div><div class="fgroup"><label for="allowlistStatus">제출 상태</label><select id="allowlistStatus"><option value="">전체</option><option value="completed">설문 완료</option><option value="partial">파트1만 제출</option><option value="notSubmitted">미제출</option><option value="accountMissing">계정 확인 필요</option></select></div></div>
+            <div class="filters"><div class="fgroup"><label for="allowlistSearch">연락처 검색</label><input id="allowlistSearch" type="search" placeholder="연락처"></div><div class="fgroup"><label for="allowlistStatus">제출 상태</label><select id="allowlistStatus"><option value="">전체</option><option value="completed">설문 완료</option><option value="partial">파트1만 제출</option><option value="notSubmitted">미제출</option><option value="accountMissing">계정 확인 필요</option></select></div></div>
             <p class="sub" id="allowlistMessage" role="status" aria-live="polite">조회 전</p>
-            <div class="tbl-wrap"><table><thead><tr><th>번호</th><th>이름</th><th>학교급</th><th>학년</th><th>연락처</th><th>상태</th><th>파트1 제출시각 (한국시간)</th><th>완료 제출시각 (한국시간)</th></tr></thead><tbody id="allowlistBody"><tr><td colspan="8">조회 전</td></tr></tbody></table></div>
+            <div class="tbl-wrap"><table><thead><tr><th>번호</th><th>학교급</th><th>학년</th><th>연락처</th><th>상태</th><th>파트1 제출시각 (한국시간)</th><th>완료 제출시각 (한국시간)</th></tr></thead><tbody id="allowlistBody"><tr><td colspan="7">조회 전</td></tr></tbody></table></div>
           </div>
         </div>
 
@@ -1557,9 +1558,9 @@
       var surveyChart=document.getElementById('statusSurveyChart');
       function completionCell(completed,total){var rate=total?Math.round(completed/total*100):0;return esc(completed)+' / '+esc(total)+'명 ('+rate+'%)';}
       function schoolBars(counts){return ['elementary','middle','high'].map(function(level){var labels={elementary:'초등',middle:'중등',high:'고등'},completed=counts[level]||0,total=data.participants[level]||0,rate=total?Math.round(completed/total*100):0;return '<div class="status-bar-row"><span class="status-bar-label">'+labels[level]+'</span><span class="status-bar-track"><span class="status-bar-fill '+level+'" style="width:'+rate+'%"></span></span><span class="status-bar-value">'+completionCell(completed,total)+'</span></div>';}).join('');}
-      if(surveyChart){surveyChart.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){return '<div class="status-round"><button class="linkbtn status-round-label" data-incomplete-category="survey" data-incomplete-criterion="'+esc(item.surveyRound)+'" type="button">'+esc(item.surveyRound)+'회차</button><div class="status-bar-list">'+schoolBars(item.counts||{})+'</div></div>';}).join(''):'<p class="sub">아직 완료된 설문이 없어요.</p>';}
+      if(surveyChart){surveyChart.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){return '<div class="status-round"><button class="linkbtn status-round-label" data-incomplete-category="survey" data-incomplete-criterion="'+esc(item.surveyRound)+'" type="button">'+esc(item.surveyRound)+'회차'+(item.surveyRound===4?' (과거 기록)':'')+'</button><div class="status-bar-list">'+schoolBars(item.counts||{})+'</div></div>';}).join(''):'<p class="sub">아직 완료된 설문이 없어요.</p>';}
       if(surveyBody){
-        surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
+        surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차'+(item.surveyRound===4?' (과거 기록)':'')+'</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
       }
       var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round2=chat.submittedAfterRound2||{},round3=chat.submittedAfterRound3||{},round4=chat.submittedAfterRound4||{};
       var chatChart=document.getElementById('statusChatChart');
@@ -2159,8 +2160,8 @@
       if(loading||busy||!['admin','researcher'].includes(role))return;
       loading=true;loaded=false;message.textContent='';render();
       return aiUsRequest('/api/v1/researcher/survey-round-settings').then(function(data){
-        if(!Array.isArray(data)||data.length!==4||[1,2,3,4].some(function(round){return data.filter(function(record){return record.surveyRound===round&&typeof record.isOpen==='boolean'&&typeof record.submissionAllowed==='boolean'&&typeof record.periodEnded==='boolean'&&Array.isArray(record.configurations)&&['preparing','open','closed'].includes(record.state);}).length!==1;}))throw new Error('접수 상태를 확인할 수 없습니다.');
-        records=data.slice().sort(function(left,right){return left.surveyRound-right.surveyRound;});loaded=true;
+        if(!Array.isArray(data)||[1,2,3].some(function(round){return data.filter(function(record){return record.surveyRound===round&&typeof record.isOpen==='boolean'&&typeof record.submissionAllowed==='boolean'&&typeof record.periodEnded==='boolean'&&Array.isArray(record.configurations)&&['preparing','open','closed'].includes(record.state);}).length!==1;}))throw new Error('접수 상태를 확인할 수 없습니다.');
+        records=data.filter(function(record){return [1,2,3].indexOf(record.surveyRound)!==-1;}).sort(function(left,right){return left.surveyRound-right.surveyRound;});loaded=true;
         message.textContent=role==='admin'?'':'조회 전용';
       }).catch(function(error){message.textContent=error.message;}).finally(function(){loading=false;render();});
     }
@@ -2205,14 +2206,14 @@
     var search=document.getElementById('allowlistSearch'),filter=document.getElementById('allowlistStatus'),message=document.getElementById('allowlistMessage');
     var groups=[],selected='',report=null,sequence=0;
     function date(value){if(!value)return '-';var instant=new Date(value);return isNaN(instant.getTime())?'-':instant.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});}
-    function clear(){report=null;['Total','Completed','Partial','NotSubmitted'].forEach(function(key){document.getElementById('allowlist'+key).textContent='-';});document.getElementById('allowlistDeadline').textContent='';body.innerHTML='<tr><td colspan="8">불러오는 중이에요.</td></tr>';}
+    function clear(){report=null;['Total','Completed','Partial','NotSubmitted'].forEach(function(key){document.getElementById('allowlist'+key).textContent='-';});document.getElementById('allowlistDeadline').textContent='';body.innerHTML='<tr><td colspan="7">불러오는 중이에요.</td></tr>';}
     function renderTabs(){tabs.innerHTML=groups.map(function(group){return '<button type="button" role="tab" aria-controls="allowlistReport" aria-selected="'+(group.id===selected)+'" tabindex="'+(group.id===selected?'0':'-1')+'" data-group-id="'+esc(group.id)+'">'+esc(group.label)+' ('+esc(group.total)+'명)</button>';}).join('');}
     function render(){
       if(!report)return;
       var labels={completed:'설문 완료',partial:'파트1만 제출',notSubmitted:'미제출',accountMissing:'계정 확인 필요'};
       var query=search.value.trim().toLowerCase(),digits=query.replace(/\D/g,'');
-      var rows=report.participants.filter(function(row){return (!filter.value||row.status===filter.value)&&(!query||String(row.name||'').toLowerCase().includes(query)||String(row.phone||'').includes(query)||(digits&&/^[-\d\s]+$/.test(query)&&String(row.phone||'').replace(/\D/g,'').includes(digits)));});
-      body.innerHTML=rows.length?rows.map(function(row,index){var phone=String(row.phone||'').replace(/^(\d{3})(\d{4})(\d{4})$/,'$1-$2-$3');return '<tr><td>'+(index+1)+'</td><td>'+esc(row.name||'-')+'</td><td>'+esc(row.schoolLevel||'-')+'</td><td>'+esc(row.grade==null?'-':row.grade)+'</td><td>'+esc(phone||'-')+'</td><td>'+esc(labels[row.status]||'-')+'</td><td>'+esc(date(row.part1SubmittedAt))+'</td><td>'+esc(date(row.submittedAt))+'</td></tr>';}).join(''):'<tr><td colspan="8">해당 대상자가 없습니다.</td></tr>';
+      var rows=report.participants.filter(function(row){return (!filter.value||row.status===filter.value)&&(!query||String(row.phone||'').includes(query)||(digits&&/^[-\d\s]+$/.test(query)&&String(row.phone||'').replace(/\D/g,'').includes(digits)));});
+      body.innerHTML=rows.length?rows.map(function(row,index){var phone=String(row.phone||'').replace(/^(\d{3})(\d{4})(\d{4})$/,'$1-$2-$3');return '<tr><td>'+(index+1)+'</td><td>'+esc(row.schoolLevel||'-')+'</td><td>'+esc(row.grade==null?'-':row.grade)+'</td><td>'+esc(phone||'-')+'</td><td>'+esc(labels[row.status]||'-')+'</td><td>'+esc(date(row.part1SubmittedAt))+'</td><td>'+esc(date(row.submittedAt))+'</td></tr>';}).join(''):'<tr><td colspan="7">해당 대상자가 없습니다.</td></tr>';
       message.textContent='전체 '+report.counts.total+'명 · 표시 '+rows.length+'명'+(report.counts.accountMissing?' · 계정 확인 필요 '+report.counts.accountMissing+'명':'');
     }
     function select(identifier){
@@ -2222,14 +2223,14 @@
         if(data.id!==identifier||!Array.isArray(data.participants)||!data.counts||data.participants.length!==data.counts.total)throw new Error('전체 명단을 확인하지 못했습니다. 새로고침해 주세요.');
         report=data;[['Total','total'],['Completed','completed'],['Partial','partial'],['NotSubmitted','notSubmitted']].forEach(function(item){document.getElementById('allowlist'+item[0]).innerHTML=esc(data.counts[item[1]])+'<small>명</small>';});
         document.getElementById('allowlistDeadline').textContent='허용 설문: '+data.surveyRound+'회차'+(data.deadline?' · 참여 기한: '+date(data.deadline)+' 이전':'');render();
-      }).catch(function(error){if(ticket!==sequence)return;clear();body.innerHTML='<tr><td colspan="8">명단을 불러오지 못했습니다.</td></tr>';message.textContent=error.message;}).finally(function(){if(ticket===sequence)refresh.disabled=false;});
+      }).catch(function(error){if(ticket!==sequence)return;clear();body.innerHTML='<tr><td colspan="7">명단을 불러오지 못했습니다.</td></tr>';message.textContent=error.message;}).finally(function(){if(ticket===sequence)refresh.disabled=false;});
     }
     function load(){var ticket=++sequence;clear();refresh.disabled=true;message.textContent='명단 그룹을 불러오는 중이에요.';
       return aiUsRequest('/api/v1/researcher/survey-allowlists',{cache:'no-store',localErrorDialog:true}).then(function(data){
         if(ticket!==sequence)return;if(!Array.isArray(data))throw new Error('명단 그룹을 확인하지 못했습니다.');groups=data;
-        if(!groups.length){selected='';renderTabs();body.innerHTML='<tr><td colspan="8">등록된 허용 명단이 없습니다.</td></tr>';message.textContent='등록된 허용 명단이 없습니다.';return;}
+        if(!groups.length){selected='';renderTabs();body.innerHTML='<tr><td colspan="7">등록된 허용 명단이 없습니다.</td></tr>';message.textContent='등록된 허용 명단이 없습니다.';return;}
         search.value='';filter.value='';return select(groups.some(function(group){return group.id===selected;})?selected:groups[0].id);
-      }).catch(function(error){if(ticket!==sequence)return;groups=[];renderTabs();body.innerHTML='<tr><td colspan="8">명단 그룹을 불러오지 못했습니다.</td></tr>';message.textContent=error.message;}).finally(function(){if(ticket===sequence)refresh.disabled=false;});
+      }).catch(function(error){if(ticket!==sequence)return;groups=[];renderTabs();body.innerHTML='<tr><td colspan="7">명단 그룹을 불러오지 못했습니다.</td></tr>';message.textContent=error.message;}).finally(function(){if(ticket===sequence)refresh.disabled=false;});
     }
     tabs.addEventListener('click',function(event){var button=event.target.closest('[data-group-id]');if(button&&button.dataset.groupId!==selected)select(button.dataset.groupId);});
     tabs.addEventListener('keydown',function(event){if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||!groups.length)return;event.preventDefault();var index=groups.findIndex(function(group){return group.id===selected;});index=event.key==='Home'?0:event.key==='End'?groups.length-1:(index+(event.key==='ArrowRight'?1:-1)+groups.length)%groups.length;select(groups[index].id);var button=tabs.querySelector('[data-group-id="'+groups[index].id+'"]');if(button)button.focus();});

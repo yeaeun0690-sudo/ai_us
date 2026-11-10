@@ -581,7 +581,7 @@
   .participation-notice{margin:18px 0;padding:18px 20px;border-left:4px solid #087f82;background:#eaf7f5;color:#164b4d;overflow-wrap:anywhere}
   .participation-notice h2{margin:0 0 8px;font-size:1.1rem;line-height:1.5}
   .participation-notice p{margin:6px 0;font-size:.95rem;line-height:1.7}
-  body.participation-paused .participant-guide,body.participation-paused #chatFutureSubmission{display:none}
+  body.participation-paused .participant-guide{display:none}
   .participation-notice[hidden]{display:none}
 </style>
 </head>
@@ -860,12 +860,12 @@
     </div>
 
     <div class="sv-tabpanel on" id="tab-survey">
-      <p class="lead">한 달에 한 번, 총 <b>4회</b>의 탐사를 완료해요.<br><span id="surveyAvailabilityNote">참여 가능한 설문을 확인하고 있어요.</span></p>
+      <p class="lead">한 달에 한 번, 총 <b>3회</b>의 탐사를 완료해요.<br><span id="surveyAvailabilityNote">참여 가능한 설문을 확인하고 있어요.</span></p>
       <button id="surveyStatusRetry" type="button" aria-busy="false" hidden>다시 확인</button>
 
       <div class="sv-prog">
         <div class="bar"><span id="roundProgBar" style="width:0%"></span></div>
-        <div class="lbl" id="roundProgLbl">0 / 4회 완료</div>
+        <div class="lbl" id="roundProgLbl">0 / 3회 완료</div>
       </div>
 
       <div class="sv-list">
@@ -904,16 +904,6 @@
           </div>
         </div>
 
-        <div class="sv-card available">
-          <div class="sv-num">4</div>
-          <div class="sv-info">
-            <h3>4회차 탐사 <span class="round-state" data-round-state="4">확인 중</span></h3>
-            <div class="part-list">
-              <div class="part-row"><span class="part-name">파트 1</span><button class="go" data-round="4" data-part="0" type="button" disabled>확인 중</button></div>
-              <div class="part-row"><span class="part-name">파트 2</span><button class="go" data-round="4" data-part="1" type="button" disabled>확인 중</button></div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -929,14 +919,6 @@
               <p id="chatPointLabel">설문 완료 후 제출 · 10,000원 상당</p>
             </div>
             <div class="sv-action"><button class="go chat-go" data-point="afterRound1" type="button">대화문 제출하기</button></div>
-          </div>
-          <div class="sv-card locked" id="chatFutureSubmission">
-            <div class="sv-num">2</div>
-            <div class="sv-info">
-              <h3>대화문 제출 2</h3>
-              <p>4차 설문 후에 열려요</p>
-            </div>
-            <div class="sv-action"><span class="lock">🔒 잠김</span></div>
           </div>
         </div>
       </div>
@@ -1031,7 +1013,7 @@
       <h3>참여 형태 및 동의</h3>
       <p class="p-desc">참여 형태를 고르고, 동의 항목에 체크해 주세요.</p>
       <div class="group-label">참여 형태</div>
-      <label class="chk"><input type="checkbox" id="joinSurvey" checked disabled><span class="t"><b>설문조사 참여</b> (필수)<small>총 4회 참여 가능 · 회차마다 10,000원 상당 모바일 상품권 (4회 모두 완료 시 40,000원)</small></span></label>
+      <label class="chk"><input type="checkbox" id="joinSurvey" checked disabled><span class="t"><b>설문조사 참여</b> (필수)<small>총 3회 참여 가능 · 회차마다 10,000원 상당 모바일 상품권 (3회 모두 완료 시 30,000원)</small></span></label>
       <label class="chk"><input type="checkbox" id="joinChat"><span class="t">AI 대화문 제출 (선택)<small>원하는 경우에만 제출 · 총 2회(1차 후·4차 후) · 회차마다 10,000원 상당 모바일 상품권</small></span></label>
       <div class="group-label">동의</div>
       <label class="chk req"><input type="checkbox" id="agreeSelf"><span class="t"><b>본인(청소년) 동의</b><small>연구 참여에 동의합니다.</small></span></label>
@@ -2047,7 +2029,7 @@
       var html='';
       if(scr1)html+='<div class="survey-page" data-page="-2" style="display:none"><div class="sq-scale"><div class="sq-scale-name">참여 전 확인 (1/2)</div><div class="sq-instr">먼저 참여 대상인지 확인할게요. 아래 질문에 답해 주세요.</div>'+renderQuestion(scr1)+'</div></div>';
       if(scr2)html+='<div class="survey-page" data-page="-1" style="display:none"><div class="sq-scale"><div class="sq-scale-name">참여 전 확인 (2/2)</div><div class="sq-instr">먼저 참여 대상인지 확인할게요. 아래 질문에 답해 주세요.</div>'+renderQuestion(scr2)+'</div></div>';
-      html+='<div class=\"survey-page\" data-page=\"0\"><div class=\"survey-intro\"><p>안녕하세요. 이 설문은 여러분이 AI를 어떻게 사용하고 있는지, 그리고 요즘 어떻게 지내고 있는지를 알아보기 위한 것입니다. 여러분의 응답은 청소년들이 AI와 건강하게 지낼 수 있도록 돕는 기초 자료로 소중하게 활용됩니다.</p><div class=\"survey-intro-title\">참여 전에 꼭 확인해 주세요</div><ol><li><b>설문은 두 개의 링크</b>로 나누어져 있습니다. <b>첫 번째 링크 설문</b>을 마친 뒤 <b>두 번째 링크 설문을 이어서 참여</b>해 주세요.</li><li>핸드폰보다는 태블릿(갤럭시탭, 아이패드 등)이나 노트북·컴퓨터에서 참여하는 것을 권장합니다. 화면이 넓어야 문항을 편하게 볼 수 있습니다.</li><li>정답은 없습니다. 좋아 보이는 답이 아니라, 평소 나의 모습에 가장 가까운 것을 편안하게 골라 주세요.</li><li>응답 내용은 연구 목적으로만 사용되며, 개인 정보는 안전하게 보호됩니다.</li><li>참여 사례비: 한 회차의 <b>파트 1과 파트 2를 모두 완료</b>해야 그 회차 사례비(<b>10,000원</b> 상당 모바일 상품권)가 지급됩니다. 4회차를 모두 완료하면 <b>총 40,000원</b>이에요.</li></ol></div></div>';
+      html+='<div class=\"survey-page\" data-page=\"0\"><div class=\"survey-intro\"><p>안녕하세요. 이 설문은 여러분이 AI를 어떻게 사용하고 있는지, 그리고 요즘 어떻게 지내고 있는지를 알아보기 위한 것입니다. 여러분의 응답은 청소년들이 AI와 건강하게 지낼 수 있도록 돕는 기초 자료로 소중하게 활용됩니다.</p><div class=\"survey-intro-title\">참여 전에 꼭 확인해 주세요</div><ol><li><b>설문은 두 개의 링크</b>로 나누어져 있습니다. <b>첫 번째 링크 설문</b>을 마친 뒤 <b>두 번째 링크 설문을 이어서 참여</b>해 주세요.</li><li>핸드폰보다는 태블릿(갤럭시탭, 아이패드 등)이나 노트북·컴퓨터에서 참여하는 것을 권장합니다. 화면이 넓어야 문항을 편하게 볼 수 있습니다.</li><li>정답은 없습니다. 좋아 보이는 답이 아니라, 평소 나의 모습에 가장 가까운 것을 편안하게 골라 주세요.</li><li>응답 내용은 연구 목적으로만 사용되며, 개인 정보는 안전하게 보호됩니다.</li><li>참여 사례비: 한 회차의 <b>파트 1과 파트 2를 모두 완료</b>해야 그 회차 사례비(<b>10,000원</b> 상당 모바일 상품권)가 지급됩니다. 3회차를 모두 완료하면 <b>총 30,000원</b>이에요.</li></ol></div></div>';
       var pages=isT2Survey()?PAGES:SPEC().scales.map(function(scale,index){return{segs:[{s:index,from:0,to:scale.questions.length}]};});
       pages.forEach(function(page,index){
         html+='<div class="survey-page" data-page="'+(index+1)+'" style="display:none">';
@@ -2269,19 +2251,19 @@
     function partsForRound(round){var configured=!window.AI_US_PREVIEW&&configuredSurveyParts[String(round)];if(configured)return configured.all||configured[getAudience()]||[];return round===2?SURVEY_SETS_T2.common:(SURVEY_SETS[getAudience()]||SURVEY_SETS.elementary);}
     function roundPartCompleted(round,index){if(window.AI_US_PREVIEW)return !!previewCompleted[round+':'+index];var part=partsForRound(round)[index],expected=part&&part.surveyVersion;return serverCompletedVersions[expected]===true||(serverVersionsByRound[String(round)]||[]).some(function(version){return new RegExp('^t'+round+'-(?:(?:elem|secondary)-)?part'+(index+1)+'-').test(version);});}
     function partCompleted(idx){return roundPartCompleted(SURVEY_ROUND,idx);}
-    function surveyRoundOpen(round){return window.AI_US_PREVIEW===true||surveyRoundsOpen[String(round)]===true;}
+    function surveyRoundOpen(round){return [1,2,3].indexOf(round)!==-1&&(window.AI_US_PREVIEW===true||surveyRoundsOpen[String(round)]===true);}
     function surveyRoundState(round){if(window.AI_US_PREVIEW)return round<3?'open':'preparing';var state=surveyRoundStates[String(round)]||(surveyRoundOpen(round)?'open':window.aiUsParticipationPaused?'paused':round===1?'closed':'preparing');return state==='open'&&!surveyRoundOpen(round)?'preparing':state;}
     function updatePartButtons(){
       SURVEY_PARTS=partsForRound(SURVEY_ROUND);
       var labels={preparing:'준비 중',open:'접수 중',closed:'접수 종료',paused:'일시 중단'},openRounds=[];
-      [1,2,3,4].forEach(function(round){var state=surveyRoundState(round),badge=document.querySelector('[data-round-state="'+round+'"]');if(badge){badge.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'확인 실패':'확인 중'):labels[state];badge.setAttribute('data-state',state);}if(state==='open')openRounds.push(round);[0,1].forEach(function(index){var button=document.querySelector('#tab-survey .go[data-round="'+round+'"][data-part="'+index+'"]');if(!button)return;var completed=roundPartCompleted(round,index),closed=state!=='open';button.classList.toggle('done',completed);button.disabled=completed||closed||(!window.AI_US_PREVIEW&&!serverStatusReady)||(index===1&&!roundPartCompleted(round,0));button.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'확인 실패':'확인 중'):completed?'제출 완료':closed?(state==='paused'?'접수 일시 중단':state==='closed'?'참여 기간이 끝났어요':'설문 준비 중'):index===1&&!roundPartCompleted(round,0)?'파트 1 완료 후':'시작하기';var row=button.parentNode,status=row.querySelector('.part-status');if(!status){status=document.createElement('span');status.className='part-status';row.insertBefore(status,button);}status.textContent=serverStatusReady||window.AI_US_PREVIEW?(completed?'제출 완료':'미제출'):'';});});
+      [1,2,3].forEach(function(round){var state=surveyRoundState(round),badge=document.querySelector('[data-round-state="'+round+'"]');if(badge){badge.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'확인 실패':'확인 중'):labels[state];badge.setAttribute('data-state',state);}if(state==='open')openRounds.push(round);[0,1].forEach(function(index){var button=document.querySelector('#tab-survey .go[data-round="'+round+'"][data-part="'+index+'"]');if(!button)return;var completed=roundPartCompleted(round,index),closed=state!=='open';button.classList.toggle('done',completed);button.disabled=completed||closed||(!window.AI_US_PREVIEW&&!serverStatusReady)||(index===1&&!roundPartCompleted(round,0));button.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'확인 실패':'확인 중'):completed?'제출 완료':closed?(state==='paused'?'접수 일시 중단':state==='closed'?'참여 기간이 끝났어요':'설문 준비 중'):index===1&&!roundPartCompleted(round,0)?'파트 1 완료 후':'시작하기';var row=button.parentNode,status=row.querySelector('.part-status');if(!status){status=document.createElement('span');status.className='part-status';row.insertBefore(status,button);}status.textContent=serverStatusReady||window.AI_US_PREVIEW?(completed?'제출 완료':'미제출'):'';});});
       var availability=document.getElementById('surveyAvailabilityNote');if(availability)availability.textContent=!serverStatusReady&&!window.AI_US_PREVIEW?(serverStatusFailed?'설문 상태를 확인하지 못했어요. 다시 확인해 주세요.':'참여 가능한 설문을 확인하고 있어요.'):openRounds.length?'지금은 '+openRounds.join('·')+'회차 탐사에 참여할 수 있어요.':window.aiUsParticipationPaused&&!window.AI_US_PREVIEW?'설문 접수가 일시 중단되었습니다. 현재 허용된 설문이 없습니다.':'현재 참여 가능한 설문이 없어요.';
       updateSurveyRetryButton();
       updateRoundProgress();
     }
     function updateRoundProgress(){
-      var TOTAL=4;
-      var done=serverCompletedRounds.length;
+      var TOTAL=3;
+      var done=[1,2,3].filter(function(round){return serverCompletedRounds.indexOf(round)!==-1;}).length;
       if(done<0)done=0; if(done>TOTAL)done=TOTAL;
       var lbl=document.getElementById('roundProgLbl'),bar=document.getElementById('roundProgBar');
       if(lbl)lbl.textContent=done+' / '+TOTAL+'회 완료';
@@ -2318,6 +2300,7 @@
       var footer=document.getElementById('surveyPreviewFooter');if(window.AI_US_PREVIEW&&footer)footer.textContent='미리보기 모드 — 로그인 없이 문항·로직만 확인합니다. 최종 제출은 저장되지 않습니다. ('+partTitle+')';
     }
     function openSurvey(partIndex){
+      if([1,2,3].indexOf(SURVEY_ROUND)===-1)return;
       SURVEY_PARTS=partsForRound(SURVEY_ROUND);
       activePart=partIndex||0;
       if(!window.AI_US_PREVIEW&&(!serverStatusReady||!surveyRoundOpen(SURVEY_ROUND)||(activePart===1&&!partCompleted(0))))return;

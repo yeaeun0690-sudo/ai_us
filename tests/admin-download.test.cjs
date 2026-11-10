@@ -39,8 +39,14 @@ function allowlistHarness(request) {
 }
 
 test('allowlist panel lazily renders all 177 members, escapes data and filters without writes', async () => {
+  const panel = html.slice(html.indexOf('<div class="panel" id="panel-allowlist">'), html.indexOf('</section>', html.indexOf('<div class="panel" id="panel-allowlist">')));
+  assert.ok(!panel.includes('<th>이름</th>'));
+  assert.equal((panel.match(/<th>/g) || []).length, 7);
+  assert.ok(panel.includes('placeholder="연락처"'));
+  assert.match(html, /#panel-allowlist \.tbl-wrap table\{[^}]*table-layout:auto/);
+  assert.match(html, /#panel-allowlist th:nth-child\(6\)[^}]*min-width:220px/);
   const participants = Array.from({ length: 177 }, (_, index) => ({ participantId: 'synthetic-' + index,
-    name: index === 0 ? '<unsafe>' : '대상 ' + index, phone: '01000000000', schoolLevel: '초등', grade: 5,
+    name: index === 0 ? '<unsafe>' : '대상 ' + index, phone: '010' + String(10000000 + index), schoolLevel: '초등', grade: 5,
     status: index < 60 ? 'completed' : index < 80 ? 'partial' : 'notSubmitted',
     part1SubmittedAt: index < 80 ? '2026-11-10T01:00:00Z' : null,
     submittedAt: index < 60 ? '2026-11-10T02:00:00Z' : null }));
@@ -52,13 +58,17 @@ test('allowlist panel lazily renders all 177 members, escapes data and filters w
   await harness.activate();
   assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 177);
   assert.ok(harness.ids.allowlistTabs.innerHTML.includes('&lt;대상자&gt;'));
-  assert.ok(harness.ids.allowlistBody.innerHTML.includes('&lt;unsafe&gt;'));
+  assert.ok(!harness.ids.allowlistBody.innerHTML.includes('&lt;unsafe&gt;'));
+  assert.ok(harness.ids.allowlistBody.innerHTML.includes('010-1000-0000'));
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<td>/g) || []).length, 177 * 7);
   assert.ok(harness.ids.allowlistDeadline.textContent.includes('2026'));
   assert.ok(harness.ids.allowlistDeadline.textContent.includes('00:00:00'));
   harness.ids.allowlistStatus.value = 'completed'; harness.ids.allowlistStatus.listeners.change();
   assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 60);
   assert.equal(harness.ids.allowlistTotal.innerHTML, '177<small>명</small>');
   harness.ids.allowlistStatus.value = ''; harness.ids.allowlistSearch.value = '대상 170'; harness.ids.allowlistSearch.listeners.input();
+  assert.ok(harness.ids.allowlistBody.innerHTML.includes('해당 대상자가 없습니다.'));
+  harness.ids.allowlistSearch.value = '010-1000-0170'; harness.ids.allowlistSearch.listeners.input();
   assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 1);
   assert.ok(harness.calls.every(call => !call.options.method && !call.options.body));
 });
@@ -494,7 +504,9 @@ function admissionSetup(role = 'admin') {
   return Object.assign(harness, { body, refresh, message, navigation, records, controls: () => controls, control: id => controls.find(control => control.id === id), toggles: () => controls.filter(control => control.dataset.roundSetting === 'isOpen'), writes: () => harness.calls.filter(call => call.options) });
 }
 
-test('round admission loads four rounds and cancel preserves saved state without writes', async () => {
+test('round admission displays three active rounds and cancel preserves saved state without writes', async () => {
+  assert.ok(!html.match(/<select id="takeoutPoint">[\s\S]*?<\/select>/)[0].includes('afterRound4'));
+  assert.ok(html.includes('<option value="4회차">4회차 (과거 기록)</option>'));
   const names = [...html.matchAll(/<button[^>]*data-panel="([^"]+)"/g)].map(match => match[1]);
   const panels = Object.fromEntries(names.map(name => [name, { on: false, classList: { toggle(unused, active) { panels[name].on = active; } } }]));
   const buttons = names.map(name => ({ dataset: { panel: name }, classList: { add() {}, remove() {} }, addEventListener(unused, listener) { this.click = listener; } }));
@@ -511,7 +523,8 @@ test('round admission loads four rounds and cancel preserves saved state without
   const harness = admissionSetup();
   await harness.navigation.listeners.click();
   assert.equal(harness.calls[0].path, '/api/v1/researcher/survey-round-settings');
-  assert.deepEqual(harness.toggles().map(toggle => toggle.checked), [false, true, false, false]);
+  assert.deepEqual(harness.toggles().map(toggle => toggle.checked), [false, true, false]);
+  assert.equal(harness.control('roundOpen4'), undefined);
   const toggle = harness.toggles()[1]; toggle.checked = false; toggle.listeners.change();
   assert.equal(toggle.checked, true);
   assert.ok(harness.toggles().every(input => input.disabled));
@@ -521,6 +534,19 @@ test('round admission loads four rounds and cancel preserves saved state without
   assert.equal(harness.toggles()[1].checked, true);
   assert.equal(harness.toggles()[1].disabled, false);
   assert.ok(harness.controls().filter(control => Number(control.dataset.round) > 2).every(control => control.disabled));
+});
+
+test('round admission accepts three-round responses but rejects missing active rounds', async () => {
+  const active = admissionSetup();
+  active.records.pop();
+  await active.refresh.listeners.click();
+  assert.equal(active.toggles().length, 3);
+  assert.equal(active.message.textContent, '');
+  const invalid = admissionSetup();
+  invalid.records.splice(2, 1);
+  await invalid.refresh.listeners.click();
+  assert.match(invalid.message.textContent, /확인/);
+  assert.equal(invalid.writes().length, 0);
 });
 
 test('round admission saves only selected round once and renders server audit safely', async () => {
@@ -543,7 +569,7 @@ test('round admission saves only selected round once and renders server audit sa
   assert.equal(harness.refresh.disabled, true);
   finish({ ...harness.records[1], isOpen: false, submissionAllowed: false, state: 'preparing', updatedAt: '2026-01-01T00:00:00Z', updatedBy: '<admin>' });
   await pending;
-  assert.deepEqual(harness.toggles().map(input => input.checked), [false, false, false, false]);
+  assert.deepEqual(harness.toggles().map(input => input.checked), [false, false, false]);
   assert.match(harness.body.innerHTML, /&lt;admin&gt;/);
   assert.doesNotMatch(harness.body.innerHTML, /<admin>/);
   assert.equal(harness.refresh.disabled, false);

@@ -805,8 +805,8 @@ test('round admission locks both parts, preserves completed labels and enforces 
   context.updatePartButtons();
   assert.ok([...buttons.values()].every(button => button.disabled));
   assert.equal(buttons.get('1:0').textContent, '제출 완료');
-  assert.equal(buttons.get('2:0').textContent, '참여 기간이 아니에요');
-  assert.equal(badges.get('2').textContent, '참여 기간이 아니에요');
+  assert.equal(buttons.get('2:0').textContent, '참여 기간이 끝났어요');
+  assert.equal(badges.get('2').textContent, '접수 종료');
   assert.equal(buttons.get('3:0').textContent, '설문 준비 중');
   context.surveyRoundsOpen['4'] = true;
   assert.equal(context.surveyRoundOpen(4), false);
@@ -838,6 +838,7 @@ test('round admission locks both parts, preserves completed labels and enforces 
   context.window.AI_US_PREVIEW = true; context.updatePartButtons();
   assert.equal(buttons.get('2:1').disabled, false);
   context.window.AI_US_PREVIEW = false;
+  context.window.aiUsSurveyAllowlistMember = true;
   completed.clear();
   for (const openRound of [1, 2]) {
     for (const round of [1, 2, 3]) {
@@ -854,6 +855,13 @@ test('round admission locks both parts, preserves completed labels and enforces 
       }
     }
   }
+  for (const membership of [false, undefined, 'true']) {
+    context.window.aiUsSurveyAllowlistMember = membership;
+    context.updatePartButtons();
+    assert.equal(badges.get('3').textContent, '접수 종료');
+    assert.equal(buttons.get('3:0').textContent, '참여 기간이 끝났어요');
+    assert.equal(buttons.get('3:0').disabled, true);
+  }
 });
 
 test('participant status uses DB round map, supports old backend and fails closed on lookup error', async () => {
@@ -865,11 +873,12 @@ test('participant status uses DB round map, supports old backend and fails close
     serverStatusReady: false, surveyRoundsOpen: {}, t1SubmissionsOpen: false,
     serverStatusFailed: false, surveyRoundStates: {}, loadSurveyConfigurations: () => Promise.resolve(), serverStatusInFlight: null,
     updatePartButtons() {}, updateSurveyRetryButton() {},
-    aiUsRequest: () => Promise.resolve({ completedVersionsByRound: { '2': ['part1'] }, completedRounds: [], t1SubmissionsOpen: false, surveyRoundsOpen: { '1': false, '2': false, '3': true, '4': false } }),
+    aiUsRequest: () => Promise.resolve({ surveyAllowlistMember: true, completedVersionsByRound: { '2': ['part1'] }, completedRounds: [], t1SubmissionsOpen: false, surveyRoundsOpen: { '1': false, '2': false, '3': true, '4': false } }),
   });
   vm.runInContext(slice(current, '    function loadServerSurveyProgress()', '    function openSurveys('), context);
   context.loadServerSurveyProgress(); await new Promise(setImmediate);
   assert.equal(context.serverStatusReady, true);
+  assert.equal(context.window.aiUsSurveyAllowlistMember, true);
   assert.equal(context.surveyRoundsOpen['2'], false);
   assert.equal(context.surveyRoundsOpen['3'], true);
   assert.equal(context.serverCompletedVersions.part1, true);
@@ -877,9 +886,15 @@ test('participant status uses DB round map, supports old backend and fails close
   context.loadServerSurveyProgress(); await new Promise(setImmediate);
   assert.equal(context.surveyRoundsOpen['1'], false);
   assert.equal(context.surveyRoundsOpen['2'], true);
+  assert.equal(context.window.aiUsSurveyAllowlistMember, false);
+  context.aiUsRequest = () => Promise.resolve({ surveyAllowlistMember: 'true', t1SubmissionsOpen: false });
+  context.loadServerSurveyProgress(); await new Promise(setImmediate);
+  assert.equal(context.window.aiUsSurveyAllowlistMember, false);
+  context.window.aiUsSurveyAllowlistMember = true;
   context.aiUsRequest = () => Promise.reject(new Error('unavailable'));
   context.loadServerSurveyProgress(); await new Promise(setImmediate);
   assert.equal(context.serverStatusReady, false);
+  assert.equal(context.window.aiUsSurveyAllowlistMember, false);
   context.window.AI_US_PREVIEW = true;
   context.aiUsRequest = () => { throw new Error('preview must not request status'); };
   context.loadServerSurveyProgress();

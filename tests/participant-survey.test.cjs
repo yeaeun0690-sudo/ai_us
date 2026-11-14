@@ -789,7 +789,8 @@ test('preview footer shares survey title labels and follows part changes', () =>
 });
 
 test('round admission locks both parts, preserves completed labels and enforces prerequisites', () => {
-  const buttons = new Map(), completed = new Set(['1:0']);
+  const buttons = new Map(), badges = new Map(), completed = new Set(['1:0']);
+  for (const round of [1, 2, 3]) badges.set(String(round), { setAttribute() {} });
   for (const round of [1, 2, 3]) for (const part of [0, 1]) {
     buttons.set(round + ':' + part, { classList: { toggle() {} }, parentNode: { querySelector: () => ({}) } });
   }
@@ -798,13 +799,14 @@ test('round admission locks both parts, preserves completed labels and enforces 
     surveyRoundsOpen: { '1': false, '2': false }, partsForRound: () => [], updateRoundProgress() {},
     surveyRoundStates: { '1': 'closed', '2': 'closed' }, serverStatusFailed: false, updateSurveyRetryButton() {},
     roundPartCompleted: (round, part) => completed.has(round + ':' + part),
-    document: { getElementById: () => null, querySelector(selector) { const match = selector.match(/data-round="(\d)"\]\[data-part="(\d)"/); return match ? buttons.get(match[1] + ':' + match[2]) : null; } },
+    document: { getElementById: () => null, querySelector(selector) { const badge = selector.match(/data-round-state="(\d)"/); if (badge) return badges.get(badge[1]); const match = selector.match(/data-round="(\d)"\]\[data-part="(\d)"/); return match ? buttons.get(match[1] + ':' + match[2]) : null; } },
   });
   vm.runInContext(slice(current, '    function surveyRoundOpen(', '    function updateRoundProgress('), context);
   context.updatePartButtons();
   assert.ok([...buttons.values()].every(button => button.disabled));
   assert.equal(buttons.get('1:0').textContent, '제출 완료');
-  assert.equal(buttons.get('2:0').textContent, '참여 기간이 끝났어요');
+  assert.equal(buttons.get('2:0').textContent, '참여 기간이 아니에요');
+  assert.equal(badges.get('2').textContent, '참여 기간이 아니에요');
   assert.equal(buttons.get('3:0').textContent, '설문 준비 중');
   context.surveyRoundsOpen['4'] = true;
   assert.equal(context.surveyRoundOpen(4), false);
@@ -835,6 +837,23 @@ test('round admission locks both parts, preserves completed labels and enforces 
   assert.equal(buttons.get('3:1').disabled, false);
   context.window.AI_US_PREVIEW = true; context.updatePartButtons();
   assert.equal(buttons.get('2:1').disabled, false);
+  context.window.AI_US_PREVIEW = false;
+  completed.clear();
+  for (const openRound of [1, 2]) {
+    for (const round of [1, 2, 3]) {
+      context.surveyRoundsOpen[String(round)] = round === openRound;
+      context.surveyRoundStates[String(round)] = round === openRound ? 'open' : 'closed';
+    }
+    context.updatePartButtons();
+    assert.equal(buttons.get(openRound + ':0').disabled, false);
+    for (const round of [1, 2, 3].filter(round => round !== openRound)) {
+      assert.equal(badges.get(String(round)).textContent, '참여 기간이 아니에요');
+      for (const part of [0, 1]) {
+        assert.equal(buttons.get(round + ':' + part).textContent, '참여 기간이 아니에요');
+        assert.equal(buttons.get(round + ':' + part).disabled, true);
+      }
+    }
+  }
 });
 
 test('participant status uses DB round map, supports old backend and fails closed on lookup error', async () => {

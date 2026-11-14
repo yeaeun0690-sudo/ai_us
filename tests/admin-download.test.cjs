@@ -73,6 +73,39 @@ test('allowlist panel lazily renders all 177 members, escapes data and filters w
   assert.ok(harness.calls.every(call => !call.options.method && !call.options.body));
 });
 
+test('T1 school tabs render independently and discover future schools on refresh without writes', async () => {
+  const groups = [
+    { id: 't1-school-a', label: '학교 A', surveyRound: 1, total: 13 },
+    { id: 't1-school-b', label: '학교 B', surveyRound: 1, total: 21 },
+  ];
+  const harness = allowlistHarness(requestPath => {
+    const group = groups.find(item => requestPath.endsWith('/' + item.id));
+    if (!group) return Promise.resolve(groups.slice());
+    return Promise.resolve({ ...group, deadline: null,
+      participants: Array.from({ length: group.total }, (_, index) => ({
+        participantId: group.id + '-' + index, phone: '010' + String(20000000 + index),
+        schoolLevel: group.id === 't1-school-a' ? '초등' : '중등', grade: 3, status: 'notSubmitted',
+      })),
+      counts: { total: group.total, completed: 0, partial: 0, notSubmitted: group.total, accountMissing: 0 },
+    });
+  });
+  await harness.activate();
+  assert.ok(harness.ids.allowlistTabs.innerHTML.includes('학교 A (13명)'));
+  assert.ok(harness.ids.allowlistTabs.innerHTML.includes('학교 B (21명)'));
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 13);
+  assert.ok(harness.ids.allowlistDeadline.textContent.includes('1회차'));
+  assert.ok(!harness.ids.allowlistDeadline.textContent.includes('참여 기한'));
+  await harness.controller.select('t1-school-b');
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 21);
+  groups.push({ id: 't1-school-c', label: '학교 C', surveyRound: 1, total: 2 });
+  await harness.controller.load();
+  assert.ok(harness.ids.allowlistTabs.innerHTML.includes('학교 C (2명)'));
+  assert.match(harness.ids.allowlistTabs.innerHTML, /aria-selected="true"[^>]*data-group-id="t1-school-b"/);
+  await harness.controller.select('t1-school-c');
+  assert.equal((harness.ids.allowlistBody.innerHTML.match(/<tr>/g) || []).length, 2);
+  assert.ok(harness.calls.every(call => !call.options.method && !call.options.body));
+});
+
 test('allowlist panel ignores stale tab reports and handles empty lists and failures', async () => {
   let resolveFirst;
   const first = new Promise(resolve => { resolveFirst = resolve; });

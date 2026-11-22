@@ -202,12 +202,23 @@ test('entire inline script parses and obsolete download paths are gone', () => {
   assert.match(script, /progressDownload\.addEventListener\('click',[\s\S]*?runAdminDownload\(this,[\s\S]*?downloadAdminFile\(path/);
 });
 
-test('T3 merged CSV uses its own unfiltered researcher download', () => {
-  const section = html.match(/id="panel-download"[\s\S]*?<section class="card" aria-labelledby="t3ExportHeading">([^]*?)<\/section>\s*<div class="card">\s*<h3>설문 응답 결과<\/h3>/);
-  assert.ok(section, 'T3 export is a sibling before the filtered survey results');
-  assert.match(section[1], /id="dlT3Btn"[^>]*>[^<]*T3 통합 CSV \(전체 학교급\)/);
-  assert.doesNotMatch(section[1], /class="filters"/);
-  assert.match(script, /t3Download\.addEventListener\('click',function\(\)\{\s*runAdminDownload\(this,[^\n]+\s*return downloadAdminFile\('\/api\/v1\/researcher\/exports\/survey-responses\/t3','survey-t3-merged\.csv'\)/);
+test('round merged CSV buttons use unfiltered researcher downloads', () => {
+  const section = html.match(/id="panel-download"[\s\S]*?<section class="card" aria-labelledby="mergedExportHeading">([^]*?)<\/section>\s*<div class="card">\s*<h3>설문 응답 결과<\/h3>/);
+  assert.ok(section, 'merged exports are a sibling before the filtered survey results');
+  for (const round of [1, 2, 3]) {
+    assert.match(section[1], new RegExp(`id="dlT${round}Btn"[^>]*data-merged-round="${round}"[^>]*>[^<]*T${round} 통합 CSV \\(전체 학교급\\)`));
+  }
+  assert.doesNotMatch(section[1], /<select/);
+  const handlers = [], paths = [];
+  const buttons = ['1', '2', '3'].map(round => ({dataset: {mergedRound: round}, addEventListener(event, callback) { handlers.push(callback); }}));
+  const start = script.indexOf("    document.querySelectorAll('[data-merged-round]')");
+  vm.runInNewContext(script.slice(start, script.indexOf('  })();', start)), {
+    document: {querySelectorAll: () => buttons},
+    runAdminDownload(button, message, download) { download(); },
+    downloadAdminFile(path) { paths.push(path); },
+  });
+  handlers.forEach(handler => handler());
+  assert.deepEqual(paths, ['rounds/1', 'rounds/2', 't3'].map(path => '/api/v1/researcher/exports/survey-responses/' + path));
 });
 
 test('worker labels describe stable roles without changing health API fields', () => {

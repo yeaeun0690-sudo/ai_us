@@ -641,9 +641,13 @@
           <h2>결과 다운로드</h2>
           <p class="note">설문 응답과 AI 대화문 자료를 내려받을 수 있어요.</p>
 
-          <section class="card" aria-labelledby="t3ExportHeading">
-            <h3 id="t3ExportHeading">T3 통합 다운로드</h3>
-            <button class="btn" id="dlT3Btn" type="button">⬇ T3 통합 CSV (전체 학교급)</button>
+          <section class="card" aria-labelledby="mergedExportHeading">
+            <h3 id="mergedExportHeading">회차별 통합 다운로드</h3>
+            <div class="filters" style="margin-bottom:0">
+              <button class="btn" id="dlT1Btn" type="button" data-merged-round="1">⬇ T1 통합 CSV (전체 학교급)</button>
+              <button class="btn" id="dlT2Btn" type="button" data-merged-round="2">⬇ T2 통합 CSV (전체 학교급)</button>
+              <button class="btn" id="dlT3Btn" type="button" data-merged-round="3">⬇ T3 통합 CSV (전체 학교급)</button>
+            </div>
           </section>
 
           <div class="card">
@@ -1549,10 +1553,13 @@
       var path='/api/v1/researcher/survey-progress?format=csv&survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter;
       runAdminDownload(this,'부분 응답을 준비하고 있어요',function(){return downloadAdminFile(path,'부분응답_'+match[0]+'_'+selectedVersion+'.csv');});
     });
-    var t3Download=document.getElementById('dlT3Btn');
-    if(t3Download)t3Download.addEventListener('click',function(){
-      runAdminDownload(this,'T3 통합 CSV를 준비하고 있어요',function(){
-        return downloadAdminFile('/api/v1/researcher/exports/survey-responses/t3','survey-t3-merged.csv');
+    document.querySelectorAll('[data-merged-round]').forEach(function(button){
+      button.addEventListener('click',function(){
+        var roundNumber=button.dataset.mergedRound;
+        var path='/api/v1/researcher/exports/survey-responses/'+(roundNumber==='3'?'t3':'rounds/'+roundNumber);
+        runAdminDownload(button,'T'+roundNumber+' 통합 CSV를 준비하고 있어요',function(){
+          return downloadAdminFile(path,'survey-t'+roundNumber+'-merged.csv');
+        });
       });
     });
   })();

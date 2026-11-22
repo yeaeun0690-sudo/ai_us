@@ -523,6 +523,29 @@ test('a different device restores the server checkpoint without a local draft', 
   assert.equal(context.progressContext.ready, true);
 });
 
+test('T3 restores carried phones after a later server snapshot without overwriting draft phones', () => {
+  const phone = { value: 'first-part-phone' }, guardian = { value: 'first-part-guardian' };
+  const draftContext = { key: 'draft', t3Contacts: {
+    'demo.contact': { 'demo.contact_phone': '01000000001' },
+    'demo.guardianContact': { 'demo.guardianContact_phone': '01000000002' },
+  } };
+  const context = vm.createContext({
+    activePart: 1, progressIsCurrent: candidate => candidate === draftContext,
+    surveyBody: {
+      querySelectorAll: () => [phone, guardian],
+      querySelector: selector => selector.includes('guardianContact') ? guardian : phone,
+    },
+    formatProfilePhone: value => value, refreshSurveyBranches() {}, updateProgressMeta() {},
+    localStorage: { setItem() {} }, restoreDraft() { phone.value = 'draft-phone'; },
+    applyProfilePrefill() {}, goPage() {}, surveyPageCount: () => 4, dummySurveyStatus: {},
+  });
+  vm.runInContext(slice(current, '    function fillT3Contacts(', '    function updateRankQuestion('), context);
+  vm.runInContext(slice(current, '    function restoreServerSnapshot(', '    function loadSavedProgress('), context);
+  context.restoreServerSnapshot(draftContext, { answers: {}, revision: 2, nextPage: 2 });
+  assert.equal(phone.value, 'draft-phone');
+  assert.equal(guardian.value, '01000000002');
+});
+
 test('expiry saves before clearing authentication and shows only one locked notice', async () => {
   const values = new Map([['ai_us_access_token', 'expired'], ['ai_us_role', 'participant'], ['ai_us_participant_phone', 'account-a']]);
   let saved = 0, notices = 0, loggedIn = 0, confirmNotice;

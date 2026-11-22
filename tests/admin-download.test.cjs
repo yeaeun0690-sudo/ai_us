@@ -197,9 +197,14 @@ test('entire inline script parses and obsolete download paths are gone', () => {
   }
   assert.equal((helper.match(/fetch\(/g) || []).length, 1);
   assert.equal(/fetch\([^\n]*(?:latest-parse\/download|files\/[^\n]*\/download|transcript-download-jobs|download-jobs)/.test(script), false);
-  assert.equal((script.match(/runAdminDownload\(/g) || []).length, 13);
+  assert.equal((script.match(/runAdminDownload\(/g) || []).length, 14);
   assert.match(script, /researcher\/survey-progress\?format=csv/);
   assert.match(script, /progressDownload\.addEventListener\('click',[\s\S]*?runAdminDownload\(this,[\s\S]*?downloadAdminFile\(path/);
+});
+
+test('T3 merged CSV uses its own unfiltered researcher download', () => {
+  assert.match(html, /id="dlT3Btn"[^>]*>[^<]*T3 통합 CSV \(전체 학교급\)/);
+  assert.match(script, /t3Download\.addEventListener\('click',function\(\)\{\s*runAdminDownload\(this,[^\n]+\s*return downloadAdminFile\('\/api\/v1\/researcher\/exports\/survey-responses\/t3','survey-t3-merged\.csv'\)/);
 });
 
 test('worker labels describe stable roles without changing health API fields', () => {

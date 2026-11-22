@@ -2102,7 +2102,9 @@
       if(!progressIsCurrent(context))return;
       surveyBody.querySelectorAll('input,select,textarea').forEach(function(input){if(input.type==='radio'||input.type==='checkbox')input.checked=false;else input.value='';});
       localStorage.setItem(context.key,JSON.stringify({answers:record.answers,revision:record.revision,nextPage:record.nextPage,dirty:false,demographicEntryPolicy:'reenter',demographicPolicyVersion:'2026-10-23'}));
-      restoreDraft();applyProfilePrefill();refreshSurveyBranches();goPage(Math.min(surveyPageCount(),Math.max(1,record.nextPage||1)));
+      restoreDraft();applyProfilePrefill();
+      if(context.t3Contacts)fillT3Contacts(context.t3Contacts);
+      refreshSurveyBranches();goPage(Math.min(surveyPageCount(),Math.max(1,record.nextPage||1)));
       dummySurveyStatus.textContent='서버에 저장된 진행 상태를 복원했습니다.';
     }
     function loadSavedProgress(){
@@ -2346,7 +2348,10 @@
         else{
           var context=progressContext,previous=SURVEY_PARTS[0].surveyVersion;
           aiUsRequest('/api/v1/survey-progress?surveyRound=3&surveyVersion='+encodeURIComponent(previous),{headers:{Authorization:'Bearer '+sessionStorage.getItem('ai_us_access_token')},localErrorDialog:true}).then(function(record){
-            if(progressIsCurrent(context)&&record.completed)fillT3Contacts(record.answers);
+            if(progressIsCurrent(context)&&record.completed){
+              context.t3Contacts=record.answers;
+              fillT3Contacts(context.t3Contacts);
+            }
           }).catch(function(){});
         }
       }

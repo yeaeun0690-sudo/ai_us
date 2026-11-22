@@ -665,6 +665,7 @@
               </div>
               <button class="btn" id="dlBtn" type="button">⬇ 설문 결과 내려받기</button>
               <button class="btn" id="dlProgressBtn" type="button">⬇ 부분 응답 CSV</button>
+              <button class="btn" id="dlT3Btn" type="button">⬇ T3 통합 CSV (전체 학교급)</button>
             </div>
             <p class="sub">선택: <b id="dlSummary">전체 회차 · 전체 학교급</b> · 미리보기 아래 표 참고</p>
 
@@ -1543,6 +1544,12 @@
       var filter=grade.value==='전체'?'':'&school_level='+encodeURIComponent(grade.value);
       var path='/api/v1/researcher/survey-progress?format=csv&survey_round='+match[0]+'&survey_version='+encodeURIComponent(selectedVersion)+filter;
       runAdminDownload(this,'부분 응답을 준비하고 있어요',function(){return downloadAdminFile(path,'부분응답_'+match[0]+'_'+selectedVersion+'.csv');});
+    });
+    var t3Download=document.getElementById('dlT3Btn');
+    if(t3Download)t3Download.addEventListener('click',function(){
+      runAdminDownload(this,'T3 통합 CSV를 준비하고 있어요',function(){
+        return downloadAdminFile('/api/v1/researcher/exports/survey-responses/t3','survey-t3-merged.csv');
+      });
     });
   })();
   // ---- live participation status and nonparticipants ----

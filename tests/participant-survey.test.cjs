@@ -937,7 +937,7 @@ test('direct survey opening cannot bypass round closure, status readiness or par
     partsForRound: () => [], partCompleted: () => false, draftKey: () => 'draft',
   });
   vm.runInContext(slice(current, '    function surveyRoundOpen(', '    function updatePartButtons('), context);
-  vm.runInContext(slice(current, '    function openSurvey(partIndex){', '      progressContext=isT2Survey()') + 'return "opened";}', context);
+  vm.runInContext(slice(current, '    function openSurvey(partIndex){', '      progressContext=usesPagedSurvey()') + 'return "opened";}', context);
   assert.equal(context.openSurvey(0), undefined);
   context.surveyRoundsOpen['2'] = true;
   assert.equal(context.openSurvey(0), 'opened');

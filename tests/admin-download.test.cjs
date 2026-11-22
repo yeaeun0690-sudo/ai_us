@@ -203,7 +203,10 @@ test('entire inline script parses and obsolete download paths are gone', () => {
 });
 
 test('T3 merged CSV uses its own unfiltered researcher download', () => {
-  assert.match(html, /id="dlT3Btn"[^>]*>[^<]*T3 통합 CSV \(전체 학교급\)/);
+  const section = html.match(/id="panel-download"[\s\S]*?<section class="card" aria-labelledby="t3ExportHeading">([^]*?)<\/section>\s*<div class="card">\s*<h3>설문 응답 결과<\/h3>/);
+  assert.ok(section, 'T3 export is a sibling before the filtered survey results');
+  assert.match(section[1], /id="dlT3Btn"[^>]*>[^<]*T3 통합 CSV \(전체 학교급\)/);
+  assert.doesNotMatch(section[1], /class="filters"/);
   assert.match(script, /t3Download\.addEventListener\('click',function\(\)\{\s*runAdminDownload\(this,[^\n]+\s*return downloadAdminFile\('\/api\/v1\/researcher\/exports\/survey-responses\/t3','survey-t3-merged\.csv'\)/);
 });
 

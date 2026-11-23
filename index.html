@@ -1285,7 +1285,8 @@
     if(typeof window!=='undefined'&&window.AI_US_PREVIEW)return Promise.reject(new Error('미리보기에서는 서버 요청을 하지 않습니다.'));
     options=options||{};
     options.headers=options.headers||{};
-    var quietFailure=path==='/api/v1/applications/status'||path==='/api/v1/participant/survey-sessions/heartbeat'||path.indexOf('/api/v1/survey-progress')===0||path==='/api/v1/participant/survey-status'||path.indexOf('/api/v1/participant/survey-configurations/')===0||path==='/api/v1/auth/participant/refresh';
+    var timedRequest=path==='/api/v1/participant/survey-status'||path.indexOf('/api/v1/participant/survey-configurations/')===0||path==='/api/v1/auth/participant/refresh';
+    var quietFailure=timedRequest||path==='/api/v1/applications/status'||path==='/api/v1/participant/survey-sessions/heartbeat'||path.indexOf('/api/v1/survey-progress')===0;
     var participantToken=sessionStorage.getItem('ai_us_access_token');
     if(path!=='/api/v1/auth/participant/refresh'&&options.headers.Authorization&&sessionStorage.getItem('ai_us_role')==='participant'&&participantToken&&aiUsParticipantTokenExpiresSoon(participantToken)){
       return aiUsMaybeRefreshParticipantSession().then(function(refreshed){
@@ -1298,22 +1299,35 @@
       options.headers['Content-Type']='application/json';
       options.body=JSON.stringify(options.body);
     }
-    return fetch(AI_US_API_BASE+path,options).then(function(response){
-      return response.json().catch(function(){return {};}).then(function(data){
-        if(!response.ok){
-          if(response.status>=500&&!quietFailure) aiUsShowTemporaryIssue();
-          if(response.status===401&&path.indexOf('/api/v1/auth/')!==0&&options.headers.Authorization==='Bearer '+sessionStorage.getItem('ai_us_access_token')&&sessionStorage.getItem('ai_us_role')==='participant'&&window.aiUsParticipantSessionExpired)window.aiUsParticipantSessionExpired();
-          var error=new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));
-          error.status=response.status;
-          throw error;
-        }
-        if(path!=='/api/v1/auth/participant/refresh'&&options.headers.Authorization)aiUsMaybeRefreshParticipantSession();
-        return data;
-      });
+    return aiUsFetchJson(path,options,timedRequest).then(function(result){
+      var response=result.response,data=result.data;
+      if(!response.ok){
+        if(response.status>=500&&!quietFailure) aiUsShowTemporaryIssue();
+        if(response.status===401&&path.indexOf('/api/v1/auth/')!==0&&options.headers.Authorization==='Bearer '+sessionStorage.getItem('ai_us_access_token')&&sessionStorage.getItem('ai_us_role')==='participant'&&window.aiUsParticipantSessionExpired)window.aiUsParticipantSessionExpired();
+        var error=new Error(Array.isArray(data.detail)?data.detail.map(function(item){return item.msg||'입력값을 확인해 주세요.';}).join(' '):(data.detail||'요청 처리 중 문제가 발생했어요.'));
+        error.status=response.status;
+        throw error;
+      }
+      if(path!=='/api/v1/auth/participant/refresh'&&options.headers.Authorization)aiUsMaybeRefreshParticipantSession();
+      return data;
     }).catch(function(error){
       if(!error.status&&!quietFailure) aiUsShowTemporaryIssue();
       throw error;
     });
+  }
+  async function aiUsFetchJson(path,options,timedRequest){
+    var controller=timedRequest?new AbortController():null;
+    var timer=controller?setTimeout(function(){controller.abort();},15000):null;
+    try{
+      var response=await fetch(AI_US_API_BASE+path,controller?Object.assign({},options,{signal:controller.signal}):options);
+      var data=await response.json().catch(function(error){
+        if(controller&&controller.signal.aborted)throw error;
+        return {};
+      });
+      return {response:response,data:data};
+    }finally{
+      if(timer!==null)clearTimeout(timer);
+    }
   }
   function aiUsParticipantTokenExpiresSoon(token){
     try{
@@ -1327,8 +1341,8 @@
     var token=sessionStorage.getItem('ai_us_access_token');
     if(!token||sessionStorage.getItem('ai_us_role')!=='participant'||!aiUsParticipantTokenExpiresSoon(token))return Promise.resolve(true);
     if(AI_US_PARTICIPANT_REFRESH_IN_FLIGHT)return AI_US_PARTICIPANT_REFRESH_IN_FLIGHT;
-    AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=fetch(AI_US_API_BASE+'/api/v1/auth/participant/refresh',{method:'POST',headers:{Authorization:'Bearer '+token}})
-      .then(function(response){return response.json().catch(function(){return {};}).then(function(data){if(!response.ok){var error=new Error(data.detail||'로그인이 만료되었습니다.');error.status=response.status;throw error;}return data;});})
+    AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=aiUsFetchJson('/api/v1/auth/participant/refresh',{method:'POST',headers:{Authorization:'Bearer '+token}},true)
+      .then(function(result){if(!result.response.ok){var error=new Error(result.data.detail||'로그인이 만료되었습니다.');error.status=result.response.status;throw error;}return result.data;})
       .then(function(data){if(sessionStorage.getItem('ai_us_access_token')!==token||sessionStorage.getItem('ai_us_role')!=='participant')return false;sessionStorage.setItem('ai_us_access_token',data.accessToken);sessionStorage.setItem('ai_us_chat_consent',data.chatConsent===true?'true':'false');return true;})
       .catch(function(error){if(error.status===401&&sessionStorage.getItem('ai_us_access_token')===token){sessionStorage.setItem('ai_us_session_expired','true');if(window.aiUsParticipantSessionExpired)window.aiUsParticipantSessionExpired();}return false;})
       .then(function(refreshed){AI_US_PARTICIPANT_REFRESH_IN_FLIGHT=null;return refreshed;});

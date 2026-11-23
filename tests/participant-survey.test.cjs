@@ -16,7 +16,7 @@ function requestContext() {
   const values = new Map();
   const state = { alerts: 0, refreshes: 0, calls: [] };
   const context = vm.createContext({
-    FormData: class {}, AI_US_API_BASE: 'https://invalid.test',
+    FormData: class {}, AbortController, setTimeout, clearTimeout, AI_US_API_BASE: 'https://invalid.test',
     sessionStorage: { getItem: key => values.get(key) || null },
     aiUsShowTemporaryIssue() { state.alerts++; },
     aiUsParticipantTokenExpiresSoon: () => false,
@@ -29,6 +29,44 @@ function requestContext() {
   vm.runInContext(slice(current, '  function aiUsRequest(', '  function aiUsParticipantTokenExpiresSoon('), context);
   return { context, state, values };
 }
+
+function waitForRequestAbort(signal) {
+  return new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+  });
+}
+
+test('survey lookup deadlines abort stalled headers and bodies without timing out submission', async () => {
+  const { context, state } = requestContext();
+  let expire, timerClears = 0;
+  context.setTimeout = (callback, delay) => { assert.equal(delay, 15000); expire = callback; return 1; };
+  context.clearTimeout = timer => { assert.equal(timer, 1); timerClears++; };
+  for (const [endpoint, stallBody] of [
+    ['/api/v1/participant/survey-status', false],
+    ['/api/v1/participant/survey-configurations/3', true],
+    ['/api/v1/auth/participant/refresh', true],
+  ]) {
+    let started;
+    const waiting = new Promise(resolve => { started = resolve; });
+    context.fetch = async (_url, options) => {
+      const stall = () => {
+        const pending = waitForRequestAbort(options.signal);
+        started();
+        return pending;
+      };
+      return stallBody ? { ok: true, json: stall } : stall();
+    };
+    const pending = context.aiUsRequest(endpoint);
+    await waiting;
+    expire();
+    await assert.rejects(pending, { name: 'AbortError' });
+  }
+  context.fetch = async (_url, options) => ({ ok: true, json: async () => ({ timed: !!options.signal }) });
+  assert.equal((await context.aiUsRequest('/api/v1/participant/survey-status')).timed, true);
+  assert.equal((await context.aiUsRequest('/api/v1/survey-responses', { method: 'POST' })).timed, false);
+  assert.equal(timerClears, 4);
+  assert.equal(state.alerts, 0);
+});
 
 function fixture(spec) {
   const selectors = new Map();
@@ -309,8 +347,16 @@ test('failed status lookup retries once, keeps its busy control, and survives to
     resumeParticipantSurvey() {},
   });
   vm.runInContext(slice(current, '    function loadServerSurveyProgress()', '    function restoreParticipantSession('), context);
-  context.aiUsRequest = () => { requests++; return Promise.reject(new Error('offline')); };
-  await context.loadServerSurveyProgress();
+  const lookup = requestContext().context;
+  let expire;
+  lookup.setTimeout = callback => { expire = callback; return 1; };
+  lookup.clearTimeout = () => {};
+  lookup.fetch = (_url, options) => waitForRequestAbort(options.signal);
+  context.aiUsRequest = (...args) => { requests++; return lookup.aiUsRequest(...args); };
+  const timedOut = context.loadServerSurveyProgress();
+  assert.equal(button.hidden, true);
+  expire();
+  await timedOut;
   assert.equal(context.serverStatusFailed, true);
   assert.equal(button.hidden, false);
   context.aiUsRequest = () => { requests++; return new Promise(resolve => { complete = resolve; }); };
@@ -614,24 +660,26 @@ test('only current participant authenticated 401 responses trigger session expir
 });
 
 test('refresh keeps its rolling contract and ignores stale account responses', async () => {
-  for (const [status, stale] of [[200, false], [401, false], [403, false], [503, false], [0, false], [200, true], [401, true]]) {
+  for (const [status, stale] of [[200, false], [401, false], [403, false], [503, false], [0, false], ['timeout', false], [200, true], [401, true]]) {
     const values = new Map([['ai_us_access_token', 'original'], ['ai_us_role', 'participant']]);
-    let notices = 0, calls = 0;
+    let notices = 0, calls = 0, expire;
     const context = vm.createContext({
       window: { aiUsParticipantSessionExpired() { notices++; } },
       AI_US_PARTICIPANT_REFRESH_IN_FLIGHT: null, AI_US_API_BASE: 'https://invalid.test',
-      aiUsParticipantTokenExpiresSoon: () => true,
+      AbortController, setTimeout(callback) { expire = callback; return 1; }, clearTimeout() {}, aiUsParticipantTokenExpiresSoon: () => true,
       sessionStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) },
       fetch: async (url, options) => {
         calls++; assert.equal(options.headers.Authorization, 'Bearer original');
         if (stale) values.set('ai_us_access_token', 'new-account-token');
+        if (status === 'timeout') return waitForRequestAbort(options.signal);
         if (!status) throw new TypeError('offline');
         return { ok: status === 200, status, json: async () => ({ accessToken: 'rotated', chatConsent: true }) };
       },
     });
-    vm.runInContext(slice(current, '  function aiUsMaybeRefreshParticipantSession()', '  setInterval(function(){aiUsMaybeRefreshParticipantSession();}'), context);
+    vm.runInContext(slice(current, '  async function aiUsFetchJson(', '  function aiUsParticipantTokenExpiresSoon(') + slice(current, '  function aiUsMaybeRefreshParticipantSession()', '  setInterval(function(){aiUsMaybeRefreshParticipantSession();}'), context);
     const pending = context.aiUsMaybeRefreshParticipantSession();
     assert.equal(context.aiUsMaybeRefreshParticipantSession(), pending);
+    if (status === 'timeout') expire();
     assert.equal(await pending, status === 200 && !stale);
     assert.equal(calls, 1);
     assert.equal(notices, status === 401 && !stale ? 1 : 0);

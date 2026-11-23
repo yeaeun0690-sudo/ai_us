@@ -12,6 +12,22 @@ const slice = (source, start, end) => source.slice(source.indexOf(start), source
 const tests = [];
 function test(name, run) { tests.push({ name, run }); }
 
+test('participant chat submission shows only the permitted character tools and notice', () => {
+  const nodes = new Map(['chatOv', 'chatTitle', 'chatBody'].map(id => [id, {}]));
+  const context = vm.createContext({
+    document: { getElementById: id => nodes.get(id), querySelectorAll: () => [] },
+  });
+  const start = current.indexOf('    var CHAT_TOOLS=');
+  const end = current.indexOf('      chatFile=null;', current.indexOf('    function openTool(id)'));
+  vm.runInContext(current.slice(start, end) + '}', context);
+  context.renderToolSelect();
+  const markup = nodes.get('chatBody').innerHTML;
+  assert.match(markup, /^<p class="chat-character-notice">지금은 캐릭터 챗봇 서비스의 대화문만 제출이 가능해요<\/p>/);
+  assert.deepEqual(Array.from(markup.matchAll(/data-tool="([^"]+)"/g), match => match[1]), ['zeta', 'crack', 'other']);
+  context.openTool('chatgpt');
+  assert.equal(nodes.get('chatBody').innerHTML, markup);
+});
+
 function requestContext() {
   const values = new Map();
   const state = { alerts: 0, refreshes: 0, calls: [] };

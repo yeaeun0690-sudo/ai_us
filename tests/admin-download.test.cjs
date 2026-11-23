@@ -9,6 +9,21 @@ const html = fs.readFileSync(path.join(__dirname, '../researcher.html'), 'utf8')
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const helper = script.slice(script.indexOf('  var adminDownloadBusy='), script.indexOf('  function esc(s)'));
 
+test('chat participation status omits retired round four even when the server reports it', () => {
+  const chart = {};
+  const start = script.indexOf('      var chat=data.chat||{}');
+  const end = script.indexOf('    }).catch(', start);
+  vm.runInNewContext(script.slice(start, end), {
+    data: { chat: { submittedAfterRound4: { total: 42 } } },
+    document: { getElementById: id => id === 'statusChatChart' ? chart : null },
+    schoolBars: counts => String(counts.total || 0),
+  });
+  assert.deepEqual(Array.from(chart.innerHTML.matchAll(/data-incomplete-criterion="([^"]+)"/g), match => match[1]), ['afterRound1', 'afterRound2', 'afterRound3']);
+  assert.doesNotMatch(chart.innerHTML, /4차|42/);
+  assert.doesNotMatch(html, /id="statusChatRound4"/);
+  assert.match(html, /<option value="대화문 2 \(4차 후\)">4차 후 \(과거 기록\)<\/option>/);
+});
+
 test('allowlist menu is last and all original panels remain outside the sidebar', () => {
   const sidebar = html.match(/<nav class="side" id="side">[\s\S]*?<\/nav>/)[0];
   const menu = Array.from(sidebar.matchAll(/data-panel="([^"]+)"/g), match => match[1]);

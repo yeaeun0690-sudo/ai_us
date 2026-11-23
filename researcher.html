@@ -521,10 +521,9 @@
             <p class="sub">대화문 제출에 동의한 인원과 실제 제출 이력을 비교합니다. 삭제 요청된 제출도 이력으로 표시합니다.</p>
             <div class="status-bars" id="statusChatChart"><p class="sub">대화문 참여 현황을 불러오는 중이에요.</p></div>
             <div class="status-bar-legend"><span><i class="elementary"></i>초등</span><span><i class="middle"></i>중등</span><span><i class="high"></i>고등</span><span>회색: 등록 인원 중 미제출</span></div>
-            <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
+            <div class="stats" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
               <div class="stat"><div class="k">제출 동의자</div><div class="v" id="statusChatConsented">-<small>명</small></div></div>
               <div class="stat"><div class="k">1차 후 제출자</div><div class="v" id="statusChatRound1">-<small>명</small></div></div>
-              <div class="stat"><div class="k">4차 후 제출자 (과거 기록)</div><div class="v" id="statusChatRound4">-<small>명</small></div></div>
             </div>
           </div>
         </div>
@@ -1586,10 +1585,10 @@
       if(surveyBody){
         surveyBody.innerHTML=data.completedByRound.length?data.completedByRound.map(function(item){var counts=item.counts||{};return '<tr><td>'+esc(item.surveyRound)+'회차'+(item.surveyRound===4?' (과거 기록)':'')+'</td><td>'+completionCell(counts.elementary||0,data.participants.elementary)+'</td><td>'+completionCell(counts.middle||0,data.participants.middle)+'</td><td>'+completionCell(counts.high||0,data.participants.high)+'</td><td><b>'+completionCell(item.completedCount,data.participants.total)+'</b></td></tr>';}).join(''):'<tr><td colspan="5">아직 완료된 설문이 없어요.</td></tr>';
       }
-      var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round2=chat.submittedAfterRound2||{},round3=chat.submittedAfterRound3||{},round4=chat.submittedAfterRound4||{};
+      var chat=data.chat||{},consented=chat.consented||{},round1=chat.submittedAfterRound1||{},round2=chat.submittedAfterRound2||{},round3=chat.submittedAfterRound3||{};
       var chatChart=document.getElementById('statusChatChart');
-      if(chatChart){chatChart.innerHTML=[['제출 동의',consented,''],['1차 후 제출',round1,'afterRound1'],['2차 후 제출',round2,'afterRound2'],['3차 후 제출',round3,'afterRound3'],['4차 후 제출',round4,'afterRound4']].map(function(item){var label=item[2]?'<button class="linkbtn status-round-label" data-incomplete-category="chat" data-incomplete-criterion="'+item[2]+'" type="button">'+item[0]+'</button>':'<div class="status-round-label">'+item[0]+'</div>';return '<div class="status-round">'+label+'<div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
-      [['statusChatConsented',consented.total],['statusChatRound1',round1.total],['statusChatRound4',round4.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
+      if(chatChart){chatChart.innerHTML=[['제출 동의',consented,''],['1차 후 제출',round1,'afterRound1'],['2차 후 제출',round2,'afterRound2'],['3차 후 제출',round3,'afterRound3']].map(function(item){var label=item[2]?'<button class="linkbtn status-round-label" data-incomplete-category="chat" data-incomplete-criterion="'+item[2]+'" type="button">'+item[0]+'</button>':'<div class="status-round-label">'+item[0]+'</div>';return '<div class="status-round">'+label+'<div class="status-bar-list">'+schoolBars(item[1])+'</div></div>';}).join('');}
+      [['statusChatConsented',consented.total],['statusChatRound1',round1.total]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.innerHTML=(item[1]||0)+'<small>명</small>';});
     }).catch(function(error){var surveyBody=document.getElementById('statusSurveyBody');if(surveyBody)surveyBody.innerHTML='<tr><td colspan="5">'+esc(error.message)+'</td></tr>';});
     function formatPhone(phone){
       var digits=String(phone||'').replace(/\D/g,'');

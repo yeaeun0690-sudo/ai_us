@@ -12,6 +12,23 @@ const slice = (source, start, end) => source.slice(source.indexOf(start), source
 const tests = [];
 function test(name, run) { tests.push({ name, run }); }
 
+test('chat submission label and point prefer the latest completed active round', () => {
+  const label = {};
+  const button = { setAttribute(name, value) { this[name] = value; } };
+  const context = vm.createContext({
+    window: {}, chatOpen: null, chatLocked: null, chatTabBtn: null,
+    sessionStorage: { getItem: () => 'true' },
+    document: { querySelectorAll: () => [button], getElementById: id => id === 'chatPointLabel' ? label : null },
+  });
+  vm.runInContext(slice(current, '    function applyChatConsent()', '    window.applyChatConsent='), context);
+  for (const [rounds, expected] of [[[1, 2, 3], 3], [[2, 4], 2], [[1], 1]]) {
+    context.window.aiUsCompletedRounds = rounds;
+    context.applyChatConsent();
+    assert.equal(button['data-point'], 'afterRound' + expected);
+    assert.match(label.textContent, new RegExp('^' + expected + '차'));
+  }
+});
+
 test('participant chat submission shows only the permitted character tools and notice', () => {
   const nodes = new Map(['chatOv', 'chatTitle', 'chatBody'].map(id => [id, {}]));
   const context = vm.createContext({

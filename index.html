@@ -2637,11 +2637,13 @@
     var chatTabBtn=tabs.querySelector('[data-tab="chat"]');
 
     function applyChatConsent(){
-      var consent=!window.AI_US_PREVIEW&&sessionStorage.getItem('ai_us_chat_consent')==='true'&&(window.aiUsCompletedRounds||[]).length>0;
+      var rounds=window.aiUsCompletedRounds||[];
+      var completedRound=[3,2,1].find(function(round){return rounds.indexOf(round)>=0;});
+      var consent=!window.AI_US_PREVIEW&&sessionStorage.getItem('ai_us_chat_consent')==='true'&&!!completedRound;
       if(window.aiUsParticipationPaused)consent=consent&&window.aiUsChatSubmissionAllowed===true;
       var eligibility=document.getElementById('chatEligibilityMessage');if(eligibility)eligibility.textContent=window.aiUsParticipationPaused?(window.aiUsChatSubmissionReason||'설문을 한 회차 이상 완료하고 대화문 제출에 동의하면 추가 제출할 수 있습니다.'):'신청할 때 대화문 제출에 동의하고 설문을 한 회차 이상 완료하면 이용할 수 있어요.';
-      document.querySelectorAll('.chat-go').forEach(function(button){var rounds=window.aiUsCompletedRounds||[];button.setAttribute('data-point','afterRound'+(rounds.indexOf(2)>=0?2:rounds[0]||1));});
-      var pointLabel=document.getElementById('chatPointLabel'),rounds=window.aiUsCompletedRounds||[];if(pointLabel)pointLabel.textContent=(rounds.length?(rounds.indexOf(2)>=0?2:rounds[0])+'차 설문 완료 후 제출':'설문 완료 후 제출')+' · 10,000원 상당';
+      document.querySelectorAll('.chat-go').forEach(function(button){button.setAttribute('data-point','afterRound'+(completedRound||1));});
+      var pointLabel=document.getElementById('chatPointLabel');if(pointLabel)pointLabel.textContent=(completedRound?completedRound+'차 설문 완료 후 제출':'설문 완료 후 제출')+' · 10,000원 상당';
       if(chatOpen&&chatLocked){
         chatOpen.style.display=consent?'':'none';
         chatLocked.style.display=consent?'none':'';
